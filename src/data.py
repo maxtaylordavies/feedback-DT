@@ -1,26 +1,9 @@
-import os
 import random
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 from datasets import load_dataset
-from transformers import (
-    DecisionTransformerConfig,
-    DecisionTransformerModel,
-    Trainer,
-    TrainingArguments,
-)
-
-from src.utils import log, setupGPU
-
-os.environ[
-    "WANDB_DISABLED"
-] = "true"  # we diable weights and biases logging for this tutorial
-dataset = load_dataset(
-    "edbeeching/decision_transformer_gym_replay", "halfcheetah-expert-v2"
-)
-
 
 @dataclass
 class DecisionTransformerGymDataCollator:
@@ -153,39 +136,3 @@ class DecisionTransformerGymDataCollator:
             "timesteps": timesteps,
             "attention_mask": mask,
         }
-
-
-class TrainableDT(DecisionTransformerModel):
-    def __init__(self, config):
-        super().__init__(config)
-
-    def forward(self, **kwargs):
-        output = super().forward(**kwargs)
-        # add the DT loss
-        action_preds = output[1]
-        action_targets = kwargs["actions"]
-        attention_mask = kwargs["attention_mask"]
-        act_dim = action_preds.shape[2]
-        action_preds = action_preds.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_targets = action_targets.reshape(-1, act_dim)[
-            attention_mask.reshape(-1) > 0
-        ]
-
-        loss = torch.mean((action_preds - action_targets) ** 2)
-
-        return {"loss": loss}
-
-    def original_forward(self, **kwargs):
-        return super().forward(**kwargs)
-
-
-
-def main():
-    setupGPU()
-    collator = DecisionTransformerGymDataCollator(dataset["train"])
-    log("collator.n_traj", collator.n_traj)
-    log("collator.state_mean", collator.state_mean)
-
-
-if __name__ == "__main__":
-    main()

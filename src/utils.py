@@ -18,8 +18,14 @@ def log(msg, outPath=None):
             f.write(msg + "\n")
 
 
-def setupGPU(seed=None):
-    useCuda = torch.cuda.is_available()
+def setupDevices(useGpu=True, seed=None):
+    useCuda = useGpu and torch.cuda.is_available()
+    if useGpu and not useCuda:
+        raise ValueError(
+            "You wanted to use cuda but it is not available. "
+            "Check nvidia-smi and your configuration. If you do "
+            "not want to use cuda, pass the --no-gpu flag."
+        )
 
     device = torch.device("cuda" if useCuda else "cpu")
     log(f"Using device: {torch.cuda.get_device_name()}")
