@@ -1,5 +1,3 @@
-
-
 #!/bin/bash
 # Author(s): James Owers (james.f.owers@gmail.com)
 #
