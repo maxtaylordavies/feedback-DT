@@ -1,1 +1,1 @@
-python ../src/train_baseline.py
+python ../src/train.py

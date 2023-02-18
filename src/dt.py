@@ -3,10 +3,7 @@ from dataclasses import dataclass
 import torch
 from datasets import load_dataset
 from transformers import (
-    DecisionTransformerConfig,
     DecisionTransformerModel,
-    Trainer,
-    TrainingArguments,
 )
 
 

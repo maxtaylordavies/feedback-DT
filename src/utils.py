@@ -18,7 +18,7 @@ def log(msg, outPath=None):
             f.write(msg + "\n")
 
 
-def setupDevices(useGpu=True, seed=None):
+def setup_devices(useGpu=True, seed=None):
     useCuda = useGpu and torch.cuda.is_available()
     if useGpu and not useCuda:
         raise ValueError(
