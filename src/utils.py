@@ -13,8 +13,8 @@ def log(msg, outPath=None):
     """
     msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: {msg}"
     print(msg)
-    if outPath is not None:
-        with open(outPath, "a") as f:
+    if outPath:
+        with open(outPath, "a+") as f:
             f.write(msg + "\n")
 
 

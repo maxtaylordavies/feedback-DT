@@ -86,8 +86,8 @@ def main(args):
     )
 
     collator = DecisionTransformerGymDataCollator(dataset["train"])
-    log("collator.n_traj", collator.n_traj)
-    log("collator.state_mean", collator.state_mean)
+    log(f"collator.n_traj:, {collator.n_traj}")
+    log(f"collator.state_mean: {collator.state_mean}")
 
     # config = DecisionTransformerConfig(
     #     state_dim=collator.state_dim, act_dim=collator.act_dim
