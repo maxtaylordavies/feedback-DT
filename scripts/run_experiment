@@ -28,6 +28,9 @@ Arguments:
   -m (optional) max_nr_parallel_jobs : int
      the maximum number of jobs that can run simultaneously. If not
      not specified, defaults to 10
+
+  -g (optional) gpus : int
+     the number of gpus to use. If not specified, defaults to 1
      
   all remaining args (optional) sbatch_arg : str
      all remaining arguments will be combined and supplied to the sbatch
@@ -49,13 +52,15 @@ EOM
 BASH_SCRIPT=""
 EXPT_FILE=""
 MAX_PARALLEL_JOBS=10
+NUM_GPUS=1
 
 # Parse args
-while getopts 'b:e:m:h' flag; do
+while getopts 'b:e:m:g:h' flag; do
   case "${flag}" in
     b) BASH_SCRIPT="${OPTARG}" ;;
     e) EXPT_FILE="${OPTARG}" ;;
     m) MAX_PARALLEL_JOBS="${OPTARG}" ;;
+    g) NUM_GPUS="${OPTARG}" ;;
     h) print_usage
        exit ;;
   esac
@@ -107,7 +112,7 @@ fi
 NR_EXPTS=`cat ${EXPT_FILE} | wc -l`
 echo "Executing command: "\
    "sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS}"\
-        "$SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE"
+        "--gres=gpu:${NUM_GPUS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE"
 
 # Run the sbatch command
-sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE
+sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS} --gres=gpu:${NUM_GPUS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE

@@ -10,7 +10,7 @@ PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/experiment_name"
+DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/baseline"
 
 # this is the base command that will be used for the experiment
 base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output"
