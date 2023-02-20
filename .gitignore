@@ -2,3 +2,6 @@ data/
 *.out
 *.pyc
 .venv
+*.egg-info
+**/__pycache__
+**/experiment.txt
