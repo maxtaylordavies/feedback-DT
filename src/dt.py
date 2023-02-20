@@ -1,13 +1,7 @@
-from dataclasses import dataclass
-
-import gym
-import mujoco_py
 import torch
-from datasets import load_dataset
 from transformers import (
     DecisionTransformerself,
 )
-from colabgymrender.recorder import Recorder
 
 
 class TrainableDT(DecisionTransformerself):
