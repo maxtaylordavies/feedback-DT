@@ -1,13 +1,16 @@
-from argparsing import get_dataset_args
+
+import json
+import os
+
 import gymnasium as gym
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
-import json
 import minari
 from minari.dataset import MinariDataset
 from minari.storage.datasets_root_dir import get_file_path
 import minigrid 
 import numpy as np
-import os
+
+from src.argparsing import get_dataset_args
 
 def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed=42):
     env = gym.make(env_name)
