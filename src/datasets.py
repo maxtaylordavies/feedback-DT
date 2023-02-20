@@ -130,9 +130,9 @@ def get_local_datasets():
 
 if __name__ == "__main__":
     args = get_dataset_args()
-    env_name = args["env_name"]
-    num_episodes = args["num_episodes"]
-    include_timeout = args["include_timeout"]
+    env_name = args["env-name"]
+    num_episodes = args["num-episodes"]
+    include_timeout = args["include-timeout"]
     
     dataset_name = name_dataset(env_name, num_episodes, include_timeout)
     local_datasets = get_local_datasets()
