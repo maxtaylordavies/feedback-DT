@@ -20,9 +20,6 @@ class Recorder(gym.Wrapper):
         self.directory = directory
         self.filename = f"{time.time()}.mp4" if not filename else filename
         self.path = os.path.join(self.directory, self.filename)
-
-        print(f"RECORDING VIDEO TO {self.path}")
-
         self.auto_release = auto_release
         self.active = True
         self.rgb = rgb

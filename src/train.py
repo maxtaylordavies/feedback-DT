@@ -149,7 +149,7 @@ def main(args):
     dataset, collator, model = load_data_and_create_model()
 
     # train the model
-    # model = train_model(args, dataset, collator, model)
+    model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
     visualise_trained_model(args, collator, model)
