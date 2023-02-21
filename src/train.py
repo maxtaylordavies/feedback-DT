@@ -3,7 +3,6 @@ from datetime import datetime
 
 from datasets import load_dataset
 import gym
-import mujoco_py
 from transformers import (
     DecisionTransformerConfig,
     Trainer,
@@ -38,11 +37,11 @@ def load_data_and_create_model():
 def train_model(args, dataset, collator, model):
     # initialise the trainer
     training_args = TrainingArguments(
-        run_name=args["run-name"],
+        run_name=args["run_name"],
         output_dir=args["output"],
         remove_unused_columns=False,
         num_train_epochs=args["epochs"],
-        per_device_train_batch_size=args["batch-size"],
+        per_device_train_batch_size=args["batch_size"],
         learning_rate=args["lr"],
         weight_decay=1e-4,
         warmup_ratio=0.1,
@@ -66,13 +65,13 @@ def train_model(args, dataset, collator, model):
 
 def visualise_trained_model(args, collator, model):
     # create the output directory if it doesn't exist
-    output_dir = os.path.join(args["output"], args["run-name"])
+    output_dir = os.path.join(args["output"], args["run_name"])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     # build an environment to visualise the trained model
-    env = gym.make("HalfCheetah-v3")
-    env = Recorder(env, output_dir, fps=30)
+    env = gym.make("HalfCheetah-v4", render_mode="rgb_array")
+    env = Recorder(env, output_dir, filename="model.mp4", fps=30)
     max_ep_len, scale = 1000, 1000.0  # normalization for rewards/returns
     target_return = (
         12000 / scale
@@ -94,7 +93,7 @@ def visualise_trained_model(args, collator, model):
         target_return, device=device, dtype=torch.float32
     ).reshape(1, 1)
     states = (
-        torch.from_numpy(state)
+        torch.from_numpy(state[0])
         .reshape(1, state_dim)
         .to(device=device, dtype=torch.float32)
     )
@@ -116,7 +115,7 @@ def visualise_trained_model(args, collator, model):
         actions[-1] = action
         action = action.detach().cpu().numpy()
 
-        state, reward, done, _ = env.step(action)
+        state, reward, done, _, _ = env.step(action)
 
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)
@@ -135,22 +134,22 @@ def visualise_trained_model(args, collator, model):
         if done:
             break
 
-    log("Saving video...")
-    env.save()
+    # log("Saving video...")
+    # env.save()
 
 
 def main(args):
     # do some setup
-    if not args["run-name"]:
-        args["run-name"] = f"dt-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        log(f"run-name not specified, using {args['run_name']}")
-    setup_devices(not args["no-gpu"], args["seed"])
+    if not args["run_name"]:
+        args["run_name"] = f"dt-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        log(f"run_name not specified, using {args['run_name']}")
+    setup_devices(not args["no_gpu"], args["seed"])
 
     # load the data and create the model
     dataset, collator, model = load_data_and_create_model()
 
     # train the model
-    model = train_model(args, dataset, collator, model)
+    # model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
     visualise_trained_model(args, collator, model)

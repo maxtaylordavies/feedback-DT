@@ -1,10 +1,10 @@
 import torch
 from transformers import (
-    DecisionTransformerself,
+    DecisionTransformerModel,
 )
 
 
-class TrainableDT(DecisionTransformerself):
+class TrainableDT(DecisionTransformerModel):
     def __init__(self, config):
         super().__init__(config)
 

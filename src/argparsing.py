@@ -17,7 +17,7 @@ def get_training_args():
     parser = argparse.ArgumentParser(description="Decision transformer training")
 
     parser.add_argument(
-        "--run-name",
+        "--run_name",
         type=str,
         default="",
         metavar="N",
@@ -31,7 +31,7 @@ def get_training_args():
         help="number of epochs to train (default: 10)",
     )
     parser.add_argument(
-        "--batch-size",
+        "--batch_size",
         type=int,
         default=64,
         metavar="N",
@@ -52,7 +52,7 @@ def get_training_args():
         help="Learning rate step gamma (default: 0.7)",
     )
     parser.add_argument(
-        "--no-gpu", action="store_true", default=False, help="disables GPU training"
+        "--no_gpu", action="store_true", default=False, help="disables GPU training"
     )
     parser.add_argument(
         "--seed",
@@ -62,7 +62,7 @@ def get_training_args():
         help="random seed (default: random number)",
     )
     parser.add_argument(
-        "--log-interval",
+        "--log_interval",
         type=int,
         default=10,
         metavar="N",

@@ -3,7 +3,6 @@ import time
 
 import cv2
 import gym
-from moviepy.editor import *
 
 
 class Recorder(gym.Wrapper):
@@ -20,6 +19,10 @@ class Recorder(gym.Wrapper):
         super(Recorder, self).__init__(env)
         self.directory = directory
         self.filename = f"{time.time()}.mp4" if not filename else filename
+        self.path = os.path.join(self.directory, self.filename)
+
+        print(f"RECORDING VIDEO TO {self.path}")
+
         self.auto_release = auto_release
         self.active = True
         self.rgb = rgb
@@ -29,7 +32,7 @@ class Recorder(gym.Wrapper):
 
         if size is None:
             self.env.reset()
-            self.size = self.env.render(mode="rgb_array").shape[:2][::-1]
+            self.size = self.env.render().shape[:2][::-1]
         else:
             self.size = size
 
@@ -48,14 +51,12 @@ class Recorder(gym.Wrapper):
         self.active = True
 
     def _start(self):
-        self.cliptime = time.time()
-        self.path = f"{self.directory}/{self.cliptime}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*"MP4V")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
 
     def _write(self):
         if self.active:
-            frame = self.env.render(mode="rgb_array")
+            frame = self.env.render()
             if self.rgb:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self._writer.write(frame)
@@ -71,17 +72,10 @@ class Recorder(gym.Wrapper):
 
     def step(self, *args, **kwargs):
         data = self.env.step(*args, **kwargs)
+
         self._write()
 
         if self.auto_release and data[2]:
             self.release()
 
         return data
-
-    def save(self):
-        clip = VideoFileClip(self.path)
-        clip.write_videofile(
-            os.path.join(self.directory, self.filename),
-            progress_bar=False,
-            verbose=False,
-        )

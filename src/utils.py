@@ -24,7 +24,7 @@ def setup_devices(useGpu=True, seed=None):
         raise ValueError(
             "You wanted to use cuda but it is not available. "
             "Check nvidia-smi and your configuration. If you do "
-            "not want to use cuda, pass the --no-gpu flag."
+            "not want to use cuda, pass the --no_gpu flag."
         )
 
     device = torch.device("cuda" if useCuda else "cpu")
