@@ -64,9 +64,18 @@ def get_training_args():
     parser.add_argument(
         "--log_interval",
         type=int,
-        default=10,
+        default=1,
         metavar="N",
-        help="how many batches to wait before logging " "training status",
+        help="how many batches to wait before logging training status (default: 1)",
+    )
+    parser.add_argument(
+        "--visualise-interval",
+        type=str,
+        default="end",
+        help="interval at which to visualise model's performance in the environment (default: end)",
+    )
+    parser.add_argument(
+        "--wandb_mode", type=str, default="online", help="wandb mode - can be online, offline, or disabled (default: online)"
     )
     parser.add_argument(
         "--checkpoint", type=str, default="", help="path to pytorch checkpoint file"
