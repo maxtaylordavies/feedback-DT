@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import socket
 
 import torch
 
@@ -24,7 +25,7 @@ def setup_devices(useGpu=True, seed=None):
         raise ValueError(
             "You wanted to use cuda but it is not available. "
             "Check nvidia-smi and your configuration. If you do "
-            "not want to use cuda, pass the --no-gpu flag."
+            "not want to use cuda, pass the --no_gpu flag."
         )
 
     device = torch.device("cuda" if useCuda else "cpu")
@@ -44,3 +45,13 @@ def setup_devices(useGpu=True, seed=None):
         torch.backends.cudnn.deterministic = True
         # This does make things slower :(
         torch.backends.cudnn.benchmark = False
+
+def is_network_connection():
+    host, port, timeout = "8.8.8.8", 53, 3
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except socket.error as ex:
+        log(f"Network connection error: {ex}")
+        return False
