@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import torch
-from datasets import load_dataset
+from get_datasets import load_dataset
 from transformers import (
     DecisionTransformerModel,
 )
