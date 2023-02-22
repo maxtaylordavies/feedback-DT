@@ -3,6 +3,7 @@ from transformers import (
     DecisionTransformerModel,
 )
 
+from get_datasets import load_dataset
 
 class TrainableDT(DecisionTransformerModel):
     def __init__(self, config):
