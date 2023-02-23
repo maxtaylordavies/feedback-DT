@@ -9,7 +9,7 @@ from minari.storage.datasets_root_dir import get_file_path
 import minigrid 
 import numpy as np
 
-from src.argparsing import get_dataset_args
+from argparsing import get_dataset_args
 
 def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed=42):
     env = gym.make(env_name)
@@ -97,7 +97,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
         environment_name=env_name,
         environment_stack=json.dumps(environment_stack),
         seed_used=42,
-        code_permalink=None,
+        code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/get_datasets.py",
         author="SabrinaMcCallum",
         author_email="s2431177@ed.ac.uk",
         observations=replay_buffer["observation"],
@@ -138,9 +138,9 @@ def load_dataset(dataset_name):
 
 if __name__ == "__main__":
     args = get_dataset_args()
-    env_name = args["env-name"]
-    num_episodes = args["num-episodes"]
-    include_timeout = args["include-timeout"]
+    env_name = args["env_name"]
+    num_episodes = args["num_episodes"]
+    include_timeout = args["include_timeout"]
     
     dataset_name = name_dataset(env_name, num_episodes, include_timeout)
     local_datasets = list_local_datasets()
