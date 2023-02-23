@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+minigrid = "*"
+numpy = "*"
+cython = "*"
+minari = {git = "https://github.com/Farama-Foundation/Minari.git"}
+gymnasium = {ref = "spec_stack", git = "https://github.com/WillDudley/Gymnasium.git"}
+gymnasium-robotics = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.7"
