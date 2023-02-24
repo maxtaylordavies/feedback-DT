@@ -5,3 +5,4 @@ data/
 *.egg-info
 **/__pycache__
 **/experiment.txt
+Pipfile.lock
