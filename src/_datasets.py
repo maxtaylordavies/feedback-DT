@@ -7,12 +7,42 @@ import minari
 from minari.dataset import MinariDataset
 from minari.storage.datasets_root_dir import get_file_path
 import numpy as np
-import minigrid
 
-from src.argparsing import get_dataset_args
+from src.argparsing import get_args
+from src.utils import log
 
 
-def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed=42):
+def get_dataset(args):
+    dataset_name = name_dataset(args)
+
+    # optionally check if dataset already exists locally and load it
+    if args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
+        log(f"Loading dataset {dataset_name} from local storage")
+        return minari.load_dataset(dataset_name)
+
+    # generate a new dataset
+    return generate_new_dataset(
+        env_name=args["env_name"],
+        num_episodes=args["num_episodes"],
+        include_timeout=args["include_timeout"],
+        seed=args["seed"],
+    )
+
+
+def list_local_datasets():
+    datasets_path = get_file_path("").parent
+    return [
+        f[:-5]
+        for f in os.listdir(datasets_path)
+        if os.path.isfile(os.path.join(datasets_path, f))
+    ]
+
+
+def name_dataset(args):
+    return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
+
+
+def generate_new_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed: int):
     env = gym.make(env_name)
     # TODO Consider whether there is any advantage in using the RGBImgPartialObsWrapper()
 
@@ -81,10 +111,8 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     else:
         episode_terminals = None
 
-    dataset_name = name_dataset(env_name, num_episodes, include_timeout)
-
-    dataset = MinariDataset(
-        dataset_name=dataset_name,
+    return MinariDataset(
+        dataset_name=name_dataset(env_name, num_episodes, include_timeout),
         algorithm_name="random_policy",
         environment_name=env_name,
         environment_stack=json.dumps(environment_stack),
@@ -100,41 +128,9 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
         episode_terminals=episode_terminals,
     )
 
-    return dataset
-
-
-def name_dataset(env_name: str, num_episodes: int, include_timeout: bool):
-    return (
-        f"{env_name}_{num_episodes}-eps_{'incl' if include_timeout else 'excl'}-timeout"
-    )
-
-
-def get_local_datasets():
-    datasets_path = get_file_path("").parent
-    datasets = [
-        f[:-5]
-        for f in os.listdir(datasets_path)
-        if os.path.isfile(os.path.join(datasets_path, f))
-    ]
-    return datasets
-
 
 if __name__ == "__main__":
-    args = get_dataset_args()
-    print(args)
-    env_name = args["env_name"]
-    num_episodes = args["num_episodes"]
-    include_timeout = args["include_timeout"]
-
-    dataset_name = name_dataset(env_name, num_episodes, include_timeout)
-    local_datasets = get_local_datasets()
-
-    if dataset_name in local_datasets:
-        dataset = minari.load_dataset(dataset_name)
-        print(f"Success! Loaded dataset {dataset_name}")
-    else:
-        dataset = generate_dataset(env_name, num_episodes, include_timeout)
-        print(f"Success! Generated dataset {dataset_name}")
-
+    args = get_args()
+    dataset = get_dataset(args)
     dataset.save()
-    print(f"Success! Saved dataset {dataset_name}")
+    print(f"Success! Saved dataset {dataset.dataset_name}")

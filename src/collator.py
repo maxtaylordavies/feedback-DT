@@ -1,83 +1,103 @@
-import random
 from dataclasses import dataclass
 from itertools import accumulate
 
 import numpy as np
 import torch
 
-from get_datasets import load_dataset
+from src.utils import to_one_hot
 
 
 @dataclass
 class DecisionTransformerMinariDataCollator:
-    def __init__(self, minari_dataset, max_len=20, scale=1000.0, gamma=0.99) -> None:
-        self.max_len, self.scale, self.gamma = max_len, scale, gamma
+    def __init__(self, minari_dataset, max_sample_len=20, scale=1000.0, gamma=0.99) -> None:
+        self.max_sample_len, self.scale, self.gamma = max_sample_len, scale, gamma
         self.num_episodes = len(minari_dataset)
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(minari_dataset.terminals == 1)[0]
+        self.episode_ends = np.where(
+            minari_dataset.terminations + minari_dataset.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate(
-            [[0], self.episode_ends[0][: self.num_episodes - 1] - 1]
+            [[0], self.episode_ends[: self.num_episodes - 1] + 1]
         )
 
         # compute episode lengths, and thus define a distribution
         # for sampling episodes with a probability proportional to their length
-        self.episode_lengths = self.episode_ends - self.episode_starts
+        self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.episode_probabilities = self.episode_lengths / sum(self.episode_lengths)
 
-        # store observations, actions, rewards, and episode terminations
-        self.obs_dim = np.prod(minari_dataset.get_observation_shape())
-        self.observations = minari_dataset.observations.reshape((-1, self.obs_dim))
-        self.actions = minari_dataset.actions
+        # set state and action dimensions
+        self.state_dim, self.act_dim = (
+            np.prod(minari_dataset.get_observation_shape()),
+            minari_dataset.get_action_size(),
+        )
+
+        # store observations, actions and rewards
+        self.observations = minari_dataset.observations.reshape((-1, self.state_dim))
+        self.actions = to_one_hot(minari_dataset.actions, self.act_dim) # convert from index integer representation to one-hot
         self.rewards = minari_dataset.rewards
-        self.terminals = minari_dataset.terminals
+
+        # compute observation statistics
+        self.observation_mean, self.observation_std = (
+            np.mean(self.observations, axis=0),
+            np.std(self.observations, axis=0) + 1e-6,  # avoid division by zero
+        )
 
     def _normalise_states(self, states):
-        return (states - self.state_mean) / self.state_std
+        return (states - self.observation_mean) / self.observation_std
 
+    # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
-        pad_width = pad_width or self.max_len - x.shape[1]
-        pad_shape = (
-            ((0, 0), (pad_width, 0), (0, 0)) if before else ((0, 0), (0, pad_width), (0, 0))
-        )
+        pad_width = pad_width or max(self.max_sample_len - x.shape[1], 0)
+        pad_shape = [(0, 0)] * len(x.shape)
+        pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
     def _discounted_cumsum(self, x, gamma):
         return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
 
     def _sample_batch(self, batch_size):
-        s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
+        s, a, r, rtg, timesteps, mask = [], [], [], [], [], []
 
-        # sample a number of episode start timesteps
-        start_timesteps = np.random.choice(
-            self.episode_starts, size=batch_size, p=self.episode_probabilities
+        # sample episodes with a probability proportional to their length
+        episode_indices = np.random.choice(
+            np.arange(self.num_episodes), size=batch_size, p=self.episode_probabilities
         )
 
-        for i, episode_start in enumerate(start_timesteps):
+        # sample a subsequence of each chosen episode
+        for ep_idx in episode_indices:
             # sample an actual random start timestep for this episode
-            start = np.random.randint(episode_start, self.episode_ends[i])
-            end = min(start + self.max_len, self.episode_ends[i] + 1)
+            # note: end represents the last timestep _included_ in the sequence,
+            # which means when we're using exclusive range operators like [:]
+            # or np.arange, we need to use end + 1
+            start = np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
+            end = min(start + self.max_sample_len - 1, self.episode_ends[ep_idx])
 
             # store data
-            timesteps.append(torch.arange(start, end).reshape(1, -1))
+            timesteps.append(self._pad(np.arange(start, end + 1).reshape(1, -1)))
             s.append(
                 self._normalise_states(
-                    self._pad(self.observations[start:end].reshape(1, -1, self.obs_dim))
+                    self._pad(
+                        self.observations[start : end + 1].reshape(1, -1, self.state_dim)
+                    )
                 )
             )
-            a.append(self._pad(self.actions[start:end].reshape(1, -1, 1), val=-10))
-            r.append(self._pad(self.rewards[start:end].reshape(1, -1, 1)))
+            a.append(self._pad(self.actions[start : end + 1].reshape(1, -1, self.act_dim), val=-10))
+            r.append(self._pad(self.rewards[start : end + 1].reshape(1, -1, 1)))
             rtg.append(
                 self._pad(
                     self._discounted_cumsum(
-                        self.rewards[start : self.episode_ends[i] + 1], gamma=self.gamma
+                        self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
                     )[: s[-1].shape[1]].reshape(1, -1, 1)
                 )
                 / self.scale
             )
             mask.append(
                 np.concatenate(
-                    [np.zeros((1, self.max_len - s.shape[1])), np.ones((1, s.shape[1]))],
+                    [
+                        np.zeros((1, self.max_sample_len - (end - start + 1))),
+                        np.ones((1, end - start + 1)),
+                    ],
                     axis=1,
                 )
             )
@@ -99,7 +119,7 @@ class DecisionTransformerMinariDataCollator:
 # @dataclass
 # class DecisionTransformerGymDataCollator:
 #     return_tensors: str = "pt"
-#     max_len: int = 20  # subsets of the episode we use for training
+#     max_sample_len: int = 20  # subsets of the episode we use for training
 #     state_dim: int = 17  # size of state space
 #     act_dim: int = 6  # size of action space
 #     max_ep_len: int = 1000  # max episode length in the dataset
@@ -164,25 +184,25 @@ class DecisionTransformerMinariDataCollator:
 
 #             # get sequences from dataset
 #             s.append(  # states
-#                 np.array(episode["observations"][si : si + self.max_len]).reshape(
+#                 np.array(episode["observations"][si : si + self.max_sample_len]).reshape(
 #                     1, -1, self.state_dim
-#                 )  # shape (1, max_len, state_dim)
+#                 )  # shape (1, <= max_sample_len, state_dim)
 #             )
 #             a.append(  # actions
-#                 np.array(episode["actions"][si : si + self.max_len]).reshape(
+#                 np.array(episode["actions"][si : si + self.max_sample_len]).reshape(
 #                     1, -1, self.act_dim
-#                 )  # shape (1, max_len, act_dim)
+#                 )  # shape (1, <= max_sample_len, act_dim)
 #             )
 #             r.append(  # rewards
-#                 np.array(episode["rewards"][si : si + self.max_len]).reshape(1, -1, 1)
-#             )  # shape (1, max_len, 1)
+#                 np.array(episode["rewards"][si : si + self.max_sample_len]).reshape(1, -1, 1)
+#             )  # shape (1, <= max_sample_len, 1)
 #             # d.append(
-#             #     np.array(episode["dones"][si : si + self.max_len]).reshape(1, -1)
-#             # )  # dones (shape (1, max_len))
+#             #     np.array(episode["dones"][si : si + self.max_sample_len]).reshape(1, -1)
+#             # )  # dones (shape (1, max_sample_len))
 
 #             timesteps.append(
 #                 np.arange(si, si + s[-1].shape[1]).reshape(1, -1)
-#             )  # timesteps (shape (1, max_len))
+#             )  # timesteps (shape (1, max_sample_len))
 #             timesteps[-1][timesteps[-1] >= self.max_ep_len] = (
 #                 self.max_ep_len - 1
 #             )  # padding cutoff
@@ -192,7 +212,7 @@ class DecisionTransformerMinariDataCollator:
 #                 self._discount_cumsum(np.array(episode["rewards"][si:]), gamma=1.0)[
 #                     : s[-1].shape[1]  # TODO check the +1 removed here
 #                 ].reshape(1, -1, 1)
-#             )  # shape (1, max_len, 1) (same as rewards)
+#             )  # shape (1, max_sample_len, 1) (same as rewards)
 #             if rtg[-1].shape[1] < s[-1].shape[1]:
 #                 print("if true")
 #                 rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
@@ -200,25 +220,29 @@ class DecisionTransformerMinariDataCollator:
 #             # padding and state + reward normalization
 #             tlen = s[-1].shape[1]  # length of the trajectory
 #             s[-1] = np.concatenate(
-#                 [np.zeros((1, self.max_len - tlen, self.state_dim)), s[-1]], axis=1
-#             )  # front-pad with zeros to make trajectory have length max_len
+#                 [np.zeros((1, self.max_sample_len - tlen, self.state_dim)), s[-1]], axis=1
+#             )  # front-pad with zeros to make trajectory have length max_sample_len
 #             s[-1] = (s[-1] - self.state_mean) / self.state_std
 #             a[-1] = np.concatenate(
-#                 [np.ones((1, self.max_len - tlen, self.act_dim)) * -10.0, a[-1]],
+#                 [np.ones((1, self.max_sample_len - tlen, self.act_dim)) * -10.0, a[-1]],
 #                 axis=1,
 #             )
-#             r[-1] = np.concatenate([np.zeros((1, self.max_len - tlen, 1)), r[-1]], axis=1)
-#             # d[-1] = np.concatenate([np.ones((1, self.max_len - tlen)) * 2, d[-1]], axis=1)
+#             r[-1] = np.concatenate(
+#                 [np.zeros((1, self.max_sample_len - tlen, 1)), r[-1]], axis=1
+#             )
+#             # d[-1] = np.concatenate([np.ones((1, self.max_sample_len - tlen)) * 2, d[-1]], axis=1)
 #             rtg[-1] = (
-#                 np.concatenate([np.zeros((1, self.max_len - tlen, 1)), rtg[-1]], axis=1)
+#                 np.concatenate(
+#                     [np.zeros((1, self.max_sample_len - tlen, 1)), rtg[-1]], axis=1
+#                 )
 #                 / self.scale
 #             )
 #             timesteps[-1] = np.concatenate(
-#                 [np.zeros((1, self.max_len - tlen)), timesteps[-1]], axis=1
+#                 [np.zeros((1, self.max_sample_len - tlen)), timesteps[-1]], axis=1
 #             )
 #             mask.append(
 #                 np.concatenate(
-#                     [np.zeros((1, self.max_len - tlen)), np.ones((1, tlen))], axis=1
+#                     [np.zeros((1, self.max_sample_len - tlen)), np.ones((1, tlen))], axis=1
 #                 )
 #             )
 
