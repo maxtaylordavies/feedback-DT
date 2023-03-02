@@ -16,4 +16,4 @@ Note that when passing any ```--num_episodes``` with ```--include_timeout=False`
 By default, the ```--include_timeout``` parameter will be parsed with ```True```, resulting in episodes that ended because they timed out (reached ```max_steps```) before being terminated by the agent. To only record successful episodes, pass ```False```
 
 ### Example
-```src/get_datsets.py --env_name "BabyAI-GoToRedBallGrey-v0" --num_episodes 1000 --include_timeout False```
+```src/_datsets.py --env_name "BabyAI-GoToRedBallGrey-v0" --num_episodes 1000 --include_timeout False```
