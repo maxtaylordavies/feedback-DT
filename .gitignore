@@ -4,4 +4,6 @@ data/
 .venv
 *.egg-info
 **/__pycache__
+**/.ipynb_checkpoints
 **/experiment.txt
+Pipfile.lock

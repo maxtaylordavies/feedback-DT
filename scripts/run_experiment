@@ -111,8 +111,8 @@ fi
 # Set the value for sbatch's --array argument
 NR_EXPTS=`cat ${EXPT_FILE} | wc -l`
 echo "Executing command: "\
-   "sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS}"\
+   "sbatch  --partition=PGR-Standard --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS}"\
         "--gres=gpu:${NUM_GPUS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE"
 
 # Run the sbatch command
-sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS} --gres=gpu:${NUM_GPUS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE
+sbatch  --partition=PGR-Standard --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS} --gres=gpu:${NUM_GPUS} $SBATCH_ARGS $BASH_SCRIPT $EXPT_FILE

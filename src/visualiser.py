@@ -1,7 +1,7 @@
 import os
 
 import cv2
-import gym
+import gymnasium as gym
 import torch
 import numpy as np
 
@@ -78,16 +78,16 @@ class Visualiser(gym.Wrapper):
         return data
 
 
-def visualise_trained_model(args, collator, model, env_name, epochs_trained=None):
+def visualise_trained_model(args, collator, model, epochs_trained=None):
     # create the output directory if it doesn't exist
     output_dir = os.path.join(args["output"], args["run_name"])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     # build an environment to visualise the trained model
-    env = gym.make(env_name, render_mode="rgb_array")
+    env = gym.make(args["env_name"], render_mode="rgb_array")
     env = Visualiser(env, output_dir, epochs_trained or args["epochs"], fps=30)
-    max_ep_len, scale = 1000, 1000.0  # normalization for rewards/returns
+    max_ep_len, scale = env.max_steps or 64, 1000.0  # normalization for rewards/returns
     target_return = (
         12000 / scale
     )  # evaluation is conditioned on a return of 12000, scaled accordingly
@@ -99,25 +99,24 @@ def visualise_trained_model(args, collator, model, env_name, epochs_trained=None
     state_std = collator.state_std.astype(np.float32)
     state_std = torch.from_numpy(state_std).to(device=device)
 
-    state_dim = env.observation_space.shape[0]
-    act_dim = env.action_space.shape[0]
+    episode_return, episode_length, tmp = 0, 0, env.reset(seed=args["seed"])
 
-    episode_return, episode_length, state = 0, 0, env.reset()
-
-    target_return = torch.tensor(
-        target_return, device=device, dtype=torch.float32
-    ).reshape(1, 1)
+    target_return = torch.tensor(target_return, device=device, dtype=torch.float32).reshape(
+        1, 1
+    )
     states = (
-        torch.from_numpy(state[0])
-        .reshape(1, state_dim)
+        torch.from_numpy(tmp[0]["image"])
+        .reshape(1, collator.state_dim)
         .to(device=device, dtype=torch.float32)
     )
-    actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
+    actions = torch.zeros((0, collator.act_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
     timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
 
     for t in range(max_ep_len):
-        actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
+        actions = torch.cat(
+            [actions, torch.zeros((1, collator.act_dim), device=device)], dim=0
+        )
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(
@@ -128,11 +127,15 @@ def visualise_trained_model(args, collator, model, env_name, epochs_trained=None
             timesteps,
         )
         actions[-1] = action
-        action = action.detach().cpu().numpy()
+        action = np.argmax(action.detach().cpu().numpy())
 
-        state, reward, done, _, _ = env.step(action)
+        env_state, reward, done, _, _ = env.step(action)
 
-        cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
+        cur_state = (
+            torch.from_numpy(env_state["image"])
+            .to(device=device)
+            .reshape(1, collator.state_dim)
+        )
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward
 
