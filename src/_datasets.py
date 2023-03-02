@@ -20,13 +20,11 @@ def get_dataset(args):
         log(f"Loading dataset {dataset_name} from local storage")
         return minari.load_dataset(dataset_name)
 
-    # generate a new dataset
-    return generate_new_dataset(
-        env_name=args["env_name"],
-        num_episodes=args["num_episodes"],
-        include_timeout=args["include_timeout"],
-        seed=args["seed"],
-    )
+    # generate a new dataset, save locally and return
+    dataset = generate_new_dataset(args)
+    log(f"Created new dataset {dataset_name}, saving to local storage")
+    dataset.save()
+    return dataset
 
 
 def list_local_datasets():
@@ -42,11 +40,11 @@ def name_dataset(args):
     return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
 
 
-def generate_new_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed: int):
-    env = gym.make(env_name)
+def generate_new_dataset(args):
+    env = gym.make(args["env_name"])
     # TODO Consider whether there is any advantage in using the RGBImgPartialObsWrapper()
 
-    observation, _ = env.reset(seed=seed)
+    observation, _ = env.reset(seed=args["seed"])
 
     # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(env.spec_stack)
@@ -63,27 +61,25 @@ def generate_new_dataset(env_name: str, num_episodes: int, include_timeout: bool
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
-        "episode": np.array([[0]] * env.max_steps * num_episodes, dtype=np.int32),
+        "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
         # Adjusted this for BabyAI image observation shape (7, 7, 3)
         "observation": np.array(
-            [np.zeros_like(observation["image"])] * env.max_steps * num_episodes,
+            [np.zeros_like(observation["image"])] * env.max_steps * args["num_episodes"],
             dtype=np.uint8,
         ),
         # Adjusted this for discrete actions space
-        "action": np.array([[0]] * env.max_steps * num_episodes, dtype=np.float32),
-        "reward": np.array([[0]] * env.max_steps * num_episodes, dtype=np.float32),
-        "terminated": np.array([[0]] * env.max_steps * num_episodes, dtype=bool),
-        "truncated": np.array([[0]] * env.max_steps * num_episodes, dtype=bool),
+        "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
+        "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
     }
 
     total_steps = 0
-    for episode in range(num_episodes):
-        episode_step = 0
-        env.reset(seed=42)
-        terminated = False
-        truncated = False
+    for episode in range(args["num_episodes"]):
+        episode_step, terminated, truncated = 0, False, False
+        env.reset(seed=args["seed"])
 
-        while not terminated and not truncated:
+        while not (terminated or truncated):
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
 
@@ -94,29 +90,25 @@ def generate_new_dataset(env_name: str, num_episodes: int, include_timeout: bool
             replay_buffer["terminated"][total_steps] = np.array(terminated)
             replay_buffer["truncated"][total_steps] = np.array(truncated)
 
-            episode_step += 1
-            total_steps += 1
+            episode_step, total_steps = episode_step + 1, total_steps + 1
 
     env.close()
 
-    replay_buffer["episode"] = replay_buffer["episode"][:total_steps]
-    replay_buffer["observation"] = replay_buffer["observation"][:total_steps]
-    replay_buffer["action"] = replay_buffer["action"][:total_steps]
-    replay_buffer["reward"] = replay_buffer["reward"][:total_steps]
-    replay_buffer["terminated"] = replay_buffer["terminated"][:total_steps]
-    replay_buffer["truncated"] = replay_buffer["truncated"][:total_steps]
+    # truncate the replay buffer to the actual number of steps taken
+    for key in replay_buffer.keys():
+        replay_buffer[key] = replay_buffer[key][:total_steps]
 
-    if include_timeout:
+    if args["include_timeout"]:
         episode_terminals = replay_buffer["terminated"] + replay_buffer["truncated"]
     else:
         episode_terminals = None
 
     return MinariDataset(
-        dataset_name=name_dataset(env_name, num_episodes, include_timeout),
+        dataset_name=name_dataset(args),
         algorithm_name="random_policy",
-        environment_name=env_name,
+        environment_name=args["env_name"],
         environment_stack=json.dumps(environment_stack),
-        seed_used=42,
+        seed_used=args["seed"],
         code_permalink=None,
         author="SabrinaMcCallum",
         author_email="s2431177@ed.ac.uk",

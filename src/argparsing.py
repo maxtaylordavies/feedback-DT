@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument(
         "--num_episodes",
         type=int,
-        default=10,
+        default=1000,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=10,
+        default=100,
         help="number of epochs to train (default: 10)",
     )
     parser.add_argument(

@@ -93,10 +93,10 @@ def main(args):
     collator, model = create_collator_and_model(dataset)
 
     # train the model
-    model = train_model(args, dataset, collator, model)
+    # model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
-    # visualise_trained_model(args, collator, model, "HalfCheetah-v4")
+    visualise_trained_model(args, collator, model, epochs_trained=0)
 
     # finish the wandb run
     wandb.finish()
