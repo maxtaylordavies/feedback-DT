@@ -12,7 +12,7 @@ import wandb
 from src.argparsing import get_args
 from src.collator import DecisionTransformerMinariDataCollator
 from src._datasets import get_dataset
-from src.dt import TrainableDT
+from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
 from src.visualiser import visualise_trained_model
 
@@ -25,7 +25,7 @@ def create_collator_and_model(dataset):
 
     # create the model
     config = DecisionTransformerConfig(state_dim=collator.state_dim, act_dim=collator.act_dim)
-    model = TrainableDT(config)
+    model = FeedbackDT(config)
 
     return collator, model
 
