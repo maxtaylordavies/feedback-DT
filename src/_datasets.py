@@ -109,7 +109,7 @@ def generate_new_dataset(args):
         environment_name=args["env_name"],
         environment_stack=json.dumps(environment_stack),
         seed_used=args["seed"],
-        code_permalink=None,
+        code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
         author="SabrinaMcCallum",
         author_email="s2431177@ed.ac.uk",
         observations=replay_buffer["observation"],
