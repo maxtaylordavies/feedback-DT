@@ -14,8 +14,14 @@ if args["del_all"]:
         print("No datasets to delete")
 else:
     env_name = args["env_name"]
+    assert env_name, "Specify the corresponding environment to delete a specific dataset or pass True for del_all to delete all local datasets"
+    
     num_episodes = args["num_episodes"]
+    assert num_episodes, "Specify the corresponding number of episodes to delete a specific dataset or pass True for del_all to delete all local datasets"
+    
     include_timeout = args["include_timeout"]
+    assert include_timeout, "Specify the corresponding include_timeout parameter value to delete a specific dataset or pass True for del_all to delete all local datasets"
+    
     dataset_name = name_dataset(env_name, num_episodes, include_timeout)
     minari.delete_dataset(dataset_name)
     print(f"Sucess! Deleted {dataset_name}")

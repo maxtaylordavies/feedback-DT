@@ -2,12 +2,12 @@ import argparse
 
 
 def get_dataset_args():
-    parser = argparse.ArgumentParser(description="Get admin token, mission and variant")
+    parser = argparse.ArgumentParser(description="Get dataset attributes")
 
     parser.add_argument(
         "--env-name",
         type=str,
-        help="the name of the environment; must be registered with gymnasium",
+        help="the name of the BabyAI environment; must be registered with gymnasium",
     )
     parser.add_argument(
         "--num-episodes",
@@ -27,31 +27,63 @@ def get_dataset_args():
 
 def delete_dataset_args():
     parser = argparse.ArgumentParser(
-        description="Get environment name, number of episodes, and whether or not to include timed out episodes"
+        description="Delete all or one specific dataset"
     )
     parser.add_argument(
         "--del-all",
         type=bool,
-        default=False,
         help="whether to delete all local datasets",
     )
     parser.add_argument(
         "--env-name",
         type=str,
-        default="",
-        help="the name of the environment; must be registered with gymnasium",
+        default=None,
+        help="the name of the BabyAI environment; must be registered with gymnasium",
     )
     parser.add_argument(
         "--num-episodes",
         type=int,
-        default=10,
+        default=None,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
         "--include-timeout",
         type=bool,
-        default=True,
-        help="whether to include episodes terminated by timeout / truncated",
+        default=None,
+        help="whether to include episodes terminated by timeout / truncated: 'incl-timeout' or 'excl-timeout'",
+    )
+
+    return vars(parser.parse_args())
+
+
+def get_feedback_args():
+    parser = argparse.ArgumentParser(
+        description="Get feedback type and mode, as well as dataset attributes to identify the dataset"
+    )
+    parser.add_argument(
+        "--type",
+        type=str,
+        help="the type of feedback to use: 'direction', 'distance', 'adjacency', or 'action'",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        help="the feedback mode to use: 'simple' or 'verbose'",
+    )
+    parser.add_argument(
+        "--env-name",
+        type=str,
+        help="the name of the BabyAI environment used for the dataset"
+    )
+    parser.add_argument(
+        "--num-episodes",
+        type=int,
+        help="the number of episodes in the dataset",
+    )
+    parser.add_argument(
+        "--include-timeout",
+        type=bool,
+        help="whether the dataset includes episodes terminated by timeout / truncated",
     )
 
     return vars(parser.parse_args())

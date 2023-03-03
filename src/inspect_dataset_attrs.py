@@ -20,7 +20,7 @@ print("\n")
 print("Examples (dataset) attributes")
 print("*"*10)
 
-dataset_attr_dict = {"observations": dataset.observations, "actions": dataset.actions, "rewards": dataset.rewards, "terminations": dataset.terminations, "truncations": dataset.truncations, "episode_terminals": dataset.episode_terminals, "episodes": dataset.episodes}
+dataset_attr_dict = {"agent_positions": dataset.agent_positions, "direction_observations": dataset.direction_observations, "observations": dataset.observations, "actions": dataset.actions, "rewards": dataset.rewards, "terminations": dataset.terminations, "truncations": dataset.truncations, "episode_terminals": dataset.episode_terminals, "episodes": dataset.episodes}
 for name, attr in dataset_attr_dict.items():
     try:
         print(f"Shape of {name} (from dataset): {attr.shape}\n")
@@ -30,6 +30,10 @@ for name, attr in dataset_attr_dict.items():
 print("\n")
 print("Examples (episode) attributes")
 print("*"*10)
+print("Episode length")
+for e in dataset.episodes:
+    print(len(e))
+print()
 episodes_attr_dict = {"observation_shape": dataset.episodes[0].observation_shape, "action_size": dataset.episodes[0].action_size, "observations": dataset.episodes[0].observations, "actions": dataset.episodes[0].actions, "rewards": dataset.episodes[0].rewards, "termination": dataset.episodes[0].termination, "truncation": dataset.episodes[0].truncation, "transitions": dataset.episodes[0].transitions}
 for name, attr in episodes_attr_dict.items():
     try:
@@ -39,7 +43,4 @@ for name, attr in episodes_attr_dict.items():
             print(f"Length of {name} (from episode): {len(attr)}\n")    
         except:
             print(f"{name} (from episode): {attr}\n")   
-
-print("Direction observations")
-print(dataset.direction_observations) 
 

@@ -6,12 +6,12 @@ from minari.dataset import MinariDataset
 from minari.logger import LOG
 
 class CustomDataset(MinariDataset):
-    def __init__(self, direction_observations, **kwargs):
+    def __init__(self, agent_positions, direction_observations, **kwargs):
         super().__init__(**kwargs)
 
         assert np.all(np.logical_not(np.isnan(direction_observations)))
-
-        self._direction_observations = np.asarray(direction_observations, dtype=np.float32).reshape(-1)
+        self._agent_positions = agent_positions
+        self._direction_observations = np.asarray(direction_observations, dtype=np.int32).reshape(-1)
 
     def save(self):
         """ Saves dataset as HDF5.
@@ -28,6 +28,7 @@ class CustomDataset(MinariDataset):
         os.makedirs(datasets_path, exist_ok=True)
 
         with h5py.File(file_path, 'w') as f:
+            f.create_dataset('agent_positions', data=self._agent_positions)
             f.create_dataset('direction_observations', data=self._direction_observations)
             f.create_dataset('dataset_name', data=self._dataset_name)
             f.create_dataset('algorithm_name', data=self._algorithm_name)
@@ -65,6 +66,7 @@ class CustomDataset(MinariDataset):
             fname (str): file path.
         """
         with h5py.File(fname, 'r') as f:
+            agent_positions = f['agent_positions'][()]
             direction_observations = f['direction_observations'][()]
             dataset_name = f['dataset_name'][()]
             algorithm_name = f['algorithm_name'][()]
@@ -91,7 +93,8 @@ class CustomDataset(MinariDataset):
                 LOG.warning("The dataset structure might be incompatible.")
 
         dataset = cls(
-            direction_observations = direction_observations,
+            agent_positions=agent_positions,
+            direction_observations=direction_observations,
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
@@ -110,6 +113,14 @@ class CustomDataset(MinariDataset):
         )
 
         return dataset
+
+    @property
+    def agent_positions(self):
+        """ Returns the observations.
+        Returns:
+            numpy.ndarray: array of observations.
+        """
+        return self._agent_positions
 
     @property
     def direction_observations(self):

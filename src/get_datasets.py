@@ -15,12 +15,14 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     # onsider whether there is any advantage in using the RGBImgPartialObsWrapper()
 
     observation, _ = env.reset(seed=seed)
+    agent_position = env.agent_pos
 
     environment_stack = serialise_spec_stack(
         env.spec_stack
     ) 
 
     replay_buffer = {
+        "agent_position": np.array([]),
         "direction_observation": np.array([]),
         "episode": np.array([]),
         "observation": np.array([]),
@@ -33,6 +35,9 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
+        "agent_position": np.array(
+            [np.zeros_like(agent_position)] * env.max_steps * num_episodes, dtype=np.uint8
+        ),
         "direction_observation": np.array(
             [[0]] * env.max_steps * num_episodes, dtype=np.int32
         ),
@@ -68,6 +73,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
         while not terminated and not truncated:
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
+            replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
             replay_buffer["direction_observation"][total_steps] = np.array(observation['direction'])
             replay_buffer["episode"][total_steps] = np.array(episode)
             replay_buffer["observation"][total_steps] = np.array(observation['image'])
@@ -80,6 +86,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
 
     env.close()
 
+    replay_buffer["agent_position"] = replay_buffer["agent_position"][:total_steps]
     replay_buffer["direction_observation"] = replay_buffer["direction_observation"][:total_steps]
     replay_buffer["episode"] = replay_buffer["episode"][:total_steps]
     replay_buffer["observation"] = replay_buffer["observation"][:total_steps]
@@ -96,6 +103,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     dataset_name = name_dataset(env_name, num_episodes, include_timeout)
     
     dataset = CustomDataset(
+        agent_positions=replay_buffer["agent_position"],
         direction_observations=replay_buffer["direction_observation"],
         dataset_name=dataset_name,
         algorithm_name="random_policy",
