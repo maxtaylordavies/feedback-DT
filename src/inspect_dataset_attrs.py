@@ -20,12 +20,14 @@ print("\n")
 print("Examples (dataset) attributes")
 print("*"*10)
 
-dataset_attr_dict = {"agent_positions": dataset.agent_positions, "direction_observations": dataset.direction_observations, "observations": dataset.observations, "actions": dataset.actions, "rewards": dataset.rewards, "terminations": dataset.terminations, "truncations": dataset.truncations, "episode_terminals": dataset.episode_terminals, "episodes": dataset.episodes}
+dataset_attr_dict = {"goal_positions": dataset.goal_positions, "agent_positions": dataset.agent_positions, "direction_observations": dataset.direction_observations, "observations": dataset.observations, "actions": dataset.actions, "rewards": dataset.rewards, "terminations": dataset.terminations, "truncations": dataset.truncations, "episode_terminals": dataset.episode_terminals, "episodes": dataset.episodes}
 for name, attr in dataset_attr_dict.items():
     try:
         print(f"Shape of {name} (from dataset): {attr.shape}\n")
     except:
         print(f"Length of {name} (from dataset): {len(attr)}\n")
+
+print(dataset.goal_positions)
 
 print("\n")
 print("Examples (episode) attributes")

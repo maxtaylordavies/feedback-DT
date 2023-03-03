@@ -41,6 +41,7 @@ class Feedback(ABC):
 
     def _get_episode_data(self):
         episode_data = {}
+        episode_data["goal_positions"] = []
         episode_data["agent_positions"] = []
         episode_data["direction_observations"] = []
         episode_data["observations"] = []
@@ -49,6 +50,9 @@ class Feedback(ABC):
         for episode in self.dataset.episodes:
             previous_total_steps = total_steps
             total_steps += len(episode)
+            episode_data["goal_positions"].append(
+                self.dataset.goal_positions[previous_total_steps:total_steps]
+            )
             episode_data["agent_positions"].append(
                 self.dataset.agent_positions[previous_total_steps:total_steps]
             )
