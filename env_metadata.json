@@ -1,0 +1,30 @@
+{
+    "BabyAI-GoToRedBallGrey-v0": {
+        "max_steps": 64,
+        "mission_string": "go to the red ball"
+    },
+    "BabyAI-GoToRedBall-v0": {
+        "max_steps": 64,
+        "mission_string": "go to the red ball"
+    },
+    "BabyAI-GoToRedBallNoDists-v0": {
+        "max_steps": 64,
+        "mission_string": "go to the red ball"
+    },
+    "BabyAI-GoToRedBlueBall-v0": {
+        "max_steps": 64,
+        "mission_string": "go to the blue ball"
+    },
+    "BabyAI-GoToObj-v0": {
+        "max_steps": 64,
+        "mission_string": "go to the red ball"
+    },
+    "BabyAI-GoToObjS4-v0": {
+        "max_steps": 16,
+        "mission_string": "go to the yellow key"
+    },
+    "BabyAI-GoToObjS6-v0": {
+        "max_steps": 16,
+        "mission_string": "go to the yellow ball"
+    }
+}

@@ -1,7 +1,7 @@
 from get_datasets import load_dataset, list_local_datasets
 
-# print(list_local_datasets())
-dataset = load_dataset("BabyAI-GoToRedBall-v0_10-eps_incl-timeout")
+print(list_local_datasets())
+dataset = load_dataset("BabyAI-GoToRedBallGrey-v0_10-eps_incl-timeout")
 print("\n")
 print("Dataset attributes")
 print("*"*10)
@@ -38,5 +38,8 @@ for name, attr in episodes_attr_dict.items():
         try:
             print(f"Length of {name} (from episode): {len(attr)}\n")    
         except:
-            print(f"{name} (from episode): {attr}\n")    
+            print(f"{name} (from episode): {attr}\n")   
+
+print("Direction observations")
+print(dataset.direction_observations) 
 

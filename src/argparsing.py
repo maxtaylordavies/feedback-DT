@@ -1,15 +1,59 @@
 import argparse
 
+
 def get_dataset_args():
-    parser = argparse.ArgumentParser(description='Get admin token, mission and variant')
-    
-    parser.add_argument('--env-name', type=str,
-                        help='the name of the environment; must be registered with gymnasium')
-    parser.add_argument('--num-episodes', type=int, nargs=1, default=10,
-                        help='the number of episodes to collect for the environment')
-    parser.add_argument('--include-timeout', type=bool, nargs=1, default=True,
-                        help='whether to include episodes terminated by timeout / truncated')
-    
+    parser = argparse.ArgumentParser(description="Get admin token, mission and variant")
+
+    parser.add_argument(
+        "--env-name",
+        type=str,
+        help="the name of the environment; must be registered with gymnasium",
+    )
+    parser.add_argument(
+        "--num-episodes",
+        type=int,
+        default=10,
+        help="the number of episodes to collect for the environment",
+    )
+    parser.add_argument(
+        "--include-timeout",
+        type=bool,
+        default=True,
+        help="whether to include episodes terminated by timeout / truncated",
+    )
+
+    return vars(parser.parse_args())
+
+
+def delete_dataset_args():
+    parser = argparse.ArgumentParser(
+        description="Get environment name, number of episodes, and whether or not to include timed out episodes"
+    )
+    parser.add_argument(
+        "--del-all",
+        type=bool,
+        default=False,
+        help="whether to delete all local datasets",
+    )
+    parser.add_argument(
+        "--env-name",
+        type=str,
+        default="",
+        help="the name of the environment; must be registered with gymnasium",
+    )
+    parser.add_argument(
+        "--num-episodes",
+        type=int,
+        default=10,
+        help="the number of episodes to collect for the environment",
+    )
+    parser.add_argument(
+        "--include-timeout",
+        type=bool,
+        default=True,
+        help="whether to include episodes terminated by timeout / truncated",
+    )
+
     return vars(parser.parse_args())
 
 
@@ -75,7 +119,10 @@ def get_training_args():
         help="interval at which to visualise model's performance in the environment (default: end)",
     )
     parser.add_argument(
-        "--wandb_mode", type=str, default="online", help="wandb mode - can be online, offline, or disabled (default: online)"
+        "--wandb_mode",
+        type=str,
+        default="online",
+        help="wandb mode - can be online, offline, or disabled (default: online)",
     )
     parser.add_argument(
         "--checkpoint", type=str, default="", help="path to pytorch checkpoint file"
@@ -86,5 +133,5 @@ def get_training_args():
         required=True,
         help="Path to the " "directory to write output to",
     )
-    
+
     return vars(parser.parse_args())

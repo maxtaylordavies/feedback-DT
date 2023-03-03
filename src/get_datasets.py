@@ -3,26 +3,25 @@ import os
 
 import gymnasium as gym
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
-import minari
-from minari.dataset import MinariDataset
 from minari.storage.datasets_root_dir import get_file_path
-import minigrid 
 import numpy as np
+
+from custom_dataset import CustomDataset
 
 from argparsing import get_dataset_args
 
 def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, seed=42):
     env = gym.make(env_name)
-    # TODO Consider whether there is any advantage in using the RGBImgPartialObsWrapper()
+    # onsider whether there is any advantage in using the RGBImgPartialObsWrapper()
 
     observation, _ = env.reset(seed=seed)
 
-    # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(
         env.spec_stack
     ) 
 
     replay_buffer = {
+        "direction_observation": np.array([]),
         "episode": np.array([]),
         "observation": np.array([]),
         "action": np.array([]),
@@ -34,6 +33,9 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
+        "direction_observation": np.array(
+            [[0]] * env.max_steps * num_episodes, dtype=np.int32
+        ),
         "episode": np.array(
             [[0]] * env.max_steps * num_episodes, dtype=np.int32
         ),
@@ -66,6 +68,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
         while not terminated and not truncated:
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
+            replay_buffer["direction_observation"][total_steps] = np.array(observation['direction'])
             replay_buffer["episode"][total_steps] = np.array(episode)
             replay_buffer["observation"][total_steps] = np.array(observation['image'])
             replay_buffer["action"][total_steps] = np.array(action)
@@ -77,6 +80,7 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
 
     env.close()
 
+    replay_buffer["direction_observation"] = replay_buffer["direction_observation"][:total_steps]
     replay_buffer["episode"] = replay_buffer["episode"][:total_steps]
     replay_buffer["observation"] = replay_buffer["observation"][:total_steps]
     replay_buffer["action"] = replay_buffer["action"][:total_steps]
@@ -91,7 +95,8 @@ def generate_dataset(env_name: str, num_episodes: int, include_timeout: bool, se
     
     dataset_name = name_dataset(env_name, num_episodes, include_timeout)
     
-    dataset = MinariDataset(
+    dataset = CustomDataset(
+        direction_observations=replay_buffer["direction_observation"],
         dataset_name=dataset_name,
         algorithm_name="random_policy",
         environment_name=env_name,
@@ -130,10 +135,11 @@ def list_local_datasets():
     return datasets
 
 def load_dataset(dataset_name):
+    file_path = get_file_path(dataset_name)
     local_datasets = list_local_datasets()
     
-    assert dataset_name in local_datasets, print(f'{dataset_name} does not (ye) exist locally. Plase refer to the README for instructions for generating it.')
-    return minari.load_dataset(dataset_name)
+    assert dataset_name in local_datasets, print(f'{dataset_name} does not (yet) exist locally. Plase refer to the README for instructions for generating it.')
+    return CustomDataset.load(file_path)
 
 
 if __name__ == "__main__":
