@@ -12,11 +12,11 @@ OBJECT_TO_IDX = {
     "floor": 3,
     "door": 4,
     "key": 5,
-    "ball": 6,
-    "box": 7,
-    "goal": 8,
+    "ball": 6, # goal object type
+    "box": 7, # distractor object type
+    "goal": 8, # goal world object does not exist in BabyAI environments - is always ball
     "lava": 9,
-    "agent": 10,
+    "agent": 10, # agent does not seem to be included in BabyAI environments
 }
 
 COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
@@ -31,6 +31,8 @@ class Feedback(ABC):
         self.goal_color, self.goal_object = self._get_goal_metadata()
 
         self.episode_data = self._get_episode_data()
+
+        self.feedback_data = {}
 
     def _get_goal_metadata(self):
         env_name = re.split("_", self.dataset_name)[0]
@@ -78,19 +80,51 @@ class DirectionFeedback(Feedback):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def _get_relative_goal_position(self, step):
+        self.feedback_data["relative_goal_position"] = np.zeros(len(self.dataset.episodes))
+        for i in range(len(self.dataset.episodes)):
+            north = False
+            east = False
+            south = False
+            west = False
+            self.feedback_data["relative_goal_position"][i] = np.zeros(len(self.episode_data["goal_positions"][i]))
+            goal_y = self.episode_data["goal_positions"][i][step][1]
+            goal_x = self.episode_data["goal_positions"][i][step][0]
+            agent_y = self.episode_data["agent_positions"][i][step][1]
+            agent_x = self.episode_data["agent_positions"][i][step][1]
+            if goal_y > agent_y:
+                north = True
+            if goal_y < agent_y:
+                south = True
+            if goal_x < agent_x:
+                west = True
+            if goal_x > agent_x:
+                east = True                
+            
+            # Order of directions is based on direction encodings 
+            # AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
+            self.feedback_data["relative_goal_position"][i][step] = [east, south, west, north]
+    
+    def _facing_goal(self, step):
+        for i in range(len(self.dataset.episodes)):
+            direction = self.episode_data["direction_observations"][i][step]
+            if direction in np.where(self.feedback_data["relative_goal_position"][i][step])[0]:
+                return True
+            else:
+                return False
+
     def generate_feedback(self):
         pass
 
     def save_feedback(self):
         pass
 
-
 class DistanceFeedback(Feedback):
     def __init__(self):
         super().__init__()
 
 
-class AdjacencyFeedback(Feedback):
+class ActionFeedback(Feedback):
     def __init__(self):
         super().__init__()
 
