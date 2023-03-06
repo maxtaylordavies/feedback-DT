@@ -20,7 +20,7 @@
                 "It seems that you're facing the wrong way, which could make it difficult to reach your goal."
             ]
         },
-        "positiive":  {
+        "positive":  {
             "simple": "You're facing in the right direction, towards the goal",
             "verbose": [
                 "You're oriented towards the goal, which is a great start to reaching the goal!",
@@ -60,7 +60,7 @@
                 "The gap between you and the goal is widening, when you need to close it."
             ]
         },
-        "positiive":  {
+        "positive":  {
             "simple": "You're getting closer to the goal.",
             "verbose": [
                 "Your current position is closer to the goal than your previous position, keep up the good work.",
@@ -102,7 +102,7 @@
                 "That's not even close to the right object. Both the color and type are wrong. You need to find the {goal object col} {goal object type}."
             ]
         },
-        "positiive": {
+        "positive": {
             "same_color": {
                 "simple": "You're next to an object that has the same color as the goal.",
                 "verbose": [
@@ -166,7 +166,7 @@
                 "It's clear that the action you've taken is not serving the purpose of the task."
             ]
         },
-        "positiive":  {
+        "positive":  {
             "simple": "This was an appropriate action given the task.",
             "verbose": [
                 "It seems like your action was useful for completing the task. Keep up the momentum!",

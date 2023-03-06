@@ -71,6 +71,17 @@ def get_feedback_args():
         help="the feedback mode to use: 'simple' or 'verbose'",
     )
     parser.add_argument(
+        "--n-steps",
+        type=int,
+        help="how often to provide feedback (every n-steps)",
+    )
+    parser.add_argument(
+        "--freq-type",
+        type=str,
+        help="'exact' or 'poisson' - whether to provide feedback exactly every n-steps or use a poisson distribution",
+    )
+    
+    parser.add_argument(
         "--env-name",
         type=str,
         help="the name of the BabyAI environment used for the dataset"
