@@ -98,8 +98,10 @@ def main(args):
     # visualise the trained model
     visualise_trained_model(args, collator, model, epochs_trained=0)
 
-    # finish the wandb run
-    wandb.finish()
+    # if using wandb, save args and finish run
+    if args["wandb_mode"] != "disabled":
+        wandb.config.update(args)
+        wandb.finish()
 
 
 if __name__ == "__main__":
