@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
-from _datasets import load_dataset
+from get_datasets import load_dataset
 
 @dataclass
 class DecisionTransformerGymDataCollator:

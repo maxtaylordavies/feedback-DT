@@ -1,4 +1,4 @@
-from _datasets import load_dataset, list_local_datasets
+from get_datasets import load_dataset, list_local_datasets
 
 print(list_local_datasets())
 dataset = load_dataset("BabyAI-GoToRedBallGrey-v0_10-eps_incl-timeout")

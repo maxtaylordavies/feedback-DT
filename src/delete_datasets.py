@@ -1,6 +1,6 @@
 import minari
 from argparsing import delete_dataset_args
-from _datasets import name_dataset, list_local_datasets
+from get_datasets import name_dataset, list_local_datasets
 
 args = delete_dataset_args()
 if args["del_all"]:

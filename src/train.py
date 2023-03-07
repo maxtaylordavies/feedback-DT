@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 
-from _datasets import load_dataset
+from get_datasets import load_dataset
 from transformers import (
     DecisionTransformerConfig,
     Trainer,
