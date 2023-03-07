@@ -7,3 +7,4 @@ data/
 **/.ipynb_checkpoints
 **/experiment.txt
 Pipfile.lock
+src/old_*

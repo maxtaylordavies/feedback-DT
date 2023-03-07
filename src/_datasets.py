@@ -1,15 +1,20 @@
 import json
 import os
+import sys
 
 import gymnasium as gym
-from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
-import minari
-from minari.dataset import MinariDataset
-from minari.storage.datasets_root_dir import get_file_path
 import numpy as np
+from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
+from minari.storage.datasets_root_dir import get_file_path
+from minigrid.core.world_object import Ball
 
-from src.argparsing import get_args
-from src.utils import log
+from custom_dataset import CustomDataset
+from argparsing import get_args
+from utils import log
+
+basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
+if not basepath in sys.path:
+    sys.path.append(basepath)
 
 
 def get_dataset(args):
@@ -18,13 +23,14 @@ def get_dataset(args):
     # optionally check if dataset already exists locally and load it
     if args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
         log(f"Loading dataset {dataset_name} from local storage")
-        return minari.load_dataset(dataset_name)
+        return CustomDataset.load(dataset_name)
 
     # generate a new dataset, save locally and return
-    dataset = generate_new_dataset(args)
-    log(f"Created new dataset {dataset_name}, saving to local storage")
-    dataset.save()
-    return dataset
+    else:
+        dataset = generate_new_dataset(args)
+        log(f"Created new dataset {dataset_name}, saving to local storage")
+        dataset.save()
+        return dataset
 
 
 def list_local_datasets():
@@ -45,11 +51,15 @@ def generate_new_dataset(args):
     # TODO Consider whether there is any advantage in using the RGBImgPartialObsWrapper()
 
     observation, _ = env.reset(seed=args["seed"])
+    agent_position = env.agent_pos
 
     # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(env.spec_stack)
 
     replay_buffer = {
+        "goal_position": np.array([]),
+        "agent_position": np.array([]),
+        "direction_observation": np.array([]),
         "episode": np.array([]),
         "observation": np.array([]),
         "action": np.array([]),
@@ -61,28 +71,64 @@ def generate_new_dataset(args):
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
-        "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
+        "goal_position": np.array(
+            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
+            dtype=np.uint8,
+        ),
+        "agent_position": np.array(
+            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
+            dtype=np.uint8,
+        ),
+        "direction_observation": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
+        ),
+        "episode": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
+        ),
         # Adjusted this for BabyAI image observation shape (7, 7, 3)
         "observation": np.array(
-            [np.zeros_like(observation["image"])] * env.max_steps * args["num_episodes"],
+            [np.zeros_like(observation["image"])]
+            * env.max_steps
+            * args["num_episodes"],
             dtype=np.uint8,
         ),
         # Adjusted this for discrete actions space
-        "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
-        "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
-        "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
+        "action": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+        ),
+        "reward": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+        ),
+        "terminated": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
+        ),
         "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
     }
 
     total_steps = 0
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
-        env.reset(seed=args["seed"])
-
+        obs, _ = env.reset(seed=args["seed"])
+        goal_position_list = [
+            x
+            for x, y in enumerate(env.grid.grid)
+            if isinstance(y, Ball) and y.color in obs["mission"]
+        ]
+        # TO-DO Adjust properly for cases with multiple goals
+        # where we want to return all goal positions not just the first
+        goal_position = (
+            int(goal_position_list[0] / env.height),
+            goal_position_list[0] % env.width,
+        )
         while not (terminated or truncated):
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
 
+            replay_buffer["goal_position"][total_steps] = np.array(goal_position)
+            replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
+            replay_buffer["direction_observation"][total_steps] = np.array(
+                observation["direction"]
+            )
             replay_buffer["episode"][total_steps] = np.array(episode)
             replay_buffer["observation"][total_steps] = np.array(observation["image"])
             replay_buffer["action"][total_steps] = np.array(action)
@@ -103,14 +149,17 @@ def generate_new_dataset(args):
     else:
         episode_terminals = None
 
-    return MinariDataset(
+    return CustomDataset(
+        goal_positions=replay_buffer["goal_position"],
+        agent_positions=replay_buffer["agent_position"],
+        direction_observations=replay_buffer["direction_observation"],
         dataset_name=name_dataset(args),
         algorithm_name="random_policy",
         environment_name=args["env_name"],
         environment_stack=json.dumps(environment_stack),
         seed_used=args["seed"],
         code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
-        author="SabrinaMcCallum",
+        author="Sabrina McCallum",
         author_email="s2431177@ed.ac.uk",
         observations=replay_buffer["observation"],
         actions=replay_buffer["action"],
@@ -124,5 +173,3 @@ def generate_new_dataset(args):
 if __name__ == "__main__":
     args = get_args()
     dataset = get_dataset(args)
-    dataset.save()
-    print(f"Success! Saved dataset {dataset.dataset_name}")
