@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from numpy.random import default_rng
 
-from old_argparsing import get_feedback_args
-from get_datasets import load_dataset, name_dataset
+from argparsing import get_args
+from _datasets import get_dataset, name_dataset
 
 OBJECT_TO_IDX = {
     "unseen": 0,
@@ -27,18 +27,21 @@ COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey
 
 
 class Feedback(ABC):
-    def __init__(self, dataset_name, feedback_mode, feedback_n_steps, freq_type):
-        self.feedback_type = "direction"
-        self.dataset_name = dataset_name
-        self.dataset = load_dataset(dataset_name)
-        self.feedback_mode = feedback_mode
-        self.feedback_n_steps = feedback_n_steps
-        self.freq_type = freq_type
+    def __init__(self, args):
+        self.feedback_mode = args["feedback_mode"]
+        self.feedback_freq_type = args["feedback_freq_type"]
+        self.feedback_freq_steps = args["feedback_freq_steps"]
+        self.env_name = args["env_name"]
+        self.num_episodes = args["num_episodes"]
+        self.feedback_type = args["feedback_type"]
+        self.dataset = get_dataset(args)
+        self.dataset_name = name_dataset(args)
+
         self.goal_color, self.goal_object = self._get_goal_metadata()
 
         self.episode_data = self._get_episode_data()
 
-        self.rng = default_rng(42)
+        self.rng = default_rng(args["seed"])
 
     def _get_goal_metadata(self):
         env_name = re.split("_", self.dataset_name)[0]
@@ -127,20 +130,22 @@ class DirectionFeedback(Feedback):
         ) as json_file:
             feedback_variants = json.load(json_file)[self.feedback_type]
 
-        self.feedback_data[self.feedback_type][self.feedback_mode] = {f"{self.feedback_n_steps}_{self.freq_type}": []}
+        self.feedback_data[self.feedback_type][self.feedback_mode] = {
+            f"{self.feedback_freq_type}_{self.feedback_freq_steps}": []
+        }
         for e, episode in enumerate(self.episode_data["direction_observations"]):
             episode_feedback = []
-            if self.feedback_n_steps < 2:
+            if self.feedback_freq_steps < 2:
                 feedback_freq = 2
                 if e == 0:
                     print("Feedback can be provided at most after every other step")
             else:
-                if self.freq_type.lower() == "poisson":
+                if self.feedback_freq_type.lower() == "poisson":
                     feedback_freq = 0
                     while feedback_freq < 2:
-                        feedback_freq = np.random.poisson(self.feedback_n_steps)
+                        feedback_freq = np.random.poisson(self.feedback_freq_steps)
                 else:
-                    feedback_freq = self.feedback_n_steps
+                    feedback_freq = self.feedback_freq_steps
             for i, direction_observation in enumerate(episode):
                 if i % feedback_freq == 0:
                     relative_goal_position = self._get_relative_goal_position(e, i)
@@ -156,9 +161,9 @@ class DirectionFeedback(Feedback):
                         episode_feedback.append(feedback)
                 else:
                     episode_feedback.append("")
-            self.feedback_data[self.feedback_type][self.feedback_mode][f"{self.feedback_n_steps}_{self.freq_type}"].append(
-                episode_feedback
-            )
+            self.feedback_data[self.feedback_type][self.feedback_mode][
+                f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
+            ].append(episode_feedback)
 
     def save_feedback(self):
         feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
@@ -166,33 +171,29 @@ class DirectionFeedback(Feedback):
             json.dump(self.feedback_data, outfile)
 
 
-class DistanceFeedback(Feedback):
-    def __init__(self):
-        super().__init__()
+# class DistanceFeedback(Feedback):
+#     def __init__(self):
+#         super().__init__()
 
 
-class ActionFeedback(Feedback):
-    def __init__(self):
-        super().__init__()
+# class ActionFeedback(Feedback):
+#     def __init__(self):
+#         super().__init__()
 
 
-class AdjacencyFeedback(Feedback):
-    def __init__(self):
-        super().__init__()
+# class AdjacencyFeedback(Feedback):
+#     def __init__(self):
+#         super().__init__()
 
 
 if __name__ == "__main__":
-    args = get_feedback_args()
-    type = args["type"]
-    feedback_mode = args["mode"]
-    feedback_n_steps = args["n_steps"]
-    freq_type = args["freq_type"]
-    env_name = args["env_name"]
-    num_episodes = args["num_episodes"]
-    include_timeout = args["include_timeout"]
-    dataset_name = name_dataset(env_name, num_episodes, include_timeout)
+    args = get_args()
+    type = args["feedback_type"]
     type_to_generator = {
-        "direction": DirectionFeedback(dataset_name, feedback_mode, feedback_n_steps, freq_type)
+        "direction": DirectionFeedback(args),
+        # "distance": DistanceFeedback(args),
+        # "adjacency": AdjacencyFeedback(args),
+        # "action": ActionFeedback(args),
     }
     feedback_generator = type_to_generator[type]
     feedback_generator.generate_feedback()

@@ -5,7 +5,7 @@ import itertools
 import os
 
 # define some paths
-USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch"
+USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_fast"
 PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
@@ -13,13 +13,14 @@ PROJECT_HOME, SCRATCH_HOME = (
 DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/baseline"
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output"
+base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output --wandb_mode offline"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
-    "epochs": [100],
+    "epochs": [10],
+    "env_name": ["BabyAI-GoToRedBallGrey-v0"]
 }
 
 combinations = list(itertools.product(*variables.values()))
@@ -32,7 +33,7 @@ for c in combinations:
     # and recorded in the output data by the python script
     expt_call = base_call
     for i, var in enumerate(variables.keys()):
-        expt_call += f" --{var}={c[i]}"
+        expt_call += f" --{var} {c[i]}"
     print(expt_call, file=output_file)
 
 output_file.close()

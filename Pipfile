@@ -13,6 +13,7 @@ gymnasium-robotics = "*"
 huggingface = "*"
 datasets = "*"
 black = "*"
+torch = "*"
 
 [dev-packages]
 
