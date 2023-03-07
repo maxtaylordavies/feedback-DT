@@ -7,7 +7,7 @@ from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
 from minigrid.core.world_object import Ball
 
-from argparsing import get_dataset_args
+from old_argparsing import get_dataset_args
 from custom_dataset import CustomDataset
 
 

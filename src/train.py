@@ -9,7 +9,7 @@ from transformers import (
 )
 import wandb
 
-from src.argparsing import get_training_args
+from old_argparsing import get_training_args
 from src.data import DecisionTransformerGymDataCollator
 from src.dt import TrainableDT
 from src.utils import log, setup_devices, is_network_connection

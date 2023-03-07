@@ -1,5 +1,5 @@
 import minari
-from argparsing import delete_dataset_args
+from old_argparsing import delete_dataset_args
 from get_datasets import name_dataset, list_local_datasets
 
 args = delete_dataset_args()

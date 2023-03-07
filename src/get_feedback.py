@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from numpy.random import default_rng
 
-from argparsing import get_feedback_args
+from old_argparsing import get_feedback_args
 from get_datasets import load_dataset, name_dataset
 
 OBJECT_TO_IDX = {
