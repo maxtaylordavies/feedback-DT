@@ -109,6 +109,8 @@ def generate_new_dataset(args):
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
         obs, _ = env.reset(seed=args["seed"])
+        # See DirectionObsWrapper() in Minigrid/minigrid/wrappers.py for original
+        # implementation of the below
         goal_position_list = [
             x
             for x, y in enumerate(env.grid.grid)
@@ -117,7 +119,6 @@ def generate_new_dataset(args):
 
         # TO-DO Adjust properly for cases with multiple goals
         # where we want to return all goal positions not just the first
-        # See ... for the below
         goal_position = (
             int(goal_position_list[0] / env.height),
             goal_position_list[0] % env.width,

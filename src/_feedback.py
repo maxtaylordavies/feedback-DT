@@ -55,6 +55,8 @@ class Feedback(ABC):
 
         self.rng = default_rng(args["seed"])
 
+        self.feedback_data = {self.feedback_type: {}}
+
     def _get_goal_metadata(self):
         env_name = re.split("_", self.dataset_name)[0]
         with open("env_metadata.json", "r") as env_metadata:
@@ -87,18 +89,22 @@ class Feedback(ABC):
         return episode_data
 
     @abstractmethod
-    def generate_feedback(self):
+    def _get_polarity(self):
         raise NotImplementedError
 
     @abstractmethod
-    def save_feedback(self):
+    def generate_feedback(self):
         raise NotImplementedError
+
+    def save_feedback(self):
+        feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
+        with open(feedback_path, "w+") as outfile:
+            json.dump(self.feedback_data, outfile)
 
 
 class DirectionFeedback(Feedback):
     def __init__(self, *args):
         super().__init__(*args)
-        self.feedback_data = {self.feedback_type: {}}
 
     def _get_relative_goal_position(self, current_episode, current_step):
         north = False
@@ -147,17 +153,12 @@ class DirectionFeedback(Feedback):
         }
         for e, episode in enumerate(self.episode_data["direction_observations"]):
             episode_feedback = []
-            if self.feedback_freq_steps < 2:
-                feedback_freq = 2
-                if e == 0:
-                    print("Feedback can be provided at most after every other step")
+            if self.feedback_freq_type.lower() == "poisson":
+                feedback_freq = 0
+                while feedback_freq == 0:
+                    feedback_freq = np.random.poisson(self.feedback_freq_steps)
             else:
-                if self.feedback_freq_type.lower() == "poisson":
-                    feedback_freq = 0
-                    while feedback_freq < 2:
-                        feedback_freq = np.random.poisson(self.feedback_freq_steps)
-                else:
-                    feedback_freq = self.feedback_freq_steps
+                feedback_freq = self.feedback_freq_steps
             for i, direction_observation in enumerate(episode):
                 if i % feedback_freq == 0:
                     relative_goal_position = self._get_relative_goal_position(e, i)
@@ -177,25 +178,62 @@ class DirectionFeedback(Feedback):
                 f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
             ].append(episode_feedback)
 
-    def save_feedback(self):
-        feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
-        with open(feedback_path, "w+") as outfile:
-            json.dump(self.feedback_data, outfile)
-
 
 # class DistanceFeedback(Feedback):
-#     def __init__(self):
-#         super().__init__()
+# def __init__(self, *args):
+#     super().__init__(*args)
 
 
-# class ActionFeedback(Feedback):
-#     def __init__(self):
-#         super().__init__()
+class ActionFeedback(Feedback):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.valid_actions = np.arange(
+            0, 3, dtype=int
+        )  # not sure if done is actually needed?
+
+    def _get_polarity(self, action):
+        if action in self.valid_actions:
+            return "positive"
+        else:
+            return "negative"
+
+    def generate_feedback(self):
+        with open(
+            f"{os.path.abspath('')}/feedback_variants.json", encoding="utf-8"
+        ) as json_file:
+            feedback_variants = json.load(json_file)[self.feedback_type]
+
+        self.feedback_data[self.feedback_type][self.feedback_mode] = {
+            f"{self.feedback_freq_type}_{self.feedback_freq_steps}": []
+        }
+        for episode in self.episode_data["actions"]:
+            episode_feedback = []
+            if self.feedback_freq_type.lower() == "poisson":
+                feedback_freq = 0
+                while feedback_freq == 0:
+                    feedback_freq = np.random.poisson(self.feedback_freq_steps)
+            else:
+                feedback_freq = self.feedback_freq_steps
+            for i, action in enumerate(episode):
+                if i % feedback_freq == 0:
+                    polarity = self._get_polarity(action)
+                    feedback = feedback_variants[polarity][self.feedback_mode]
+                    if not isinstance(feedback, str):
+                        random_id = self.rng.integers(len(feedback))
+                        random_feedback = feedback[random_id]
+                        episode_feedback.append(random_feedback)
+                    else:
+                        episode_feedback.append(feedback)
+                else:
+                    episode_feedback.append("")
+            self.feedback_data[self.feedback_type][self.feedback_mode][
+                f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
+            ].append(episode_feedback)
 
 
 # class AdjacencyFeedback(Feedback):
-#     def __init__(self):
-#         super().__init__()
+# def __init__(self, *args):
+#     super().__init__(*args)
 
 
 if __name__ == "__main__":
@@ -204,8 +242,8 @@ if __name__ == "__main__":
     type_to_generator = {
         "direction": DirectionFeedback(args),
         # "distance": DistanceFeedback(args),
+        "action": ActionFeedback(args),
         # "adjacency": AdjacencyFeedback(args),
-        # "action": ActionFeedback(args),
     }
     feedback_generator = type_to_generator[type]
     feedback_generator.generate_feedback()

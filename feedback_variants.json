@@ -5,22 +5,22 @@
             "verbose": [
                 "You're moving in the opposite direction from where you need to go to reach the goal, which is not a good thing.",
                 "Moving in the wrong direction from the goal is not helping you at all.",
-                "Oh dear, you're not headed in the right direction to reach the goal.",            
+                "Oh dear, you're not headed in the right direction to reach the goal.",
                 "This is not the direction we want to be heading in, as you're facing in the opposite way from where you need to go to reach the goal.",
                 "Oh no, you're not oriented towards the destination, which means you haven't made progress towards your goal!",
-                "Oh snap, it seems that you're not oriented correctly towards the goal location.",  
-                "I'm noticing that you're oriented away from the goal, which could be problematic.",          
+                "Oh snap, it seems that you're not oriented correctly towards the goal location.",
+                "I'm noticing that you're oriented away from the goal, which could be problematic.",
                 "Unfortunately, your orientation isn't aligned with the goal location, which means you'll find it more difficult to reach it.",
-                "Oops, based on your orientation, you're not on track to reach the goal.",   
-                "Based on your current orientation,you may not be able to reach the target as efficiently as you could.",         
-                "Looks like you're facing away from the goal, which means you've not taken the right action to reach your goal.",            
-                "Oh boy, you're not facing in the direction that will lead you to the goal.",            
+                "Oops, based on your orientation, you're not on track to reach the goal.",
+                "Based on your current orientation,you may not be able to reach the target as efficiently as you could.",
+                "Looks like you're facing away from the goal, which means you've not taken the right action to reach your goal.",
+                "Oh boy, you're not facing in the direction that will lead you to the goal.",
                 "Oh no, you're not facing towards the goal.",
                 "It looks like you're facing the wrong direction, which could make it more difficult to reach the goal.",
                 "It seems that you're facing the wrong way, which could make it difficult to reach your goal."
             ]
         },
-        "positive":  {
+        "positive": {
             "simple": "You're facing in the right direction, towards the goal",
             "verbose": [
                 "You're oriented towards the goal, which is a great start to reaching the goal!",
@@ -39,7 +39,7 @@
         }
     },
     "distance": {
-        "negative":  {
+        "negative": {
             "simple": "You're getting farther away from the goal.",
             "verbose": [
                 "Your current position is further away from the goal than your previous position, which is a setback.",
@@ -60,7 +60,7 @@
                 "The gap between you and the goal is widening, when you need to close it."
             ]
         },
-        "positive":  {
+        "positive": {
             "simple": "You're getting closer to the goal.",
             "verbose": [
                 "Your current position is closer to the goal than your previous position, keep up the good work.",
@@ -112,7 +112,7 @@
                     "You're doing well! You've found the same type of object, just in the wrong color.",
                     "You're doing okay! You've found the same type of object as the goal object, now let's find it in the right color.",
                     "Almost! You've found the correct object type, now let's make it the {goal object col} one.",
-                    "Pretty close! You've found the correct object, now you just need to find it in the right color.",            
+                    "Pretty close! You've found the correct object, now you just need to find it in the right color.",
                     "You're very close! You just need to find the {goal object col} {goal object type} instead of the {current object col} one.",
                     "You're on the right track! The object type is correct, you just need to locate the {goal object col} one.",
                     "Nice! You've located the same type of object, let's just switch it to the {goal object col} red one and you're done.",
@@ -124,7 +124,7 @@
                     "Getting there! You're on the right track, let's just switch the {current object col} {current/goal object type} for the {goal object col} one."
                 ]
             },
-            "same_type":  {
+            "same_type": {
                 "simple": "You're next to an object that has the same type as the goal.",
                 "verbose": [
                     "You're close, but not quite there yet. You need to find the {current/goal object col} {goal object type} instead of the {goal/current object col} {current object type}.",
@@ -147,8 +147,8 @@
             }
         }
     },
-    "actions": {
-        "negative":  {
+    "action": {
+        "negative": {
             "simple": "This was an inappropriate action given the task.",
             "verbose": [
                 "Your choice of action was not appropriate for this task. I'm afraid that won't get us any closer to completing the task successfully.",
@@ -166,11 +166,11 @@
                 "It's clear that the action you've taken is not serving the purpose of the task."
             ]
         },
-        "positive":  {
+        "positive": {
             "simple": "This was an appropriate action given the task.",
             "verbose": [
                 "It seems like your action was useful for completing the task. Keep up the momentum!",
-                "That action you took was useful towards achieving the task. Great job!",       
+                "That action you took was useful towards achieving the task. Great job!",
                 "Taking that action was a possible way to move towards completing the task. Good job!",
                 "You did well selecting one of the appropriate actions for the task",
                 "You managed to choose an appropriate action given the task. Well done!",
