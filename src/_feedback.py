@@ -16,14 +16,26 @@ OBJECT_TO_IDX = {
     "floor": 3,
     "door": 4,
     "key": 5,
-    "ball": 6,  # goal object type
-    "box": 7,  # distractor object type
-    "goal": 8,  # goal world object does not exist in BabyAI environments - is always ball
+    "ball": 6,
+    "box": 7,
+    "goal": 8,  # goal world object does not exist in BabyAI environments
     "lava": 9,
-    "agent": 10,  # agent does not seem to be included in BabyAI environments
+    "agent": 10,  # agent does not seem to be included as an object in BabyAI environment grids
 }
 
 COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+
+ACTION_TO_STR = {
+    0: "left",
+    1: "right",
+    2: "forward",
+    3: "pickup",
+    4: "drop",
+    5: "toggle",
+    6: "done",
+}
+
+AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
 
 
 class Feedback(ABC):
