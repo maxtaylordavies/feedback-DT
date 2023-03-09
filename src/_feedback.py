@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from numpy.random import default_rng
+from scipy.spatial.distance import cdist
 
 from argparsing import get_args
 from _datasets import get_dataset, name_dataset
@@ -39,15 +40,15 @@ AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
 
 
 class Feedback(ABC):
-    def __init__(self, args):
+    def __init__(self, args, dataset):
         self.feedback_mode = args["feedback_mode"]
         self.feedback_freq_type = args["feedback_freq_type"]
         self.feedback_freq_steps = args["feedback_freq_steps"]
         self.env_name = args["env_name"]
         self.num_episodes = args["num_episodes"]
         self.feedback_type = args["feedback_type"]
-        self.dataset = get_dataset(args)
         self.dataset_name = name_dataset(args)
+        self.dataset = dataset
 
         self.goal_color, self.goal_object = self._get_goal_metadata()
 
@@ -179,9 +180,60 @@ class DirectionFeedback(Feedback):
             ].append(episode_feedback)
 
 
-# class DistanceFeedback(Feedback):
-# def __init__(self, *args):
-#     super().__init__(*args)
+class DistanceFeedback(Feedback):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def _get_distance(self, goal_position, agent_position):
+        return cdist(
+            np.reshape(goal_position, (1, 2)),
+            np.reshape(agent_position, (1, 2)),
+            metric="cityblock",
+        )[0][0]
+
+    def _get_polarity(self, d_current, d_previous):
+        if d_current < d_previous:
+            return "positive"
+        else:
+            return "negative"
+
+    def generate_feedback(self):
+        with open(
+            f"{os.path.abspath('')}/feedback_variants.json", encoding="utf-8"
+        ) as json_file:
+            feedback_variants = json.load(json_file)[self.feedback_type]
+
+        self.feedback_data[self.feedback_type][self.feedback_mode] = {
+            f"{self.feedback_freq_type}_{self.feedback_freq_steps}": []
+        }
+        for e, episode in enumerate(self.episode_data["goal_positions"]):
+            episode_feedback = []
+            if self.feedback_freq_type.lower() == "poisson":
+                feedback_freq = 0
+                while feedback_freq == 0:
+                    feedback_freq = np.random.poisson(self.feedback_freq_steps)
+            else:
+                feedback_freq = self.feedback_freq_steps
+            for i, goal_position in enumerate(episode):
+                agent_position = self.episode_data["agent_positions"][e][i]
+                if i == 0:
+                    d_previous = self._get_distance(goal_position, agent_position)
+                if i % feedback_freq == 0 and i != 0:
+                    d_current = self._get_distance(goal_position, agent_position)
+                    polarity = self._get_polarity(d_current, d_previous)
+                    feedback = feedback_variants[polarity][self.feedback_mode]
+                    if not isinstance(feedback, str):
+                        random_id = self.rng.integers(len(feedback))
+                        random_feedback = feedback[random_id]
+                        episode_feedback.append(random_feedback)
+                    else:
+                        episode_feedback.append(feedback)
+                    d_previous = d_current
+                else:
+                    episode_feedback.append("")
+            self.feedback_data[self.feedback_type][self.feedback_mode][
+                f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
+            ].append(episode_feedback)
 
 
 class ActionFeedback(Feedback):
@@ -238,11 +290,12 @@ class ActionFeedback(Feedback):
 
 if __name__ == "__main__":
     args = get_args()
+    dataset = get_dataset(args)
     type = args["feedback_type"]
     type_to_generator = {
-        "direction": DirectionFeedback(args),
-        # "distance": DistanceFeedback(args),
-        "action": ActionFeedback(args),
+        "direction": DirectionFeedback(args, dataset),
+        "distance": DistanceFeedback(args, dataset),
+        "action": ActionFeedback(args, dataset),
         # "adjacency": AdjacencyFeedback(args),
     }
     feedback_generator = type_to_generator[type]
