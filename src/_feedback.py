@@ -101,11 +101,11 @@ class DirectionFeedback(Feedback):
 
         if goal_x > agent_x:
             east = True
-        if goal_y < agent_y:
+        if goal_y > agent_y:
             south = True
         if goal_x < agent_x:
             west = True
-        if goal_y > agent_y:
+        if goal_y < agent_y:
             north = True
 
         # Ids of directions is based on direction encodings:

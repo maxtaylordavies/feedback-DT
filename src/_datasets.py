@@ -12,6 +12,19 @@ from custom_dataset import CustomDataset
 from argparsing import get_args
 from utils import log
 
+ACTION_TO_STR = {
+    0: "left",
+    1: "right",
+    2: "forward",
+    3: "pickup",
+    4: "drop",
+    5: "toggle",
+    6: "done",
+}
+
+AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
+
+
 basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
 if not basepath in sys.path:
     sys.path.append(basepath)
@@ -114,16 +127,24 @@ def generate_new_dataset(args):
             for x, y in enumerate(env.grid.grid)
             if isinstance(y, Ball) and y.color in obs["mission"]
         ]
+
         # TO-DO Adjust properly for cases with multiple goals
         # where we want to return all goal positions not just the first
+        # See ... for the below
         goal_position = (
             int(goal_position_list[0] / env.height),
             goal_position_list[0] % env.width,
         )
         while not (terminated or truncated):
+            print("==" * 10)
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
-
+            print(f"goal_position: {goal_position}")
+            print(f"action: {ACTION_TO_STR[action]}")
+            print(f"agent_position: {env.agent_pos}")
+            print(
+                f"direction_observation: {AGENT_DIR_TO_STR[observation['direction']]}"
+            )
             replay_buffer["goal_position"][total_steps] = np.array(goal_position)
             replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
             replay_buffer["direction_observation"][total_steps] = np.array(
