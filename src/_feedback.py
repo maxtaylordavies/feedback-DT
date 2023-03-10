@@ -44,6 +44,7 @@ class Feedback(ABC):
         self.feedback_mode = args["feedback_mode"]
         self.feedback_freq_type = args["feedback_freq_type"]
         self.feedback_freq_steps = args["feedback_freq_steps"]
+        self.feedback_freq = f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
         self.env_name = args["env_name"]
         self.num_episodes = args["num_episodes"]
         self.feedback_type = args["feedback_type"]
@@ -99,8 +100,40 @@ class Feedback(ABC):
 
     def save_feedback(self):
         feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
-        with open(feedback_path, "w+") as outfile:
-            json.dump(self.feedback_data, outfile)
+        if os.path.exists(feedback_path):
+            with open(feedback_path, encoding="utf-8") as json_file:
+                existing_feedback_data = json.load(json_file)
+            if self.feedback_type in existing_feedback_data:
+                if self.feedback_mode in existing_feedback_data[self.feedback_type]:
+                    if (
+                        self.feedback_freq
+                        in existing_feedback_data[self.feedback_type][
+                            self.feedback_mode
+                        ]
+                    ):
+                        existing_feedback_data[self.feedback_type][self.feedback_mode][
+                            self.feedback_freq
+                        ] = self.feedback_data[self.feedback_type][self.feedback_mode][
+                            self.feedback_freq
+                        ]
+                    else:
+                        existing_feedback_data[self.feedback_type][
+                            self.feedback_mode
+                        ].update(
+                            self.feedback_data[self.feedback_type][self.feedback_mode]
+                        )
+                else:
+                    existing_feedback_data[self.feedback_type].update(
+                        self.feedback_data[self.feedback_type]
+                    )
+            else:
+                existing_feedback_data.update(self.feedback_data)
+
+            with open(feedback_path, "w+") as outfile:
+                json.dump(existing_feedback_data, outfile)
+        else:
+            with open(feedback_path, "w+") as outfile:
+                json.dump(self.feedback_data, outfile)
 
 
 class DirectionFeedback(Feedback):
@@ -176,7 +209,7 @@ class DirectionFeedback(Feedback):
                 else:
                     episode_feedback.append("")
             self.feedback_data[self.feedback_type][self.feedback_mode][
-                f"{self.feedback_freq_type}_{self.feedback_freq_steps}"
+                self.feedback_freq
             ].append(episode_feedback)
 
 
