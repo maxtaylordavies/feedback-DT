@@ -8,10 +8,16 @@ from minari.logger import LOG
 
 class CustomDataset(MinariDataset):
     def __init__(
-        self, goal_positions, agent_positions, direction_observations, **kwargs
+        self,
+        symbolic_observations,
+        goal_positions,
+        agent_positions,
+        direction_observations,
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
+        self._symbolic_observations = symbolic_observations
         self._goal_positions = goal_positions
         self._agent_positions = agent_positions
         self._direction_observations = np.asarray(
@@ -33,6 +39,7 @@ class CustomDataset(MinariDataset):
         os.makedirs(datasets_path, exist_ok=True)
 
         with h5py.File(file_path, "w") as f:
+            f.create_dataset("symbolic_observations", data=self._symbolic_observations)
             f.create_dataset("goal_positions", data=self._goal_positions)
             f.create_dataset("agent_positions", data=self._agent_positions)
             f.create_dataset(
@@ -81,6 +88,7 @@ class CustomDataset(MinariDataset):
             file_path = os.path.join(datasets_path, f"{dataset_name}.hdf5")
 
         with h5py.File(file_path, "r") as f:
+            symbolic_observations = f["symbolic_observations"][()]
             goal_positions = f["goal_positions"][()]
             agent_positions = f["agent_positions"][()]
             direction_observations = f["direction_observations"][()]
@@ -109,6 +117,7 @@ class CustomDataset(MinariDataset):
                 LOG.warning("The dataset structure might be incompatible.")
 
         dataset = cls(
+            symbolic_observations=symbolic_observations,
             goal_positions=goal_positions,
             agent_positions=agent_positions,
             direction_observations=direction_observations,
@@ -132,25 +141,17 @@ class CustomDataset(MinariDataset):
         return dataset
 
     @property
+    def symbolic_observations(self):
+        return self._symbolic_observations
+
+    @property
     def goal_positions(self):
-        """Returns the observations.
-        Returns:
-            numpy.ndarray: array of observations.
-        """
         return self._goal_positions
 
     @property
     def agent_positions(self):
-        """Returns the observations.
-        Returns:
-            numpy.ndarray: array of observations.
-        """
         return self._agent_positions
 
     @property
     def direction_observations(self):
-        """Returns the observations.
-        Returns:
-            numpy.ndarray: array of observations.
-        """
         return self._direction_observations
