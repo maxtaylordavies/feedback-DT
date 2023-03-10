@@ -265,6 +265,92 @@ class ActionFeedback(Feedback):
         return super().generate_feedback("actions")
 
 
+class AdjacencyFeedback(Feedback):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def _next_to_agent(self, x, agent_x, y, agent_y):
+        if abs(agent_x - x) == 1:
+            return True
+        if abs(agent_y - y) == 1:
+            return True
+        else:
+            return False
+
+    def _get_relative_position_to_agent(self, x, agent_x, y, agent_y):
+        if agent_x > x:
+            return "<"
+        if agent_x < x:
+            return ">"
+        if agent_y > y:
+            return "^"
+        if agent_y < y:
+            return "V"
+
+    def _agent_facing_object(self, relative_object_position, agent_direction):
+        if relative_object_position == agent_direction:
+            return True
+        else:
+            return False
+
+    def _get_adjacent_object(self, observation, current_episode, current_step):
+        agent_x = self.episode_data["agent_positions"][0]
+        agent_y = self.episode_data["agent_positions"][1]
+        agent_direction = self.episode_data["direction_observation"][current_episode][
+            current_step
+        ]
+        adjacent_object = None
+        facing_adjacent_object = False
+        for x, row in enumerate(observation):
+            for y, object in enumerate(row):
+                # Check if there is a key, ball or box in this position
+                if object[0] in [5, 6, 7]:
+                    if self._next_to_agent(x, agent_x, y, agent_y):
+                        # Check if the object is either above, below, left or right of the agent
+                        adjacent_object = object
+                        relative_object_position = self._get_relative_position_to_agent(
+                            x, agent_x, y, agent_y
+                        )
+                        if self._agent_facing_object(
+                            relative_object_position, agent_direction
+                        ):
+                            facing_adjacent_object = True
+                            adjacent_object = object
+        return adjacent_object, facing_adjacent_object
+
+    def _same_color(self, adjacent_object):
+        adjacent_object_color = COLOR_TO_STR[adjacent_object]
+        if self.goal_color == adjacent_object_color:
+            return True
+        else:
+            return False
+
+    def _same_type(self, adjacent_object):
+        adjacent_object_type = OBJECT_TO_STR[adjacent_object]
+        if self.goal_type == adjacent_object_type:
+            return True
+        else:
+            return False
+
+    def _get_polarity(self, observation, current_episode, current_step):
+        adjacent_object, facing_adjacent_object = self._get_adjacent_object(
+            observation, current_episode, current_step
+        )
+        if adjacent_object and not facing_adjacent_object:
+            return "negative_not_facing"
+        elif not adjacent_object and not facing_adjacent_object:
+            return "negative_no_adjacent_obecjt"
+        elif self._same_color(adjacent_object):
+            return "positive_same_color"
+        elif self._same_type(adjacent_object):
+            return "positive_same_type"
+        else:
+            return "negative_no_shared_attributes"
+
+    def generate_feedback(self):
+        return super().generate_feedback("observations")
+
+
 if __name__ == "__main__":
     args = get_args()
     dataset = get_dataset(args)
@@ -273,7 +359,7 @@ if __name__ == "__main__":
         "direction": DirectionFeedback(args, dataset),
         "distance": DistanceFeedback(args, dataset),
         "action": ActionFeedback(args, dataset),
-        # "adjacency": AdjacencyFeedback(args),
+        "adjacency": AdjacencyFeedback(args, dataset),
     }
     feedback_generator = type_to_generator[type]
     feedback_generator.generate_feedback()
