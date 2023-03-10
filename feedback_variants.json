@@ -84,11 +84,35 @@
         }
     },
     "adjacency": {
-        "negative": {
-            "simple": "You're next to an object that neither has the same color nor the same type as the goal.",
+        "negative_no_adjacent_object": {
+            "simple": "There aren't any objects next to you.",
+            "verbose": [
+                "You're standing in a position with no objects around you.",
+                "There are no objects nearby you right now.",
+                "You're not standing next to any objects at the moment.",
+                "There aren't any objects or items close enough to you right now.",
+                "You're not near any objects at this point.",
+                "There are no objects within arm's reach of where you're standing.",
+                "You're standing in a spot with no objects around.",
+                "You're not standing next to any objects currently.",
+                "There are no items within your immediate vicinity.",
+                "You're in a space that's clear of any objects.",
+                "There's no objects in close proximity to where you're standing.",
+                "You're standing in a space with no objects around.",
+                "You're in a space with no objects nearby.",
+                "There are no objects in your immediate surroundings.",
+                "You're not standing next to any objects at the moment.",
+                "There are no objects next to you right now.",
+                "You're in a space with no objects next to you.",
+                "There aren't any items or objects next to you.",
+                "There are no objects next to where you're standing."
+            ]
+        },
+        "negative_no_shared_attributes": {
+            "simple": "You're next to an object of the wrong color and type.",
             "verbose": [
                 "Neither the color nor the type of the object you found is correct. Keep searching for the {goal object col} {goal object type}.",
-                "The object you're looking for is neither a {current object col} {current object type} nor any other {current object col} object. Keep looking for the  {goal object col} {goal object type}.",
+                "The object you're looking for is neither a {current object col} {current object type} nor any other {current object col} object. Keep looking for the {goal object col} {goal object type}.",
                 "That's not the object you're looking for. Keep searching for the {goal object col} {goal object type}, not a {current object col} {current object type}.",
                 "The object you're looking for is neither a {current object col} object nor a {current object type}. Keep searching for the {goal object col} {goal object type}.",
                 "The object you found is neither the correct type nor color. Keep looking for the {goal object col} {goal object type}.",
@@ -102,49 +126,69 @@
                 "That's not even close to the right object. Both the color and type are wrong. You need to find the {goal object col} {goal object type}."
             ]
         },
-        "positive": {
-            "same_color": {
-                "simple": "You're next to an object that has the same color as the goal.",
-                "verbose": [
-                    "Great job! You've found the right type of object, just the wrong color.",
-                    "Not bad! You've found the right type of object, now let's find the {goal object col} one.",
-                    "Good work! You've found the right kind of object, but you need to find the {goal object col} one.",
-                    "You're doing well! You've found the same type of object, just in the wrong color.",
-                    "You're doing okay! You've found the same type of object as the goal object, now let's find it in the right color.",
-                    "Almost! You've found the correct object type, now let's make it the {goal object col} one.",
-                    "Pretty close! You've found the correct object, now you just need to find it in the right color.",
-                    "You're very close! You just need to find the {goal object col} {goal object type} instead of the {current object col} one.",
-                    "You're on the right track! The object type is correct, you just need to locate the {goal object col} one.",
-                    "Nice! You've located the same type of object, let's just switch it to the {goal object col} red one and you're done.",
-                    "You're doing well! You've located the right object, now just find the one in the correct color.",
-                    "You're getting close! The right type of object is there, you just need to locate the {goal object col} one.",
-                    "You're almost there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
-                    "You're getting there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
-                    "You're close! Just switch the {current object col} {current/goal object type} for the {goal object col} one and you're there.",
-                    "Getting there! You're on the right track, let's just switch the {current object col} {current/goal object type} for the {goal object col} one."
-                ]
-            },
-            "same_type": {
-                "simple": "You're next to an object that has the same type as the goal.",
-                "verbose": [
-                    "You're close, but not quite there yet. You need to find the {current/goal object col} {goal object type} instead of the {goal/current object col} {current object type}.",
-                    "Great job finding a {current/goal object col} object, but it's the wrong type. The {current/goal object col} {goal object type} is what you're looking for.",
-                    "You're on the right track! You just need to swap the {current/goal object col} {current object type} for the  {current/goal object col} {goal object type}.",
-                    "The color is right, but the type is not. You need to locate the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
-                    "You've found an object with the right color, but it's not the right type. The {current/goal object col} {goal object type} is what you need.",
-                    "You're almost there! You need to find the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
-                    "Good job finding an object with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
-                    "You're close! The {current/goal object col} {goal object type} is what you're looking for, not the {current/goal object col} {current object type}.",
-                    "Not bad! The {current/goal object col} {current object type} is not the right type of object, keep looking for the {current/goal object col} {goal object type}.",
-                    "Pretty close! The {current/goal object col} {goal object type} is your goal, not the  {current/goal object col} {current object type}, so keep searching!",
-                    "You're so close! Just switch the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} and you're there.",
-                    "The color is spot on, but the type is not. Keep searching for the {current/goal object col} {goal object type}.",
-                    "You've found something with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
-                    "Getting there! The {current/goal object col} {goal object type} is what you need to find, not the{current/goal object col} {current object type}. Keep searching!",
-                    "You're doing well, but you need to swap the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} to be in the right spot.",
-                    "Great job finding an object with the right color, but it's not the right type. Keep searching for the {current/goal object col} {goal object type}."
-                ]
-            }
+        "positive_next_to_goal": {
+            "simple": "You're next to an object of the correct color and type.",
+            "verbose": [
+                "You're adjacent to an object that matches the color and type of the goal object - Great job!",
+                "You're situated beside an object of the correct color and type - Well done!",
+                "You're positioned next to an object that is both the correct color and type - Excellent job!",
+                "You're located alongside an object that matches both the color and type of the goal - Perfect!",
+                "You're next to an object that is of the right color and type - Awesome!",
+                "The object next to you is of the correct color and type - Fantastic!",
+                "You're near an object that is the correct color and type - Terrific!",
+                "You're alongside an object that matches the required color and type - Amazing!",
+                "You're standing next to an object that is the right color and type - Bravo!",
+                "The object next to you is the correct color and type - Superb!",
+                "You're adjacent to a correctly colored and typed object - Marvelous!",
+                "You're positioned beside an object that is both the correct color and type - Amazing!",
+                "You're situated next to an object that is of the required color and type - Nice work!",
+                "You're located next to an object that matches the correct color and type of the goal - Fantastic!",
+                "The object next to you matches the color and type you need - Way to go!",
+                "You're standing alongside an object of the right color and type - You're doing great!",
+                "You're next to an object that meets the color and type requirements for the goal - Good going!"
+            ]
+        },
+        "positive_same_color": {
+            "simple": "You're next to an object of the correct color.",
+            "verbose": [
+                "Great job! You've found the right type of object, just the wrong color.",
+                "Not bad! You've found the right type of object, now let's find the {goal object col} one.",
+                "Good work! You've found the right kind of object, but you need to find the {goal object col} one.",
+                "You're doing well! You've found the same type of object, just in the wrong color.",
+                "You're doing okay! You've found the same type of object as the goal object, now let's find it in the right color.",
+                "Almost! You've found the correct object type, now let's make it the {goal object col} one.",
+                "Pretty close! You've found the correct object, now you just need to find it in the right color.",
+                "You're very close! You just need to find the {goal object col} {goal object type} instead of the {current object col} one.",
+                "You're on the right track! The object type is correct, you just need to locate the {goal object col} one.",
+                "Nice! You've located the same type of object, let's just switch it to the {goal object col} red one and you're done.",
+                "You're doing well! You've located the right object, now just find the one in the correct color.",
+                "You're getting close! The right type of object is there, you just need to locate the {goal object col} one.",
+                "You're almost there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
+                "You're getting there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
+                "You're close! Just switch the {current object col} {current/goal object type} for the {goal object col} one and you're there.",
+                "Getting there! You're on the right track, let's just switch the {current object col} {current/goal object type} for the {goal object col} one."
+            ]
+        },
+        "positive_same_type": {
+            "simple": "You're next to and object of the correct type.",
+            "verbose": [
+                "You're close, but not quite there yet. You need to find the {current/goal object col} {goal object type} instead of the {goal/current object col} {current object type}.",
+                "Great job finding a {current/goal object col} object, but it's the wrong type. The {current/goal object col} {goal object type} is what you're looking for.",
+                "You're on the right track! You just need to swap the {current/goal object col} {current object type} for the  {current/goal object col} {goal object type}.",
+                "The color is right, but the type is not. You need to locate the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
+                "You've found an object with the right color, but it's not the right type. The {current/goal object col} {goal object type} is what you need.",
+                "You're almost there! You need to find the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
+                "Good job finding an object with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
+                "You're close! The {current/goal object col} {goal object type} is what you're looking for, not the {current/goal object col} {current object type}.",
+                "Not bad! The {current/goal object col} {current object type} is not the right type of object, keep looking for the {current/goal object col} {goal object type}.",
+                "Pretty close! The {current/goal object col} {goal object type} is your goal, not the  {current/goal object col} {current object type}, so keep searching!",
+                "You're so close! Just switch the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} and you're there.",
+                "The color is spot on, but the type is not. Keep searching for the {current/goal object col} {goal object type}.",
+                "You've found something with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
+                "Getting there! The {current/goal object col} {goal object type} is what you need to find, not the{current/goal object col} {current object type}. Keep searching!",
+                "You're doing well, but you need to swap the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} to be in the right spot.",
+                "Great job finding an object with the right color, but it's not the right type. Keep searching for the {current/goal object col} {goal object type}."
+            ]
         }
     },
     "action": {

@@ -122,14 +122,37 @@ class Feedback(ABC):
                     if not isinstance(feedback, str):
                         random_id = self.rng.integers(len(feedback))
                         random_feedback = feedback[random_id]
-                        episode_feedback.append(random_feedback)
+                        if (
+                            self.feedback_type == "adjacency"
+                            and self.adjacent_object is not None
+                        ):
+                            final_feedback = (
+                                random_feedback.replace(
+                                    "{current object col}", self.adjacent_object_color
+                                )
+                                .replace("{goal object col}", self.goal_color)
+                                .replace("{goal/current object col}", self.goal_color)
+                                .replace("{current/goal object col}", self.goal_color)
+                                .replace(
+                                    "{current object type}", self.adjacent_object_type
+                                )
+                                .replace("{goal object type}", self.goal_type)
+                                .replace("{goal/current object type}", self.goal_type)
+                                .replace("{current/goal object type}", self.goal_type)
+                            )
+                        else:
+                            final_feedback = random_feedback
+                        episode_feedback.append(final_feedback)
                     else:
                         episode_feedback.append(feedback)
                 else:
                     episode_feedback.append("")
+
+            else:
+                final_episode_feedback = episode_feedback
             self.feedback_data[self.feedback_type][self.feedback_mode][
                 self.feedback_freq
-            ].append(episode_feedback)
+            ].append(final_episode_feedback)
 
     def save_feedback(self):
         feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
@@ -268,84 +291,101 @@ class ActionFeedback(Feedback):
 class AdjacencyFeedback(Feedback):
     def __init__(self, *args):
         super().__init__(*args)
+        self.adjacent_object = None
+        self.adjacent_object_color = None
+        self.adjacent_object_type = None
+        # self.facing_adjacent_object = False
 
     def _next_to_agent(self, x, agent_x, y, agent_y):
-        if abs(agent_x - x) == 1:
+        if agent_y == y and abs(agent_x - x) == 1:
             return True
-        if abs(agent_y - y) == 1:
-            return True
-        else:
-            return False
-
-    def _get_relative_position_to_agent(self, x, agent_x, y, agent_y):
-        if agent_x > x:
-            return "<"
-        if agent_x < x:
-            return ">"
-        if agent_y > y:
-            return "^"
-        if agent_y < y:
-            return "V"
-
-    def _agent_facing_object(self, relative_object_position, agent_direction):
-        if relative_object_position == agent_direction:
+        if agent_x == x and abs(agent_y - y) == 1:
             return True
         else:
             return False
 
-    def _get_adjacent_object(self, observation, current_episode, current_step):
-        agent_x = self.episode_data["agent_positions"][0]
-        agent_y = self.episode_data["agent_positions"][1]
-        agent_direction = self.episode_data["direction_observation"][current_episode][
-            current_step
-        ]
-        adjacent_object = None
-        facing_adjacent_object = False
+    # def _get_relative_position_to_agent(self, x, agent_x, y, agent_y):
+    #     if agent_x > x:
+    #         return "<"
+    #     if agent_x < x:
+    #         return ">"
+    #     if agent_y > y:
+    #         return "^"
+    #     if agent_y < y:
+    #         return "V"
+
+    # def _agent_facing_object(self, relative_object_position, agent_direction):
+    #     print(
+    #         f"The agent faces this way {AGENT_DIR_TO_STR[agent_direction]} and the object is located this way {relative_object_position}"
+    #     )
+    #     if relative_object_position == AGENT_DIR_TO_STR[agent_direction]:
+    #         return True
+    #     else:
+    #         return False
+
+    def _get_adjacent_objects(self, observation, current_episode, current_step):
+        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
+        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        # agent_direction = self.episode_data["direction_observations"][current_episode][
+        #     current_step
+        # ]
+        adjacent_objects = []
         for x, row in enumerate(observation):
             for y, object in enumerate(row):
                 # Check if there is a key, ball or box in this position
                 if object[0] in [5, 6, 7]:
                     if self._next_to_agent(x, agent_x, y, agent_y):
-                        # Check if the object is either above, below, left or right of the agent
-                        adjacent_object = object
-                        relative_object_position = self._get_relative_position_to_agent(
-                            x, agent_x, y, agent_y
-                        )
-                        if self._agent_facing_object(
-                            relative_object_position, agent_direction
-                        ):
-                            facing_adjacent_object = True
-                            adjacent_object = object
-        return adjacent_object, facing_adjacent_object
+                        adjacent_objects.append(object)
+                        # # Check if the object is either above, below, left or right of the agent
+                        # relative_object_position = self._get_relative_position_to_agent(
+                        #     x, agent_x, y, agent_y
+                        # )
+                        # if self._agent_facing_object(
+                        #     relative_object_position, agent_direction
+                        # ):
+                        #     self.facing_adjacent_object = True
+        return adjacent_objects
 
-    def _same_color(self, adjacent_object):
-        adjacent_object_color = COLOR_TO_STR[adjacent_object]
-        if self.goal_color == adjacent_object_color:
+    def _same_color(self, object):
+        object_color = COLOR_TO_STR[object[1]]
+        if self.goal_color == object_color:
             return True
         else:
             return False
 
-    def _same_type(self, adjacent_object):
-        adjacent_object_type = OBJECT_TO_STR[adjacent_object]
-        if self.goal_type == adjacent_object_type:
+    def _same_type(self, object):
+        object_type = OBJECT_TO_STR[object[0]]
+        if self.goal_type == object_type:
             return True
         else:
             return False
+
+    def _set_adjacent_object(self, object):
+        self.adjacent_object = object
+        self.adjacent_object_color = COLOR_TO_STR[object[1]]
+        self.adjacent_object_type = OBJECT_TO_STR[object[0]]
 
     def _get_polarity(self, observation, current_episode, current_step):
-        adjacent_object, facing_adjacent_object = self._get_adjacent_object(
+        self.adjacent_object = None
+        adjacent_objects = self._get_adjacent_objects(
             observation, current_episode, current_step
         )
-        if adjacent_object and not facing_adjacent_object:
-            return "negative_not_facing"
-        elif not adjacent_object and not facing_adjacent_object:
-            return "negative_no_adjacent_obecjt"
-        elif self._same_color(adjacent_object):
-            return "positive_same_color"
-        elif self._same_type(adjacent_object):
-            return "positive_same_type"
-        else:
-            return "negative_no_shared_attributes"
+        for object in adjacent_objects:
+            if self._same_type(object) and self._same_color(object):
+                self._set_adjacent_object(object)
+                return "positive_next_to_goal"
+            elif self._same_type(object) and not self._same_color(object):
+                self._set_adjacent_object(object)
+                return "positive_same_type"
+            elif self._same_color(object) and not self._same_type(object):
+                self._set_adjacent_object(object)
+                return "positive_same_color"
+            elif not self._same_color(object) and not self._same_type(object):
+                self._set_adjacent_object(object)
+                return "negative_no_shared_attributes"
+
+        if self.adjacent_object is None:
+            return "negative_no_adjacent_object"
 
     def generate_feedback(self):
         return super().generate_feedback("observations")
