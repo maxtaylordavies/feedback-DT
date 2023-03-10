@@ -109,11 +109,14 @@ def generate_new_dataset(args):
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
         obs, _ = env.reset(seed=args["seed"])
+        # See DirectionObsWrapper() in Minigrid/minigrid/wrappers.py for original
+        # implementation of the below
         goal_position_list = [
             x
             for x, y in enumerate(env.grid.grid)
             if isinstance(y, Ball) and y.color in obs["mission"]
         ]
+
         # TO-DO Adjust properly for cases with multiple goals
         # where we want to return all goal positions not just the first
         goal_position = (
@@ -123,7 +126,6 @@ def generate_new_dataset(args):
         while not (terminated or truncated):
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
-
             replay_buffer["goal_position"][total_steps] = np.array(goal_position)
             replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
             replay_buffer["direction_observation"][total_steps] = np.array(

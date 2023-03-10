@@ -37,7 +37,7 @@ def delete_datasets(args):
             include_timeout
         ), "Specify the corresponding include_timeout parameter value to delete a specific dataset or pass True for del_all to delete all local datasets"
 
-        dataset_name = name_dataset(env_name, num_episodes, include_timeout)
+        dataset_name = name_dataset(args)
         minari.delete_dataset(dataset_name)
         print(f"Sucess! Deleted {dataset_name}")
 

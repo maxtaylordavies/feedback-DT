@@ -14,6 +14,7 @@ huggingface = "*"
 datasets = "*"
 black = "*"
 torch = "*"
+scipy = "*"
 
 [dev-packages]
 
