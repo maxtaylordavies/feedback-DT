@@ -71,7 +71,7 @@ class Feedback(ABC):
         episode_data["goal_positions"] = []
         episode_data["agent_positions"] = []
         episode_data["direction_observations"] = []
-        episode_data["observations"] = []
+        episode_data["symbolic_observations"] = []
         episode_data["actions"] = []
         total_steps = 0
         for episode in self.dataset.episodes:
@@ -86,7 +86,7 @@ class Feedback(ABC):
             episode_data["direction_observations"].append(
                 self.dataset.direction_observations[previous_total_steps:total_steps]
             )
-            episode_data["observations"].append(episode.observations)
+            episode_data["symbolic_observations"].append(episode.observations)
             episode_data["actions"].append(episode.actions)
         return episode_data
 
@@ -388,7 +388,7 @@ class AdjacencyFeedback(Feedback):
             return "negative_no_adjacent_object"
 
     def generate_feedback(self):
-        return super().generate_feedback("observations")
+        return super().generate_feedback("symbolic_observations")
 
 
 if __name__ == "__main__":
