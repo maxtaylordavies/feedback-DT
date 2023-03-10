@@ -7,6 +7,7 @@ import minari
 from minari.dataset import MinariDataset
 from minari.storage.datasets_root_dir import get_file_path
 import numpy as np
+from tqdm import tqdm
 
 from src.argparsing import get_args
 from src.utils import log
@@ -75,7 +76,7 @@ def generate_new_dataset(args):
     }
 
     total_steps = 0
-    for episode in range(args["num_episodes"]):
+    for episode in tqdm(range(args["num_episodes"])):
         episode_step, terminated, truncated = 0, False, False
         env.reset(seed=args["seed"])
 
@@ -94,7 +95,6 @@ def generate_new_dataset(args):
 
     env.close()
 
-    # truncate the replay buffer to the actual number of steps taken
     for key in replay_buffer.keys():
         replay_buffer[key] = replay_buffer[key][:total_steps]
 
@@ -118,6 +118,68 @@ def generate_new_dataset(args):
         terminations=replay_buffer["terminated"],
         truncations=replay_buffer["truncated"],
         episode_terminals=episode_terminals,
+    )
+
+
+def generate_new_dataset_2(args):
+    env = gym.make(args["env_name"])
+    # TODO Consider whether there is any advantage in using the RGBImgPartialObsWrapper()
+
+    observation, _ = env.reset(seed=args["seed"])
+
+    # Get the environment specification stack for reproducibility
+    environment_stack = serialise_spec_stack(env.spec_stack)
+
+    replay_buffer = {
+        "observation": [],
+        "action": [],
+        "reward": [],
+        "terminated": [],
+        "truncated": [],
+    }
+
+    for _ in range(args["num_episodes"]):
+        term, trunc = False, False
+        states, actions, rewards, terminated, truncated = [], [], [], [], []
+        env.reset(seed=args["seed"])
+
+        while not (term or trunc):
+            a = env.action_space.sample()  # User-defined policy function
+            s, r, term, trunc, _ = env.step(a)
+
+            states.append(s["image"])
+            actions.append(a)
+            rewards.append(r)
+            terminated.append(term)
+            truncated.append(trunc)
+
+        if not trunc:
+            replay_buffer["observation"] += states
+            replay_buffer["action"] += actions
+            replay_buffer["reward"] += rewards
+            replay_buffer["terminated"] += terminated
+            replay_buffer["truncated"] += truncated
+
+    env.close()
+
+    # truncate the replay buffer to the actual number of steps taken
+    for key in replay_buffer.keys():
+        replay_buffer[key] = np.array(replay_buffer[key])
+
+    return MinariDataset(
+        dataset_name=name_dataset(args),
+        algorithm_name="random_policy",
+        environment_name=args["env_name"],
+        environment_stack=json.dumps(environment_stack),
+        seed_used=args["seed"],
+        code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
+        author="SabrinaMcCallum",
+        author_email="s2431177@ed.ac.uk",
+        observations=replay_buffer["observation"],
+        actions=replay_buffer["action"],
+        rewards=replay_buffer["reward"],
+        terminations=replay_buffer["terminated"],
+        truncations=replay_buffer["truncated"],
     )
 
 

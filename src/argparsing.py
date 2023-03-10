@@ -13,6 +13,7 @@ def get_args():
     parser.add_argument(
         "--env_name",
         type=str,
+        default="BabyAI-GoToRedBallGrey-v0",
         help="the name of the environment; must be registered with gymnasium",
     )
     parser.add_argument(
@@ -37,7 +38,7 @@ def get_args():
         "--epochs",
         type=int,
         default=100,
-        help="number of epochs to train (default: 10)",
+        help="number of epochs to train (default: 100)",
     )
     parser.add_argument(
         "--batch_size",
@@ -48,8 +49,8 @@ def get_args():
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-4,
-        help="learning rate (default: 1e-4)",
+        default=5 * 1e-4,
+        help="learning rate (default: 5 * 1e-4)",
     )
     parser.add_argument(
         "--gamma",
@@ -64,16 +65,16 @@ def get_args():
         "--seed",
         type=int,
         default=None,
-        help="random seed (default: random number)",
+        help="random seed (default: np.random.randint(0, 2**32 - 1)))",
     )
     parser.add_argument(
         "--log_interval",
         type=int,
-        default=1,
-        help="how many batches to wait before logging training status (default: 1)",
+        default=50,
+        help="how many training steps between logging output (default: 50)",
     )
     parser.add_argument(
-        "--visualise-interval",
+        "--visualise_interval",
         type=str,
         default="end",
         help="interval at which to visualise model's performance in the environment (default: end)",

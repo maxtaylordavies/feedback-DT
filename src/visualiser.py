@@ -12,6 +12,7 @@ class Visualiser(gym.Wrapper):
         env,
         directory,
         num_epochs,
+        seed,
         auto_release=True,
         size=None,
         fps=None,
@@ -28,7 +29,7 @@ class Visualiser(gym.Wrapper):
             os.mkdir(self.directory)
 
         if size is None:
-            self.env.reset()
+            self.env.reset(seed=seed)
             self.size = self.env.render().shape[:2][::-1]
         else:
             self.size = size
@@ -78,19 +79,24 @@ class Visualiser(gym.Wrapper):
         return data
 
 
-def visualise_trained_model(args, collator, model, epochs_trained=None):
+def visualise_trained_model(args, collator, model, epochs_trained=None, target_return=1):
     # create the output directory if it doesn't exist
     output_dir = os.path.join(args["output"], args["run_name"])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     # build an environment to visualise the trained model
-    env = gym.make(args["env_name"], render_mode="rgb_array")
-    env = Visualiser(env, output_dir, epochs_trained or args["epochs"], fps=30)
-    max_ep_len, scale = env.max_steps or 64, 1000.0  # normalization for rewards/returns
-    target_return = (
-        12000 / scale
-    )  # evaluation is conditioned on a return of 12000, scaled accordingly
+    env = Visualiser(
+        gym.make(args["env_name"], render_mode="rgb_array"),
+        output_dir,
+        epochs_trained or args["epochs"],
+        seed=args["seed"],
+        fps=30,
+    )
+
+    max_ep_len, scale = env.max_steps or 64, 1.0  # normalization for rewards/returns
+    target_return /= scale
+
     device = "cpu"
     model = model.to(device)
 
@@ -151,3 +157,23 @@ def visualise_trained_model(args, collator, model, epochs_trained=None):
 
         if done:
             break
+
+
+def visualise_episode(episode, idx, args, output_dir):
+    env = Visualiser(
+        gym.make(args["env_name"], render_mode="rgb_array"),
+        output_dir,
+        idx,
+        seed=args["seed"],
+        fps=30,
+    )
+
+    episode_return, _ = 0, env.reset(seed=args["seed"])
+
+    for t in range(len(episode.actions)):
+        _, reward, done, _, _ = env.step(episode.actions[t])
+        episode_return += reward
+        if done:
+            break
+
+    return episode_return

@@ -12,15 +12,26 @@ PROJECT_HOME, SCRATCH_HOME = (
 )
 DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/baseline"
 
+
+def run_name(combo, keys):
+    """Create a name for the experiment based on the parameters"""
+    name = ""
+    for i, key in enumerate(keys):
+        short_key = key
+        if "_" in key:
+            short_key = "".join(w[0] for w in key.split("_"))
+        name += f"{short_key}-{combo[i]}_"
+    return name[:-1]
+
+
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output --wandb_mode offline"
+base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output --epochs 20 --wandb_mode offline --seed 42"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
-    "epochs": [10],
-    "env_name": ["BabyAI-GoToRedBallGrey-v0"]
+    "num_episodes": [500000],
 }
 
 combinations = list(itertools.product(*variables.values()))
@@ -34,6 +45,7 @@ for c in combinations:
     expt_call = base_call
     for i, var in enumerate(variables.keys()):
         expt_call += f" --{var} {c[i]}"
+    expt_call += f" --run_name {run_name(c, variables.keys())}"
     print(expt_call, file=output_file)
 
 output_file.close()

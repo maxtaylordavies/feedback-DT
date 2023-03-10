@@ -45,6 +45,7 @@ def train_model(args, dataset, collator, model):
         warmup_ratio=0.1,
         optim="adamw_torch",
         max_grad_norm=0.25,
+        save_strategy="no"
     )
 
     # initialise the trainer
@@ -93,10 +94,10 @@ def main(args):
     collator, model = create_collator_and_model(dataset)
 
     # train the model
-    # model = train_model(args, dataset, collator, model)
+    model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
-    visualise_trained_model(args, collator, model, epochs_trained=0)
+    visualise_trained_model(args, collator, model)
 
     # if using wandb, save args and finish run
     if args["wandb_mode"] != "disabled":
