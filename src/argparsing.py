@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument(
         "--load_dataset_if_exists",
         type=bool,
-        default=True,
+        default=False,
         help="whether to load the dataset from local storage if it already exists",
     )
     parser.add_argument(
@@ -51,6 +51,13 @@ def get_args():
         default=64,
         help="per-device batch size for training (default: 64)",
     )
+    parser.add_argument(
+        "--context_length",
+        type=int,
+        default=64,
+        help="context length in timesteps (default: 64)",
+    )
+    parser.add_argument("--randomise_starts", type=bool, default=False)
     parser.add_argument(
         "--lr",
         type=float,

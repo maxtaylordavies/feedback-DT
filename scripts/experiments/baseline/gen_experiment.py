@@ -15,7 +15,7 @@ DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/baseline"
 
 def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
-    name = ""
+    name = "monday-"
     for i, key in enumerate(keys):
         short_key = key
         if "_" in key:
@@ -31,7 +31,9 @@ base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output --epochs 
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
-    "num_episodes": [500000],
+    "num_episodes": [100],
+    "context_length": [1, 4, 16, 64],
+    "randomise_starts": [True, False],
 }
 
 combinations = list(itertools.product(*variables.values()))

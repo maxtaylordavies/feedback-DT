@@ -10,10 +10,10 @@ from src.utils import log, to_one_hot
 @dataclass
 class DecisionTransformerMinariDataCollator:
     def __init__(
-        self, minari_dataset, max_sample_len=64, scale=1, gamma=1, randomise_starts=False
+        self, minari_dataset, context_length=64, scale=1, gamma=1, randomise_starts=False
     ) -> None:
-        self.max_sample_len, self.scale, self.gamma, self.randomise_starts = (
-            max_sample_len,
+        self.context_length, self.scale, self.gamma, self.randomise_starts = (
+            context_length,
             scale,
             gamma,
             randomise_starts,
@@ -54,7 +54,7 @@ class DecisionTransformerMinariDataCollator:
 
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
-        pad_width = pad_width or max(self.max_sample_len - x.shape[1], 0)
+        pad_width = pad_width or max(self.context_length - x.shape[1], 0)
         pad_shape = [(0, 0)] * len(x.shape)
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
@@ -81,7 +81,7 @@ class DecisionTransformerMinariDataCollator:
                 if self.randomise_starts
                 else self.episode_starts[ep_idx]
             )
-            end = min(start + self.max_sample_len - 1, self.episode_ends[ep_idx])
+            end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
 
             # store data
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
@@ -107,7 +107,7 @@ class DecisionTransformerMinariDataCollator:
             mask.append(
                 np.concatenate(
                     [
-                        np.zeros((1, self.max_sample_len - (end - start + 1))),
+                        np.zeros((1, self.context_length - (end - start + 1))),
                         np.ones((1, end - start + 1)),
                     ],
                     axis=1,

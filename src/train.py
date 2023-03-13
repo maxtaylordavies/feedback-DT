@@ -17,9 +17,13 @@ from src.utils import log, setup_devices, is_network_connection
 from src.visualiser import visualise_model
 
 
-def create_collator_and_model(dataset):
+def create_collator_and_model(dataset, args):
     # create the data collator
-    collator = DecisionTransformerMinariDataCollator(dataset)
+    collator = DecisionTransformerMinariDataCollator(
+        dataset,
+        context_length=args["context_length"],
+        randomise_starts=args["randomise_starts"],
+    )
     log(f"state_dim: {collator.state_dim}")
     log(f"act_dim: {collator.act_dim}")
 
@@ -45,7 +49,7 @@ def train_model(args, dataset, collator, model):
         warmup_ratio=0.1,
         optim="adamw_torch",
         max_grad_norm=0.25,
-        save_strategy="no"
+        save_strategy="no",
     )
 
     # initialise the trainer
@@ -84,6 +88,8 @@ def main(args):
         args["seed"] = np.random.randint(0, 2**32 - 1)
         log(f"seed not specified, using {args['seed']}")
 
+    args["policy"] = lambda: np.random.randint(3)
+
     # setup compute devices
     setup_devices(args["seed"], not args["no_gpu"])
 
@@ -97,7 +103,9 @@ def main(args):
     model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
-    visualise_model(args, collator, model)
+    visualise_model(
+        args, collator, model, target_returns=[0, 0.5, 1, 10, 100, 1000, 10000], num_repeats=3
+    )
 
     # if using wandb, save args and finish run
     if args["wandb_mode"] != "disabled":
