@@ -39,7 +39,7 @@ class DecisionTransformerMinariDataCollator:
         # store observations, actions and rewards
         self.observations = minari_dataset.observations.reshape((-1, self.state_dim))
         self.actions = to_one_hot(
-            minari_dataset.actions, self.act_dim
+            minari_dataset.actions, width=self.act_dim
         )  # convert from index integer representation to one-hot
         self.rewards = minari_dataset.rewards
 

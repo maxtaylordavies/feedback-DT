@@ -54,7 +54,11 @@ def is_network_connection():
         return False
 
 
-def to_one_hot(x, width):
-    res = np.zeros((x.size, width))
-    res[np.arange(x.size), x] = 1
+def to_one_hot(x, width=1):
+    if np.isscalar(x):
+        res = np.zeros((x.size, width))
+        res[np.arange(x.size), x] = 1
+    else:
+        res = np.zeros_like(x)
+        res[x.argmax()] = 1
     return res
