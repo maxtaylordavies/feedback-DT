@@ -11,7 +11,7 @@ class Visualiser(gym.Wrapper):
         self,
         env,
         directory,
-        num_epochs,
+        filename,
         seed,
         auto_release=True,
         size=None,
@@ -20,7 +20,7 @@ class Visualiser(gym.Wrapper):
     ):
         super(Visualiser, self).__init__(env)
         self.directory = directory
-        self.path = os.path.join(self.directory, f"{num_epochs}.mp4")
+        self.path = os.path.join(self.directory, f"{filename}.mp4")
         self.auto_release = auto_release
         self.active = True
         self.rgb = rgb
@@ -77,27 +77,32 @@ class Visualiser(gym.Wrapper):
             self.release()
 
         return data
+    
 
 
-def visualise_trained_model(args, collator, model, epochs_trained=None, target_return=1):
+def visualise_model(args, collator, model, target_returns, num_repeats):
     # create the output directory if it doesn't exist
     output_dir = os.path.join(args["output"], args["run_name"])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    
+    # visualise the model policy for each target return
+    for ret in target_returns:
+        for rep in range(num_repeats):
+            env = Visualiser(
+                gym.make(args["env_name"], render_mode="rgb_array"),
+                output_dir,
+                filename=f"{ret}-{rep}",
+                seed=args["seed"],
+                fps=30,
+            )
+            _visualise_model(args, collator, model, env, target_return=ret)
 
-    # build an environment to visualise the trained model
-    env = Visualiser(
-        gym.make(args["env_name"], render_mode="rgb_array"),
-        output_dir,
-        epochs_trained or args["epochs"],
-        seed=args["seed"],
-        fps=30,
-    )
 
-    max_ep_len, scale = env.max_steps or 64, 1.0  # normalization for rewards/returns
-    target_return /= scale
-
-    device = "cpu"
+def _visualise_model(
+    args, collator, model, env, target_return=1000, one_hot=True, normalise=True
+):
+    max_ep_len, device = env.max_steps or 64, "cpu"
     model = model.to(device)
 
     state_mean = collator.state_mean.astype(np.float32)
@@ -126,17 +131,16 @@ def visualise_trained_model(args, collator, model, epochs_trained=None, target_r
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(
-            (states - state_mean) / state_std,
+            states if not normalise else (states - state_mean) / state_std,
             actions,
             rewards,
             target_return,
             timesteps,
+            one_hot=one_hot,
         )
         actions[-1] = action
-        action = np.argmax(action.detach().cpu().numpy())
 
-        env_state, reward, done, _, _ = env.step(action)
-
+        env_state, reward, done, _, _ = env.step(np.argmax(action))
         cur_state = (
             torch.from_numpy(env_state["image"])
             .to(device=device)
@@ -145,8 +149,9 @@ def visualise_trained_model(args, collator, model, epochs_trained=None, target_r
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward
 
-        pred_return = target_return[0, -1] - (reward / scale)
+        pred_return = target_return[0, -1] - reward
         target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
+
         timesteps = torch.cat(
             [timesteps, torch.ones((1, 1), device=device, dtype=torch.long) * (t + 1)],
             dim=1,
@@ -159,7 +164,7 @@ def visualise_trained_model(args, collator, model, epochs_trained=None, target_r
             break
 
 
-def visualise_episode(episode, idx, args, output_dir):
+def visualise_training_episode(episode, idx, args, output_dir):
     env = Visualiser(
         gym.make(args["env_name"], render_mode="rgb_array"),
         output_dir,

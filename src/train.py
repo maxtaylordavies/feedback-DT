@@ -14,7 +14,7 @@ from src.collator import DecisionTransformerMinariDataCollator
 from src._datasets import get_dataset
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
-from src.visualiser import visualise_trained_model
+from src.visualiser import visualise_model
 
 
 def create_collator_and_model(dataset):
@@ -97,7 +97,7 @@ def main(args):
     model = train_model(args, dataset, collator, model)
 
     # visualise the trained model
-    visualise_trained_model(args, collator, model)
+    visualise_model(args, collator, model)
 
     # if using wandb, save args and finish run
     if args["wandb_mode"] != "disabled":
