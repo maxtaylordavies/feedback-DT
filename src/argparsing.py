@@ -23,6 +23,11 @@ def get_args():
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
+        "--policy",
+        type=any,
+        default=None,
+    )
+    parser.add_argument(
         "--include_timeout",
         type=bool,
         default=True,
