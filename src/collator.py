@@ -9,8 +9,15 @@ from src.utils import log, to_one_hot
 
 @dataclass
 class DecisionTransformerMinariDataCollator:
-    def __init__(self, minari_dataset, max_sample_len=20, scale=1, gamma=1) -> None:
-        self.max_sample_len, self.scale, self.gamma = max_sample_len, scale, gamma
+    def __init__(
+        self, minari_dataset, max_sample_len=64, scale=1, gamma=1, randomise_starts=False
+    ) -> None:
+        self.max_sample_len, self.scale, self.gamma, self.randomise_starts = (
+            max_sample_len,
+            scale,
+            gamma,
+            randomise_starts,
+        )
 
         # compute start and end timesteps for each episode
         self.episode_ends = np.where(
@@ -19,15 +26,9 @@ class DecisionTransformerMinariDataCollator:
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.num_episodes = len(self.episode_starts)
 
-        self.success_indices = np.array(
-            [i for i in range(self.num_episodes) if minari_dataset[i].rewards[-1] > 0]
-        )
-        log(f"Number of successful episodes: {len(self.success_indices)}")
-
-        # # compute episode lengths, and thus define a distribution
-        # # for sampling episodes with a probability proportional to their length
-        # self.episode_lengths = self.episode_ends - self.episode_starts + 1
-        # self.episode_probabilities = self.episode_lengths / sum(self.episode_lengths)
+        # define a distribution for sampling episodes with probability inversely proportional to their length
+        self.episode_probabilities = 1 / (self.episode_ends - self.episode_starts + 1)
+        self.episode_probabilities /= np.sum(self.episode_probabilities)
 
         # set state and action dimensions
         self.state_dim, self.act_dim = (
@@ -64,17 +65,22 @@ class DecisionTransformerMinariDataCollator:
     def _sample_batch(self, batch_size):
         t, s, a, r, rtg, mask = [], [], [], [], [], []
 
-        # sample episodes with a probability proportional to their length
-        # episode_indices = np.random.choice(np.arange(self.num_episodes), size=batch_size)
-        episode_indices = np.random.choice(self.success_indices, size=batch_size)
+        # sample episodes with a probability inversely proportional to their length (successful eps are shorter)
+        episode_indices = np.random.choice(
+            np.arange(self.num_episodes), size=batch_size, p=self.episode_probabilities
+        )
 
         # sample a subsequence of each chosen episode
         for ep_idx in episode_indices:
-            # sample an actual random start timestep for this episode
+            # optionally sample a random start timestep for this episode
             # note: end represents the last timestep _included_ in the sequence,
             # which means when we're using exclusive range operators like [:]
             # or np.arange, we need to use end + 1
-            start = np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
+            start = (
+                np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
+                if self.randomise_starts
+                else self.episode_starts[ep_idx]
+            )
             end = min(start + self.max_sample_len - 1, self.episode_ends[ep_idx])
 
             # store data
