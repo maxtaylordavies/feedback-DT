@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import accumulate
 import os
 import socket
 
@@ -54,11 +55,14 @@ def is_network_connection():
         return False
 
 
-def to_one_hot(x, width=1):
-    if np.isscalar(x):
+def to_one_hot(x, width=None):
+    if width:
         res = np.zeros((x.size, width))
         res[np.arange(x.size), x] = 1
     else:
-        res = np.zeros_like(x)
+        res = torch.zeros_like(x)
         res[x.argmax()] = 1
     return res
+
+def discounted_cumsum(x, gamma):
+    return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]

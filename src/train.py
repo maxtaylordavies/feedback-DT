@@ -14,10 +14,10 @@ from src.collator import DecisionTransformerMinariDataCollator
 from src._datasets import get_dataset
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
-from src.visualiser import visualise_model
+from evaluation import EvaluationCallback
 
 
-def create_collator_and_model(dataset, args):
+def create_collator_and_model(args, dataset):
     # create the data collator
     collator = DecisionTransformerMinariDataCollator(
         dataset,
@@ -58,6 +58,7 @@ def train_model(args, dataset, collator, model):
         args=training_args,
         train_dataset=dataset,
         data_collator=collator,
+        callbacks=[EvaluationCallback(user_args=args, collator=collator)],
     )
 
     # train the model
@@ -84,7 +85,7 @@ def main(args):
             log("using wandb in offline mode")
             os.environ["WANDB_MODE"] = "dryrun"
 
-    if not args["seed"]:
+    if args["seed"] == None:
         args["seed"] = np.random.randint(0, 2**32 - 1)
         log(f"seed not specified, using {args['seed']}")
 
@@ -95,21 +96,17 @@ def main(args):
 
     # create or load training dataset
     dataset = get_dataset(args)
+    print("np.max(dataset.actions):", np.max(dataset.actions))
 
     # create the data collator and model
-    collator, model = create_collator_and_model(dataset)
+    collator, model = create_collator_and_model(args, dataset)
 
     # train the model
     model = train_model(args, dataset, collator, model)
 
-    # visualise the trained model
-    visualise_model(
-        args, collator, model, target_returns=[0, 0.5, 1, 10, 100, 1000, 10000], num_repeats=3
-    )
-
     # if using wandb, save args and finish run
     if args["wandb_mode"] != "disabled":
-        wandb.config.update(args)
+        wandb.config.update(args, allow_val_change=True)
         wandb.finish()
 
 

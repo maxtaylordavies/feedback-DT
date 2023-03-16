@@ -1,16 +1,15 @@
 from dataclasses import dataclass
-from itertools import accumulate
 
 import numpy as np
 import torch
 
-from src.utils import log, to_one_hot
+from src.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
 class DecisionTransformerMinariDataCollator:
     def __init__(
-        self, minari_dataset, context_length=64, scale=1, gamma=1, randomise_starts=False
+        self, minari_dataset, context_length=64, scale=1, gamma=0.99, randomise_starts=False
     ) -> None:
         self.context_length, self.scale, self.gamma, self.randomise_starts = (
             context_length,
@@ -59,9 +58,6 @@ class DecisionTransformerMinariDataCollator:
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
-    def _discounted_cumsum(self, x, gamma):
-        return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
-
     def _sample_batch(self, batch_size):
         t, s, a, r, rtg, mask = [], [], [], [], [], []
 
@@ -98,7 +94,7 @@ class DecisionTransformerMinariDataCollator:
             r.append(self._pad(self.rewards[start : end + 1].reshape(1, -1, 1)))
             rtg.append(
                 self._pad(
-                    self._discounted_cumsum(
+                    discounted_cumsum(
                         self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
                     )[: s[-1].shape[1]].reshape(1, -1, 1)
                 )

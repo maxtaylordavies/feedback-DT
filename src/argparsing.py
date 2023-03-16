@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument(
         "--load_dataset_if_exists",
         type=bool,
-        default=False,
+        default=True,
         help="whether to load the dataset from local storage if it already exists",
     )
     parser.add_argument(
@@ -76,7 +76,7 @@ def get_args():
     parser.add_argument(
         "--seed",
         type=int,
-        default=None,
+        default=42,
         help="random seed (default: np.random.randint(0, 2**32 - 1)))",
     )
     parser.add_argument(

@@ -168,6 +168,7 @@ class FeedbackDT(DecisionTransformerModel):
     # function that gets an action from the model using autoregressive prediction with a window of the previous 20 timesteps.
     def get_action(self, states, actions, rewards, returns_to_go, timesteps, one_hot=False):
         # This implementation does not condition on past rewards
+        device = states.device
 
         states = states.reshape(1, -1, self.config.state_dim)
         actions = actions.reshape(1, -1, self.config.act_dim)
@@ -181,19 +182,26 @@ class FeedbackDT(DecisionTransformerModel):
 
         # pad all tokens to sequence length
         padding = self.config.max_length - states.shape[1]
-        attention_mask = torch.cat([torch.zeros(padding), torch.ones(states.shape[1])])
+        attention_mask = torch.cat(
+            [torch.zeros(padding, device=device), torch.ones(states.shape[1], device=device)]
+        )
         attention_mask = attention_mask.to(dtype=torch.long).reshape(1, -1)
 
         states = torch.cat(
-            [torch.zeros((1, padding, self.config.state_dim)), states], dim=1
+            [torch.zeros((1, padding, self.config.state_dim), device=device), states],
+            dim=1,
         ).float()
         actions = torch.cat(
-            [torch.zeros((1, padding, self.config.act_dim)), actions], dim=1
+            [torch.zeros((1, padding, self.config.act_dim), device=device), actions],
+            dim=1,
         ).float()
         returns_to_go = torch.cat(
-            [torch.zeros((1, padding, 1)), returns_to_go], dim=1
+            [torch.zeros((1, padding, 1), device=device), returns_to_go], dim=1
         ).float()
-        timesteps = torch.cat([torch.zeros((1, padding), dtype=torch.long), timesteps], dim=1)
+        timesteps = torch.cat(
+            [torch.zeros((1, padding), dtype=torch.long, device=device), timesteps],
+            dim=1,
+        )
 
         _, action_preds, _ = self._forward(
             states=states,

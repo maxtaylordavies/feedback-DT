@@ -75,12 +75,12 @@ def generate_new_dataset(args):
         "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
     }
 
+    pi = args["policy"] or env.action_space.sample
+
     total_steps = 0
     for episode in tqdm(range(args["num_episodes"])):
         episode_step, terminated, truncated = 0, False, False
         env.reset(seed=args["seed"])
-
-        pi = args["policy"] or env.action_space.sample
 
         while not (terminated or truncated):
             action = pi()
