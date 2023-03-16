@@ -6,8 +6,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
-from minigrid.core.world_object import Ball
-from minigrid.wrappers import RGBImgPartialObsWrapper
+from minigrid.core.world_object import Ball, Key, Box
+from minigrid.wrappers import RGBImgObsWrapper
 
 from argparsing import get_args
 from custom_dataset import CustomDataset
@@ -49,7 +49,7 @@ def name_dataset(args):
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
-    rgb_env = RGBImgPartialObsWrapper(env)
+    rgb_env = RGBImgObsWrapper(env)
     observation, _ = env.reset(seed=args["seed"])
     rgb_observation = rgb_env.observation({})
     agent_position = env.agent_pos
@@ -115,15 +115,14 @@ def generate_new_dataset(args):
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
         obs, _ = env.reset(seed=args["seed"])
-        rgb_env = RGBImgPartialObsWrapper(env)
+        rgb_env = RGBImgObsWrapper(env)
         # See DirectionObsWrapper() in Minigrid/minigrid/wrappers.py for original
         # implementation of the below
         goal_position_list = [
             x
             for x, y in enumerate(env.grid.grid)
-            if isinstance(y, Ball) and y.color in obs["mission"]
+            if y and y.type in obs["mission"] and y.color in obs["mission"]
         ]
-
         # TO-DO Adjust properly for cases with multiple goals
         # where we want to return all goal positions not just the first
         goal_position = (

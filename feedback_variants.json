@@ -148,7 +148,7 @@
                 "You're next to an object that meets the color and type requirements for the goal - Good going!"
             ]
         },
-        "positive_same_color": {
+        "positive_same_type": {
             "simple": "You're next to an object of the correct color.",
             "verbose": [
                 "Great job! You've found the right type of object, just the wrong color.",
@@ -169,7 +169,7 @@
                 "Getting there! You're on the right track, let's just switch the {current object col} {current/goal object type} for the {goal object col} one."
             ]
         },
-        "positive_same_type": {
+        "positive_same_color": {
             "simple": "You're next to and object of the correct type.",
             "verbose": [
                 "You're close, but not quite there yet. You need to find the {current/goal object col} {goal object type} instead of the {goal/current object col} {current object type}.",
@@ -185,7 +185,7 @@
                 "You're so close! Just switch the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} and you're there.",
                 "The color is spot on, but the type is not. Keep searching for the {current/goal object col} {goal object type}.",
                 "You've found something with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
-                "Getting there! The {current/goal object col} {goal object type} is what you need to find, not the{current/goal object col} {current object type}. Keep searching!",
+                "Getting there! The {current/goal object col} {goal object type} is what you need to find, not the {current/goal object col} {current object type}. Keep searching!",
                 "You're doing well, but you need to swap the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} to be in the right spot.",
                 "Great job finding an object with the right color, but it's not the right type. Keep searching for the {current/goal object col} {goal object type}."
             ]
