@@ -6,7 +6,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
-from minigrid.core.world_object import Ball
+from minigrid.core.world_object import Ball, Key, Box
 from minigrid.wrappers import RGBImgPartialObsWrapper
 
 from argparsing import get_args
@@ -121,9 +121,8 @@ def generate_new_dataset(args):
         goal_position_list = [
             x
             for x, y in enumerate(env.grid.grid)
-            if isinstance(y, Ball) and y.color in obs["mission"]
+            if y and y.type in obs["mission"] and y.color in obs["mission"]
         ]
-
         # TO-DO Adjust properly for cases with multiple goals
         # where we want to return all goal positions not just the first
         goal_position = (

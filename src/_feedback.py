@@ -59,6 +59,8 @@ class Feedback(ABC):
 
         self.feedback_data = {self.feedback_type: {}}
 
+        self.feedback_dir = f"{os.path.abspath('')}/feedback_data"
+
     def _get_goal_metadata(self):
         env_name = re.split("_", self.dataset_name)[0]
         with open("env_metadata.json", "r") as env_metadata:
@@ -155,7 +157,9 @@ class Feedback(ABC):
             ].append(final_episode_feedback)
 
     def save_feedback(self):
-        feedback_path = f"{os.path.abspath('')}/feedback_data/{self.dataset_name}.json"
+        if not os.path.exists(self.feedback_dir):
+            os.mkdir(self.feedback_dir)
+        feedback_path = f"{self.feedback_dir}/{self.dataset_name}.json"
         if os.path.exists(feedback_path):
             with open(feedback_path, encoding="utf-8") as json_file:
                 existing_feedback_data = json.load(json_file)
