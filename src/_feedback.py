@@ -88,7 +88,9 @@ class Feedback(ABC):
             episode_data["direction_observations"].append(
                 self.dataset.direction_observations[previous_total_steps:total_steps]
             )
-            episode_data["symbolic_observations"].append(episode.observations)
+            episode_data["symbolic_observations"].append(
+                self.dataset.symbolic_observations[previous_total_steps:total_steps]
+            )
             episode_data["actions"].append(episode.actions)
         return episode_data
 
