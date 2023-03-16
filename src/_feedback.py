@@ -3,12 +3,13 @@ import os
 import re
 from abc import ABC, abstractmethod
 
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.random import default_rng
 from scipy.spatial.distance import cdist
 
-from argparsing import get_args
 from _datasets import get_dataset, name_dataset
+from argparsing import get_args
 
 OBJECT_TO_STR = {
     0: "unseen",
@@ -73,6 +74,7 @@ class Feedback(ABC):
         episode_data["goal_positions"] = []
         episode_data["agent_positions"] = []
         episode_data["direction_observations"] = []
+        episode_data["rgb_observations"] = []
         episode_data["symbolic_observations"] = []
         episode_data["actions"] = []
         total_steps = 0
@@ -88,6 +90,7 @@ class Feedback(ABC):
             episode_data["direction_observations"].append(
                 self.dataset.direction_observations[previous_total_steps:total_steps]
             )
+            episode_data["rgb_observations"].append(episode.observations)
             episode_data["symbolic_observations"].append(
                 self.dataset.symbolic_observations[previous_total_steps:total_steps]
             )
@@ -116,6 +119,8 @@ class Feedback(ABC):
             else:
                 feedback_freq = self.feedback_freq_steps
             for i, attribute_value in enumerate(episode):
+                # plt.imshow(self.episode_data["rgb_observations"][e][i])
+                # plt.show()
                 if i == 0 and self.feedback_type == "distance":
                     self._save_previous_agent_position(attribute_value)
                     episode_feedback.append("")
