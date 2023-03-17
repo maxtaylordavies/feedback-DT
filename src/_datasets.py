@@ -7,7 +7,7 @@ import numpy as np
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
 from minigrid.core.world_object import Ball, Key, Box
-from minigrid.wrappers import RGBImgObsWrapper
+from minigrid.wrappers import RGBImgObsWrapper, RGBImgPartialObsWrapper, FullyObsWrapper
 
 from argparsing import get_args
 from custom_dataset import CustomDataset
@@ -50,7 +50,9 @@ def name_dataset(args):
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
     rgb_env = RGBImgObsWrapper(env)
-    observation, _ = env.reset(seed=args["seed"])
+    fully_obs_env = FullyObsWrapper(env)
+    env.reset(seed=args["seed"])
+    full_observation = fully_obs_env.observation({})
     rgb_observation = rgb_env.observation({})
     agent_position = env.agent_pos
 
@@ -74,7 +76,7 @@ def generate_new_dataset(args):
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
         "symbolic_observation": np.array(
-            [np.zeros_like(observation["image"])]
+            [np.zeros_like(full_observation["image"])]
             * env.max_steps
             * args["num_episodes"],
             dtype=np.uint8,
@@ -114,27 +116,30 @@ def generate_new_dataset(args):
     total_steps = 0
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
-        obs, _ = env.reset(seed=args["seed"])
+        observation, _ = env.reset(seed=args["seed"])
         rgb_env = RGBImgObsWrapper(env)
-        # See DirectionObsWrapper() in Minigrid/minigrid/wrappers.py for original
-        # implementation of the below
+        fully_obs_env = FullyObsWrapper(env)
         goal_position_list = [
             x
-            for x, y in enumerate(env.grid.grid)
-            if y and y.type in obs["mission"] and y.color in obs["mission"]
+            for x, y in enumerate(fully_obs_env.grid.grid)
+            if y
+            and y.type in observation["mission"]
+            and y.color in observation["mission"]
         ]
-        # TO-DO Adjust properly for cases with multiple goals
-        # where we want to return all goal positions not just the first
+
+        # For cases with multiple goals, we want to return a random goal's position
+        np.random.shuffle(goal_position_list)
         goal_position = (
-            int(goal_position_list[0] / env.height),
             goal_position_list[0] % env.width,
+            int(goal_position_list[0] / env.height),
         )
         while not (terminated or truncated):
             action = env.action_space.sample()  # User-defined policy function
             observation, reward, terminated, truncated, _ = env.step(action)
             rgb_observation = rgb_env.observation({})
+            full_observation = fully_obs_env.observation({})
             replay_buffer["symbolic_observation"][total_steps] = np.array(
-                observation["image"]
+                full_observation["image"]
             )
             replay_buffer["goal_position"][total_steps] = np.array(goal_position)
             replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)

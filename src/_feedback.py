@@ -37,7 +37,7 @@ ACTION_TO_STR = {
     6: "done",
 }
 
-AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
+AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 class Feedback(ABC):
@@ -127,6 +127,8 @@ class Feedback(ABC):
                     continue
                 if (i + 1) % feedback_freq == 0:
                     polarity = self._get_polarity(attribute_value, e, i)
+                    # plt.imshow(self.episode_data["rgb_observations"][e][i])
+                    # plt.show()
                     feedback = feedback_variants[polarity][self.feedback_mode]
                     if not isinstance(feedback, str):
                         random_id = self.rng.integers(len(feedback))
@@ -207,16 +209,24 @@ class DirectionFeedback(Feedback):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def _get_agent_coordinates(self, current_episode, current_step):
+        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
+        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        return agent_x, agent_y
+
+    def _get_goal_coordinates(self, current_episode, current_step):
+        goal_x = self.episode_data["goal_positions"][current_episode][current_step][0]
+        goal_y = self.episode_data["goal_positions"][current_episode][current_step][1]
+        return int(goal_x), int(goal_y)
+
     def _get_relative_goal_position(self, current_episode, current_step):
         north = False
         east = False
         south = False
         west = False
 
-        goal_y = self.episode_data["goal_positions"][current_episode][current_step][1]
-        goal_x = self.episode_data["goal_positions"][current_episode][current_step][0]
-        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
-        agent_x = self.episode_data["agent_positions"][current_episode][current_step][1]
+        goal_x, goal_y = self._get_goal_coordinates(current_episode, current_step)
+        agent_x, agent_y = self._get_agent_coordinates(current_episode, current_step)
 
         if goal_x > agent_x:
             east = True
@@ -228,12 +238,31 @@ class DirectionFeedback(Feedback):
             north = True
 
         # Ids of directions is based on direction encodings:
-        # AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
+        # AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"} or
+        # AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
         return [east, south, west, north]
 
-    def _facing_goal(self, direction_observation, relative_goal_position):
+    def _get_offsets(self, current_episode, current_step):
+        goal_x, goal_y = self._get_goal_coordinates(current_episode, current_step)
+        agent_x, agent_y = self._get_agent_coordinates(current_episode, current_step)
+        x_offset = abs(agent_x - goal_x)
+        y_offset = abs(agent_y - goal_y)
+        return x_offset, y_offset
+
+    def _facing_goal(
+        self, direction_observation, relative_goal_position, x_offset, y_offset
+    ):
         if direction_observation in np.where(relative_goal_position)[0]:
-            return True
+            # AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
+            if len(np.where(relative_goal_position)[0]) > 1:
+                if x_offset >= y_offset and direction_observation in [0, 2]:
+                    return True
+                if y_offset >= x_offset and direction_observation in [1, 3]:
+                    return True
+                else:
+                    return False
+            else:
+                return True
         else:
             return False
 
@@ -241,7 +270,10 @@ class DirectionFeedback(Feedback):
         relative_goal_position = self._get_relative_goal_position(
             current_episode, current_step
         )
-        if self._facing_goal(direction_observation, relative_goal_position):
+        x_offset, y_offset = self._get_offsets(current_episode, current_step)
+        if self._facing_goal(
+            direction_observation, relative_goal_position, x_offset, y_offset
+        ):
             return "positive"
         else:
             return "negative"
@@ -307,6 +339,11 @@ class AdjacencyFeedback(Feedback):
         self.adjacent_object_type = None
         # self.facing_adjacent_object = False
 
+    def _get_agent_coordinates(self, current_episode, current_step):
+        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
+        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        return agent_x, agent_y
+
     def _next_to_agent(self, x, agent_x, y, agent_y):
         if agent_y == y and abs(agent_x - x) == 1:
             return True
@@ -335,8 +372,7 @@ class AdjacencyFeedback(Feedback):
     #         return False
 
     def _get_adjacent_objects(self, observation, current_episode, current_step):
-        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
-        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        agent_x, agent_y = self._get_agent_coordinates(current_episode, current_step)
         # agent_direction = self.episode_data["direction_observations"][current_episode][
         #     current_step
         # ]
@@ -377,26 +413,31 @@ class AdjacencyFeedback(Feedback):
         self.adjacent_object_type = OBJECT_TO_STR[object[0]]
 
     def _get_polarity(self, observation, current_episode, current_step):
-        self.adjacent_object = None
         adjacent_objects = self._get_adjacent_objects(
             observation, current_episode, current_step
         )
+        self.adjacent_object = None
+        found_goal = False
+        polarity = None
         for object in adjacent_objects:
+            if found_goal:
+                continue
             if self._same_type(object) and self._same_color(object):
                 self._set_adjacent_object(object)
-                return "positive_next_to_goal"
+                polarity = "positive_next_to_goal"
+                found_goal = True
             elif self._same_type(object) and not self._same_color(object):
                 self._set_adjacent_object(object)
-                return "positive_same_type"
+                polarity = "positive_same_type"
             elif self._same_color(object) and not self._same_type(object):
                 self._set_adjacent_object(object)
-                return "positive_same_color"
+                polarity = "positive_same_color"
             elif not self._same_color(object) and not self._same_type(object):
                 self._set_adjacent_object(object)
-                return "negative_no_shared_attributes"
-
+                polarity = "negative_no_shared_attributes"
         if self.adjacent_object is None:
-            return "negative_no_adjacent_object"
+            polarity = "negative_no_adjacent_object"
+        return polarity
 
     def generate_feedback(self):
         return super().generate_feedback("symbolic_observations")
