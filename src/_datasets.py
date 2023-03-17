@@ -6,8 +6,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
-from minigrid.core.world_object import Ball, Key, Box
-from minigrid.wrappers import RGBImgObsWrapper, RGBImgPartialObsWrapper, FullyObsWrapper
+from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
 
 from argparsing import get_args
 from custom_dataset import CustomDataset
@@ -49,7 +48,7 @@ def name_dataset(args):
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
-    rgb_env = RGBImgObsWrapper(env)
+    rgb_env = RGBImgPartialObsWrapper(env)
     fully_obs_env = FullyObsWrapper(env)
     env.reset(seed=args["seed"])
     full_observation = fully_obs_env.observation({})
@@ -117,7 +116,7 @@ def generate_new_dataset(args):
     for episode in range(args["num_episodes"]):
         episode_step, terminated, truncated = 0, False, False
         observation, _ = env.reset(seed=args["seed"])
-        rgb_env = RGBImgObsWrapper(env)
+        rgb_env = RGBImgPartialObsWrapper(env)
         fully_obs_env = FullyObsWrapper(env)
         goal_position_list = [
             x
