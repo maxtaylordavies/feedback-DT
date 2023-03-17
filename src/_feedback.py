@@ -119,15 +119,14 @@ class Feedback(ABC):
             else:
                 feedback_freq = self.feedback_freq_steps
             for i, attribute_value in enumerate(episode):
-                print(f"Episode {e} step {i}:")
                 if i == 0 and self.feedback_type == "distance":
                     self._save_previous_agent_position(attribute_value)
                     episode_feedback.append("")
                     continue
                 if (i + 1) % feedback_freq == 0:
                     polarity = self._get_polarity(attribute_value, e, i)
-                    plt.imshow(self.episode_data["rgb_observations"][e][i])
-                    plt.show()
+                    # plt.imshow(self.episode_data["rgb_observations"][e][i])
+                    # plt.show()
                     feedback = feedback_variants[polarity][self.feedback_mode]
                     if not isinstance(feedback, str):
                         random_id = self.rng.integers(len(feedback))
@@ -338,9 +337,12 @@ class AdjacencyFeedback(Feedback):
         self.adjacent_object_type = None
         # self.facing_adjacent_object = False
 
+    def _get_agent_coordinates(self, current_episode, current_step):
+        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
+        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        return agent_x, agent_y
+
     def _next_to_agent(self, x, agent_x, y, agent_y):
-        print(f"Object X: {x}, Y: {y}")
-        print(f"Agent X: {agent_x}, Y: {agent_y}")
         if agent_y == y and abs(agent_x - x) == 1:
             return True
         if agent_x == x and abs(agent_y - y) == 1:
@@ -368,8 +370,7 @@ class AdjacencyFeedback(Feedback):
     #         return False
 
     def _get_adjacent_objects(self, observation, current_episode, current_step):
-        agent_x = self.episode_data["agent_positions"][current_episode][current_step][0]
-        agent_y = self.episode_data["agent_positions"][current_episode][current_step][1]
+        agent_x, agent_y = self._get_agent_coordinates(current_episode, current_step)
         # agent_direction = self.episode_data["direction_observations"][current_episode][
         #     current_step
         # ]
@@ -410,26 +411,31 @@ class AdjacencyFeedback(Feedback):
         self.adjacent_object_type = OBJECT_TO_STR[object[0]]
 
     def _get_polarity(self, observation, current_episode, current_step):
-        self.adjacent_object = None
         adjacent_objects = self._get_adjacent_objects(
             observation, current_episode, current_step
         )
+        self.adjacent_object = None
+        found_goal = False
+        polarity = None
         for object in adjacent_objects:
+            if found_goal:
+                continue
             if self._same_type(object) and self._same_color(object):
                 self._set_adjacent_object(object)
-                return "positive_next_to_goal"
+                polarity = "positive_next_to_goal"
+                found_goal = True
             elif self._same_type(object) and not self._same_color(object):
                 self._set_adjacent_object(object)
-                return "positive_same_type"
+                polarity = "positive_same_type"
             elif self._same_color(object) and not self._same_type(object):
                 self._set_adjacent_object(object)
-                return "positive_same_color"
+                polarity = "positive_same_color"
             elif not self._same_color(object) and not self._same_type(object):
                 self._set_adjacent_object(object)
-                return "negative_no_shared_attributes"
-
+                polarity = "negative_no_shared_attributes"
         if self.adjacent_object is None:
-            return "negative_no_adjacent_object"
+            polarity = "negative_no_adjacent_object"
+        return polarity
 
     def generate_feedback(self):
         return super().generate_feedback("symbolic_observations")
