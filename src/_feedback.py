@@ -119,6 +119,8 @@ class Feedback(ABC):
             else:
                 feedback_freq = self.feedback_freq_steps
             for i, attribute_value in enumerate(episode):
+                # plt.imshow(self.episode_data["rgb_observations"][e][i])
+                # plt.show()
                 if i == 0 and self.feedback_type == "distance":
                     self._save_previous_agent_position(attribute_value)
                     episode_feedback.append("")
