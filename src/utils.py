@@ -64,5 +64,5 @@ def to_one_hot(x, width=None):
         res[x.argmax()] = 1
     return res
 
-def discounted_cumsum(x, gamma):
+def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]

@@ -9,7 +9,7 @@ from src.utils import to_one_hot, discounted_cumsum
 @dataclass
 class DecisionTransformerMinariDataCollator:
     def __init__(
-        self, minari_dataset, context_length=64, scale=1, gamma=0.99, randomise_starts=False
+        self, minari_dataset, context_length=64, scale=1, gamma=1.0, randomise_starts=False
     ) -> None:
         self.context_length, self.scale, self.gamma, self.randomise_starts = (
             context_length,

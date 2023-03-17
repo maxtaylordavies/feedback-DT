@@ -14,7 +14,7 @@ from src.collator import DecisionTransformerMinariDataCollator
 from src._datasets import get_dataset
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
-from evaluation import EvaluationCallback
+from src.evaluation import EvaluationCallback
 
 
 def create_collator_and_model(args, dataset):
@@ -58,7 +58,7 @@ def train_model(args, dataset, collator, model):
         args=training_args,
         train_dataset=dataset,
         data_collator=collator,
-        callbacks=[EvaluationCallback(user_args=args, collator=collator)],
+        callbacks=[EvaluationCallback(user_args=args, collator=collator, gamma=1)],
     )
 
     # train the model
@@ -88,8 +88,6 @@ def main(args):
     if args["seed"] == None:
         args["seed"] = np.random.randint(0, 2**32 - 1)
         log(f"seed not specified, using {args['seed']}")
-
-    args["policy"] = lambda: np.random.randint(3)
 
     # setup compute devices
     setup_devices(args["seed"], not args["no_gpu"])
