@@ -6,6 +6,9 @@ from transformers.utils import ModelOutput
 
 from src.utils import to_one_hot
 
+#ASG: required for embedding first option
+# pip install -U sentence-transformers
+# from sentence_transformers import SentenceTransformer
 
 @dataclass
 class DecisionTransformerOutput(ModelOutput):
@@ -95,10 +98,20 @@ class FeedbackDT(DecisionTransformerModel):
         time_embeddings = self.embed_timestep(timesteps)
         # TODO: add feedback embeddings
 
+        #ASG: we have three options here, I am writing the simplest one
+        # ASG: Chat about how should we get the feedback. 
+
+        # feedback_sentence = ["Feedback example, we need to get it from Sabrinas stuff]
+        # model = SentenceTransformer('sentence-transformers/paraphrase-xlm-r-multilingual-v1')
+        # feedback_embeddings = model.encode(sentences)
+
         # time embeddings are treated similar to positional embeddings
         state_embeddings = state_embeddings + time_embeddings
         action_embeddings = action_embeddings + time_embeddings
         returns_embeddings = returns_embeddings + time_embeddings
+
+        s#ASG
+        #feedback_embeddings= feedback_embeddings + time_embeddings
 
         # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
