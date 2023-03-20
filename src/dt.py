@@ -63,12 +63,17 @@ class FeedbackDT(DecisionTransformerModel):
         self.feedback_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-xlm-r-multilingual-v1"
         )
+        self.feedback_embedding_downsampler = torch.nn.AvgPool1d(
+            int(768 / config.hidden_size)
+        )
 
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
 
     def embed_feedback(self, feedback):
-        return self.feedback_embedding_model.encode(feedback)
+        return self.feedback_embedding_downsampler(
+            self.feedback_embedding_model.encode(feedback)
+        )
 
     def _forward(
         self,
@@ -103,9 +108,12 @@ class FeedbackDT(DecisionTransformerModel):
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(timesteps)
-        state_embeddings = self.embed_state_convolutional(
-            states.reshape(-1, 3, 7, 7).type(torch.float32).contiguous()
-        ).reshape(batch_size, seq_length, self.hidden_size) + time_embeddings
+        state_embeddings = (
+            self.embed_state_convolutional(
+                states.reshape(-1, 3, 7, 7).type(torch.float32).contiguous()
+            ).reshape(batch_size, seq_length, self.hidden_size)
+            + time_embeddings
+        )
         action_embeddings = self.embed_action(actions) + time_embeddings
         returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
         feedback_embeddings = self.embed_feedback(feedback) + time_embeddings
