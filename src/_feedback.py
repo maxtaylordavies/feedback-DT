@@ -153,7 +153,7 @@ class Feedback(ABC):
             self.feedback_data[self.feedback_type][self.feedback_mode][
                 self.feedback_freq
             ].append(final_episode_feedback)
-        
+
         return self.feedback_data
 
     def save_feedback(self):
@@ -430,7 +430,7 @@ def _feedback_contains_config(feedback, args):
     if args["feedback_type"] in feedback:
         if args["feedback_mode"] in feedback[args["feedback_type"]]:
             if (
-                args[f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"]
+                f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"
                 in feedback[args["feedback_type"]][args["feedback_mode"]]
             ):
                 return True
@@ -439,7 +439,7 @@ def _feedback_contains_config(feedback, args):
 
 def _get_feedback_with_config(feedback, args):
     return feedback[args["feedback_type"]][args["feedback_mode"]][
-        args[f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"]
+        f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"
     ]
 
 
@@ -449,15 +449,15 @@ def get_feedback(args, dataset):
         "distance": DistanceFeedback,
         "action": ActionFeedback,
         "adjacency": AdjacencyFeedback,
-    }[args["feedback_type"]](dataset, args)
+    }[args["feedback_type"]](args, dataset)
 
-    dataset_name = name_dataset(args)
+    fn = os.path.join(FEEDBACK_DIR, f"{name_dataset(args)}.json")
+    should_generate = True
 
     # if we don't already have feedback for this dataset, generate it
-    should_generate = True
-    if os.path.exists(os.path.join(FEEDBACK_DIR, dataset_name)):
+    if os.path.exists(fn):
         log("found existing feedback file for this dataset, loading...")
-        with open(os.path.join(FEEDBACK_DIR, dataset_name)) as f:
+        with open(fn) as f:
             feedback = json.load(f)
             should_generate = not _feedback_contains_config(feedback, args)
 
