@@ -12,15 +12,17 @@ import wandb
 from src.argparsing import get_args
 from src.collator import FeedbackDecisionTransformerDataCollator
 from src._datasets import get_dataset
+from src._feedback import get_feedback
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
 from src.evaluation import EvaluationCallback
 
 
-def create_collator_and_model(args, dataset):
+def create_collator_and_model(args, dataset, feedback):
     # create the data collator
     collator = FeedbackDecisionTransformerDataCollator(
         dataset,
+        feedback=feedback,
         context_length=args["context_length"],
         randomise_starts=args["randomise_starts"],
     )
@@ -101,8 +103,11 @@ def main(args):
     dataset = get_dataset(args)
     print("np.max(dataset.actions):", np.max(dataset.actions))
 
+    # create or load feedback if using feedback
+    feedback = get_feedback(args, dataset) if args["use_feedback"] else None
+
     # create the data collator and model
-    collator, model = create_collator_and_model(args, dataset)
+    collator, model = create_collator_and_model(args, dataset, feedback)
 
     # train the model
     model = train_model(args, dataset, collator, model)
