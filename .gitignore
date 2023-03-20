@@ -9,3 +9,5 @@ data/
 Pipfile.lock
 **/*.pdf
 **/*.png
+**/*.svg
+src/temp.py

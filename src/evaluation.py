@@ -15,8 +15,8 @@ class EvaluationCallback(TrainerCallback):
         self,
         user_args,
         collator,
-        target_returns=[10, 100, 1000, 100000],
-        num_repeats=10,
+        target_returns=[1000, 100000],
+        num_repeats=20,
         gamma=1.0,
     ) -> None:
         super().__init__()
@@ -109,6 +109,7 @@ class EvaluationCallback(TrainerCallback):
                 rewards,
                 target_return,
                 timesteps,
+                context=self.user_args["context_length"],
                 one_hot=True,
             )
             a = actions[-1].detach().cpu().numpy()

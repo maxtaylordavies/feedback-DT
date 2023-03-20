@@ -28,7 +28,7 @@ def create_collator_and_model(args, dataset):
     log(f"act_dim: {collator.act_dim}")
 
     # create the model
-    config = DecisionTransformerConfig(state_dim=collator.state_dim, act_dim=collator.act_dim)
+    config = DecisionTransformerConfig(state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64)
     model = FeedbackDT(config)
 
     return collator, model
@@ -88,6 +88,9 @@ def main(args):
     if args["seed"] == None:
         args["seed"] = np.random.randint(0, 2**32 - 1)
         log(f"seed not specified, using {args['seed']}")
+
+    if args["policy"] == None:
+        args["policy"] = lambda : np.random.randint(3)
 
     # setup compute devices
     setup_devices(args["seed"], not args["no_gpu"])
