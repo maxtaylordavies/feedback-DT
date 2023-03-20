@@ -2,6 +2,7 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,6 +43,8 @@ ACTION_TO_STR = {
 
 AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
 
+# type alias for feedback
+FeedbackArray = List[List[str]]
 
 class Feedback(ABC):
     def __init__(self, args, dataset):

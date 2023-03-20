@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from typing import List, Optional
 
 import numpy as np
 import torch
 
 from src.custom_dataset import CustomDataset
+from src._feedback import FeedbackArray
 from src.utils import to_one_hot, discounted_cumsum
 
 
@@ -12,6 +14,7 @@ class FeedbackDecisionTransformerDataCollator:
     def __init__(
         self,
         custom_dataset: CustomDataset,
+        feedback: Optional[FeedbackArray] = None,
         context_length=64,
         scale=1,
         gamma=1.0,
@@ -52,6 +55,13 @@ class FeedbackDecisionTransformerDataCollator:
         self.state_mean, self.state_std = (
             np.mean(self.observations, axis=0),
             np.std(self.observations, axis=0) + 1e-6,  # avoid division by zero
+        )
+
+        # store feedback as flattened array. if no feedback provided, use empty strings
+        self.feedback = (
+            np.hstack(feedback)
+            if feedback is not None
+            else np.array([""] * len(self.observations))
         )
 
     def _normalise_states(self, states):
@@ -116,7 +126,7 @@ class FeedbackDecisionTransformerDataCollator:
             )
 
             # feedback
-            f.append(np.zeros(self.context_length))
+            f.append(self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val=""))
 
             # attention mask
             mask.append(
@@ -136,7 +146,7 @@ class FeedbackDecisionTransformerDataCollator:
             "rewards": torch.from_numpy(np.concatenate(r, axis=0)).float(),
             "returns_to_go": torch.from_numpy(np.concatenate(rtg, axis=0)).float(),
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
-            "feedback": torch.from_numpy(np.concatenate(f, axis=0)).float()
+            "feedback": torch.from_numpy(np.concatenate(f, axis=0)),
         }
 
     def __call__(self, features):
