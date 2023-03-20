@@ -102,26 +102,13 @@ class FeedbackDT(DecisionTransformerModel):
             attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
+        time_embeddings = self.embed_timestep(timesteps)
         state_embeddings = self.embed_state_convolutional(
             states.reshape(-1, 3, 7, 7).type(torch.float32).contiguous()
-        ).reshape(batch_size, seq_length, self.hidden_size)
-        action_embeddings = self.embed_action(actions)
-        returns_embeddings = self.embed_return(returns_to_go)
-        time_embeddings = self.embed_timestep(timesteps)
-        feedback_embeddings = self.embed_feedback(feedback)
-
-        # ASG: we have three options here, I am writing the simplest one
-        # ASG: Chat about how should we get the feedback.
-
-        # feedback_sentence = ["Feedback example, we need to get it from Sabrinas stuff]
-        # model = SentenceTransformer('sentence-transformers/paraphrase-xlm-r-multilingual-v1')
-        # feedback_embeddings = model.encode(sentences)
-
-        # time embeddings are treated similar to positional embeddings
-        state_embeddings = state_embeddings + time_embeddings
-        action_embeddings = action_embeddings + time_embeddings
-        returns_embeddings = returns_embeddings + time_embeddings
-        feedback_embeddings = feedback_embeddings + time_embeddings
+        ).reshape(batch_size, seq_length, self.hidden_size) + time_embeddings
+        action_embeddings = self.embed_action(actions) + time_embeddings
+        returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
+        feedback_embeddings = self.embed_feedback(feedback) + time_embeddings
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
