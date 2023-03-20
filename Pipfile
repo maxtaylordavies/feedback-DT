@@ -12,6 +12,9 @@ gymnasium = {ref = "spec_stack", git = "https://github.com/WillDudley/Gymnasium.
 gymnasium-robotics = "*"
 huggingface = "*"
 datasets = "*"
+black = "*"
+torch = "*"
+scipy = "*"
 
 [dev-packages]
 

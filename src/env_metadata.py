@@ -1,6 +1,5 @@
 import gymnasium as gym
 import json
-import minigrid 
 
 # List of BabyAI environments used in experiments
 envs = [
@@ -16,8 +15,10 @@ envs = [
 envs_dict = dict()
 for e in envs:
     env = gym.make(e)
-    env.reset()
-    envs_dict[e] = {"max_steps": env.max_steps}
+    observation, _ = env.reset()
+    envs_dict[e] = {"max_steps": env.max_steps, "mission_string": observation["mission"]}
     
-with open("envs.json", "w") as outfile:
+with open("env_metadata.json", "w") as outfile:
     json.dump(envs_dict, outfile)
+
+print("Success! Saved metadata for environments")

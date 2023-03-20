@@ -1,0 +1,233 @@
+{
+    "direction": {
+        "negative": {
+            "simple": "You're facing in the wrong direction, away from the goal",
+            "verbose": [
+                "You're moving in the opposite direction from where you need to go to reach the goal, which is not a good thing.",
+                "Moving in the wrong direction from the goal is not helping you at all.",
+                "Oh dear, you're not headed in the right direction to reach the goal.",
+                "This is not the direction we want to be heading in, as you're facing in the opposite way from where you need to go to reach the goal.",
+                "Oh no, you're not oriented towards the destination, which means you haven't made progress towards your goal!",
+                "Oh snap, it seems that you're not oriented correctly towards the goal location.",
+                "I'm noticing that you're oriented away from the goal, which could be problematic.",
+                "Unfortunately, your orientation isn't aligned with the goal location, which means you'll find it more difficult to reach it.",
+                "Oops, based on your orientation, you're not on track to reach the goal.",
+                "Based on your current orientation,you may not be able to reach the target as efficiently as you could.",
+                "Looks like you're facing away from the goal, which means you've not taken the right action to reach your goal.",
+                "Oh boy, you're not facing in the direction that will lead you to the goal.",
+                "Oh no, you're not facing towards the goal.",
+                "It looks like you're facing the wrong direction, which could make it more difficult to reach the goal.",
+                "It seems that you're facing the wrong way, which could make it difficult to reach your goal."
+            ]
+        },
+        "positive": {
+            "simple": "You're facing in the right direction, towards the goal",
+            "verbose": [
+                "You're oriented towards the goal, which is a great start to reaching the goal!",
+                "It seems that you're oriented correctly towards the goal location. That's great!",
+                "Your current orientation is aligned with the goal location, which is excellent.",
+                "Your current orientation is in line with the goal, which is positive.",
+                "Based on your orientation, you're on track to reach the goal. Well done!",
+                "Your current direction looks promising for reaching the goal. Great job!",
+                "You're headed in the right direction to reach the goal. Keep up the good work!",
+                "It looks like you're facing the right direction for reaching the goal. Good job!",
+                "You're facing towards the goal, which is a step towards reaching it.",
+                "I'm seeing that you're facing towards the goal. This is a good indication that you're on the right track.",
+                "You're facing in the direction that will lead you to the goal. Keep it up!",
+                "It's great to see that you're facing in the direction of the goal. You're on the right track!"
+            ]
+        }
+    },
+    "distance": {
+        "negative": {
+            "simple": "You're getting farther away from the goal.",
+            "verbose": [
+                "Your current position is further away from the goal than your previous position, which is a setback.",
+                "Your current position is actually farther away from the goal than your previous position, which is not good news.",
+                "The distance between you and the goal has increased, which is a negative development.",
+                "The distance between you and the goal has increased, which is not what we want.",
+                "Unfortunately, the distance between you and the goal has increased, which means that you are not making progress.",
+                "Your trajectory is leading you further away from the goal, which is a cause for concern.",
+                "It's concerning that your trajectory is leading you even further away from the goal.",
+                "Your movement is taking you away from the goal instead of towards it, which is a negative outcome.",
+                "Your movement is taking you away from the goal instead of towards it, which is not the desired outcome.",
+                "Your movement away from the goal is not what we were hoping for.",
+                "The gap between you and the goal is widening, which is a worrying sign.",
+                "The gap between you and the goal is not closing but instead widening, which is a bad sign.",
+                "Your current location means you are not getting you any closer to the goal, which is not what we were hoping for.",
+                "Your current location indicates that you are not getting any closer to the goal, which is not a good sign.",
+                "Unfortunately, your current location is not any closer to the goal",
+                "The gap between you and the goal is widening, when you need to close it."
+            ]
+        },
+        "positive": {
+            "simple": "You're getting closer to the goal.",
+            "verbose": [
+                "Your current position is closer to the goal than your previous position, keep up the good work.",
+                "Your position is getting closer to the goal, keep up the progress.",
+                "The distance between you and the goal has decreased, you're doing well.",
+                "The distance between you and the goal is decreasing, you're making good strides.",
+                "The distance towards the goal is decreasing, you're doing well.",
+                "The distance to the goal is getting shorter, keep going!",
+                "You're narrowing the distance between your current location and the goal, which is a good sign.",
+                "Your trajectory is leading you closer to the goal, that's great!",
+                "Your current trajectory is bringing you closer to the goal, nice work.",
+                "Your current trajectory is bringing you closer to the goal. Keep following it!",
+                "The gap between you and the goal is shrinking, good job!",
+                "The gap between you and the goal is narrowing, keep moving forward.",
+                "You're edging closer to the goal. Keep it up!",
+                "You're getting closer to the goal, good job!",
+                "You're getting closer to the goal, you're on the right track!",
+                "You're making good progress towards the goal, keep it up!",
+                "You're making steady progress towards the goal, keep pushing!"
+            ]
+        }
+    },
+    "adjacency": {
+        "negative_no_adjacent_object": {
+            "simple": "There aren't any objects next to you.",
+            "verbose": [
+                "You're standing in a position with no objects around you.",
+                "There are no objects nearby you right now.",
+                "You're not standing next to any objects at the moment.",
+                "There aren't any objects or items close enough to you right now.",
+                "You're not near any objects at this point.",
+                "There are no objects within arm's reach of where you're standing.",
+                "You're standing in a spot with no objects around.",
+                "You're not standing next to any objects currently.",
+                "There are no items within your immediate vicinity.",
+                "You're in a space that's clear of any objects.",
+                "There's no objects in close proximity to where you're standing.",
+                "You're standing in a space with no objects around.",
+                "You're in a space with no objects nearby.",
+                "There are no objects in your immediate surroundings.",
+                "You're not standing next to any objects at the moment.",
+                "There are no objects next to you right now.",
+                "You're in a space with no objects next to you.",
+                "There aren't any items or objects next to you.",
+                "There are no objects next to where you're standing."
+            ]
+        },
+        "negative_no_shared_attributes": {
+            "simple": "You're next to an object of the wrong color and type.",
+            "verbose": [
+                "Neither the color nor the type of the object you found is correct. Keep searching for the {goal object col} {goal object type}.",
+                "The object you're looking for is neither a {current object col} {current object type} nor any other {current object col} object. Keep looking for the {goal object col} {goal object type}.",
+                "That's not the object you're looking for. Keep searching for the {goal object col} {goal object type}, not a {current object col} {current object type}.",
+                "The object you're looking for is neither a {current object col} object nor a {current object type}. Keep searching for the {goal object col} {goal object type}.",
+                "The object you found is neither the correct type nor color. Keep looking for the {goal object col} {goal object type}.",
+                "That's not the object you're looking for. Keep searching for the {goal object col} {goal object type}, which is neither {current object col} nor a {current object type}.",
+                "You need to keep searching for a {goal object col} {goal object type}. Neither the color nor the type of the object you found is correct.",
+                "Unfortunately, you're not even close. Keep searching for the {goal object col} {goal object type}, not a {current object col} {current object type}.",
+                "You need to try again. The object you need to find is a {goal object col} {goal object type}, not a {current object col} {current object type}.",
+                "That's not the object you need. You need to keep searching for the {goal object col} {goal object type}.",
+                "You're not even close to the right object. Keep searching for the {goal object col} {goal object type}, not a {current object col} {current object type}.",
+                "You're not on the right track. The object you need is the {goal object col} {goal object type}, not a {current object col} {current object type}.",
+                "That's not even close to the right object. Both the color and type are wrong. You need to find the {goal object col} {goal object type}."
+            ]
+        },
+        "positive_next_to_goal": {
+            "simple": "You're next to an object of the correct color and type.",
+            "verbose": [
+                "You're adjacent to an object that matches the color and type of the goal object - Great job!",
+                "You're situated beside an object of the correct color and type - Well done!",
+                "You're positioned next to an object that is both the correct color and type - Excellent job!",
+                "You're located alongside an object that matches both the color and type of the goal - Perfect!",
+                "You're next to an object that is of the right color and type - Awesome!",
+                "The object next to you is of the correct color and type - Fantastic!",
+                "You're near an object that is the correct color and type - Terrific!",
+                "You're alongside an object that matches the required color and type - Amazing!",
+                "You're standing next to an object that is the right color and type - Bravo!",
+                "The object next to you is the correct color and type - Superb!",
+                "You're adjacent to a correctly colored and typed object - Marvelous!",
+                "You're positioned beside an object that is both the correct color and type - Amazing!",
+                "You're situated next to an object that is of the required color and type - Nice work!",
+                "You're located next to an object that matches the correct color and type of the goal - Fantastic!",
+                "The object next to you matches the color and type you need - Way to go!",
+                "You're standing alongside an object of the right color and type - You're doing great!",
+                "You're next to an object that meets the color and type requirements for the goal - Good going!"
+            ]
+        },
+        "positive_same_type": {
+            "simple": "You're next to an object of the correct color.",
+            "verbose": [
+                "Great job! You've found the right type of object, just the wrong color.",
+                "Not bad! You've found the right type of object, now let's find the {goal object col} one.",
+                "Good work! You've found the right kind of object, but you need to find the {goal object col} one.",
+                "You're doing well! You've found the same type of object, just in the wrong color.",
+                "You're doing okay! You've found the same type of object as the goal object, now let's find it in the right color.",
+                "Almost! You've found the correct object type, now let's make it the {goal object col} one.",
+                "Pretty close! You've found the correct object, now you just need to find it in the right color.",
+                "You're very close! You just need to find the {goal object col} {goal object type} instead of the {current object col} one.",
+                "You're on the right track! The object type is correct, you just need to locate the {goal object col} one.",
+                "Nice! You've located the same type of object, let's just switch it to the {goal object col} red one and you're done.",
+                "You're doing well! You've located the right object, now just find the one in the correct color.",
+                "You're getting close! The right type of object is there, you just need to locate the {goal object col} one.",
+                "You're almost there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
+                "You're getting there! You just need to switch the {current object col} {current/goal object type} for the {goal object col} one.",
+                "You're close! Just switch the {current object col} {current/goal object type} for the {goal object col} one and you're there.",
+                "Getting there! You're on the right track, let's just switch the {current object col} {current/goal object type} for the {goal object col} one."
+            ]
+        },
+        "positive_same_color": {
+            "simple": "You're next to and object of the correct type.",
+            "verbose": [
+                "You're close, but not quite there yet. You need to find the {current/goal object col} {goal object type} instead of the {goal/current object col} {current object type}.",
+                "Great job finding a {current/goal object col} object, but it's the wrong type. The {current/goal object col} {goal object type} is what you're looking for.",
+                "You're on the right track! You just need to swap the {current/goal object col} {current object type} for the  {current/goal object col} {goal object type}.",
+                "The color is right, but the type is not. You need to locate the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
+                "You've found an object with the right color, but it's not the right type. The {current/goal object col} {goal object type} is what you need.",
+                "You're almost there! You need to find the {current/goal object col} {goal object type}, not the {current/goal object col} {current object type}.",
+                "Good job finding an object with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
+                "You're close! The {current/goal object col} {goal object type} is what you're looking for, not the {current/goal object col} {current object type}.",
+                "Not bad! The {current/goal object col} {current object type} is not the right type of object, keep looking for the {current/goal object col} {goal object type}.",
+                "Pretty close! The {current/goal object col} {goal object type} is your goal, not the  {current/goal object col} {current object type}, so keep searching!",
+                "You're so close! Just switch the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} and you're there.",
+                "The color is spot on, but the type is not. Keep searching for the {current/goal object col} {goal object type}.",
+                "You've found something with the right color, but it's not the right type. Keep looking for the {current/goal object col} {goal object type}.",
+                "Getting there! The {current/goal object col} {goal object type} is what you need to find, not the {current/goal object col} {current object type}. Keep searching!",
+                "You're doing well, but you need to swap the {current/goal object col} {current object type} for the {current/goal object col} {goal object type} to be in the right spot.",
+                "Great job finding an object with the right color, but it's not the right type. Keep searching for the {current/goal object col} {goal object type}."
+            ]
+        }
+    },
+    "action": {
+        "negative": {
+            "simple": "This was an inappropriate action given the task.",
+            "verbose": [
+                "Your choice of action was not appropriate for this task. I'm afraid that won't get us any closer to completing the task successfully.",
+                "The action you selected is not suitable for this task. We need to select a better action to make progress.",
+                "Unfortunately, the action you picked is not the right fit for this task. We need to find an action that will actually work for this task.",
+                "It was not a good decision to choose the action that you did for this task. Please choose another action that will be more helpful.",
+                "Based on your selection of action, it's clear that you do not have a good understanding of what's required for the task.",
+                "Unfortunately, the action you picked is not the right fit for this task. That was a poor decision.",
+                "Your selection of action was not applicable to this task. That was not the right decision.",
+                "The action you selected is not suitable for this task. I'm afraid that was a poor choice.",
+                "The action you've taken isn't contributing to the task's progress.",
+                "Unfortunately, the action you chose is not aiding in completing the task",
+                "The action you've taken is not aligned with the requirements of the task.",
+                "This action doesn't seem to be the right fit for the task.",
+                "It's clear that the action you've taken is not serving the purpose of the task."
+            ]
+        },
+        "positive": {
+            "simple": "This was an appropriate action given the task.",
+            "verbose": [
+                "It seems like your action was useful for completing the task. Keep up the momentum!",
+                "That action you took was useful towards achieving the task. Great job!",
+                "Taking that action was a possible way to move towards completing the task. Good job!",
+                "You did well selecting one of the appropriate actions for the task",
+                "You managed to choose an appropriate action given the task. Well done!",
+                "You did well selecting one of the appropriate actions for the task",
+                "You managed to choose an appropriate action given the task. Well done!",
+                "Your choice of action was appropriate for the task at hand. Good job!",
+                "Your selected action reflects what's required for the task. Keep it up!",
+                "Nicely done! Your choice of action was appropriate for this task.",
+                "You picked an action that is suitable for this task.",
+                "The action you selected is relevant to this task.",
+                "Your selection of action was in line with what's required for this task.",
+                "It seems that the action you chose is a good fit for this task."
+            ]
+        }
+    }
+}

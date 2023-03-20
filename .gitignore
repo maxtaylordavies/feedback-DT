@@ -11,3 +11,4 @@ Pipfile.lock
 **/*.png
 **/*.svg
 src/temp.py
+src/old_*

@@ -107,5 +107,31 @@ def get_args():
         default="/disk/scratch/feedback-DT/output",
         help="Path to the " "directory to write output to",
     )
-
+    # Dataset deletion arguments (use with delete_datasets.py)
+    parser.add_argument(
+        "--del_all",
+        type=bool,
+        help="Whether to delete all local datasets",
+    )
+    # Feedback arguments (use with feedback.py)
+    parser.add_argument(
+        "--feedback_type",
+        type=str,
+        help="the type of feedback to use: 'direction', 'distance', 'adjacency', or 'action'",
+    )
+    parser.add_argument(
+        "--feedback_mode",
+        type=str,
+        help="the feedback mode to use: 'simple' or 'verbose'",
+    )
+    parser.add_argument(
+        "--feedback_freq_steps",
+        type=int,
+        help="how often to provide feedback (every n-steps)",
+    )
+    parser.add_argument(
+        "--feedback_freq_type",
+        type=str,
+        help="'exact' or 'poisson' - whether to provide feedback exactly every n-steps or use a poisson distribution",
+    )
     return vars(parser.parse_args())
