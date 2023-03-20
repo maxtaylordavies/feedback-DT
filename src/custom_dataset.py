@@ -29,12 +29,10 @@ class CustomDataset(MinariDataset):
         Args:
             fname (str): file path.
         """
-        datasets_path = os.environ.get("MINARI_DATASETS_PATH")
-        if datasets_path is not None:
-            file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
-        else:
-            datasets_path = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
-            file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
+        datasets_path = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
+            os.path.expanduser("~"), ".minari", "datasets"
+        )
+        file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
 
         os.makedirs(datasets_path, exist_ok=True)
 
@@ -42,9 +40,7 @@ class CustomDataset(MinariDataset):
             f.create_dataset("symbolic_observations", data=self._symbolic_observations)
             f.create_dataset("goal_positions", data=self._goal_positions)
             f.create_dataset("agent_positions", data=self._agent_positions)
-            f.create_dataset(
-                "direction_observations", data=self._direction_observations
-            )
+            f.create_dataset("direction_observations", data=self._direction_observations)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)

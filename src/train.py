@@ -10,7 +10,7 @@ import numpy as np
 import wandb
 
 from src.argparsing import get_args
-from src.collator import DecisionTransformerMinariDataCollator
+from src.collator import FeedbackDecisionTransformerDataCollator
 from src._datasets import get_dataset
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
@@ -19,7 +19,7 @@ from src.evaluation import EvaluationCallback
 
 def create_collator_and_model(args, dataset):
     # create the data collator
-    collator = DecisionTransformerMinariDataCollator(
+    collator = FeedbackDecisionTransformerDataCollator(
         dataset,
         context_length=args["context_length"],
         randomise_starts=args["randomise_starts"],
@@ -28,7 +28,9 @@ def create_collator_and_model(args, dataset):
     log(f"act_dim: {collator.act_dim}")
 
     # create the model
-    config = DecisionTransformerConfig(state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64)
+    config = DecisionTransformerConfig(
+        state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64
+    )
     model = FeedbackDT(config)
 
     return collator, model
@@ -90,7 +92,7 @@ def main(args):
         log(f"seed not specified, using {args['seed']}")
 
     if args["policy"] == None:
-        args["policy"] = lambda : np.random.randint(3)
+        args["policy"] = lambda: np.random.randint(3)
 
     # setup compute devices
     setup_devices(args["seed"], not args["no_gpu"])

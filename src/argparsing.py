@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument(
         "--num_episodes",
         type=int,
-        default=1000,
+        default=10000,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -42,8 +42,8 @@ def get_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=100,
-        help="number of epochs to train (default: 100)",
+        default=10,
+        help="number of epochs to train (default: 10)",
     )
     parser.add_argument(
         "--batch_size",
@@ -77,19 +77,13 @@ def get_args():
         "--seed",
         type=int,
         default=42,
-        help="random seed (default: np.random.randint(0, 2**32 - 1)))",
+        help="random seed (default: 42)",
     )
     parser.add_argument(
         "--log_interval",
         type=int,
         default=50,
         help="how many training steps between logging output (default: 50)",
-    )
-    parser.add_argument(
-        "--visualise_interval",
-        type=str,
-        default="end",
-        help="interval at which to visualise model's performance in the environment (default: end)",
     )
     parser.add_argument(
         "--wandb_mode",
@@ -111,27 +105,38 @@ def get_args():
     parser.add_argument(
         "--del_all",
         type=bool,
+        default=False,
         help="Whether to delete all local datasets",
     )
     # Feedback arguments (use with feedback.py)
     parser.add_argument(
+        "--use_feedback",
+        type=bool,
+        default=False,
+        help="whether to use feedback during training",
+    )
+    parser.add_argument(
         "--feedback_type",
         type=str,
+        default="direction",
         help="the type of feedback to use: 'direction', 'distance', 'adjacency', or 'action'",
     )
     parser.add_argument(
         "--feedback_mode",
         type=str,
+        default="simple",
         help="the feedback mode to use: 'simple' or 'verbose'",
     )
     parser.add_argument(
         "--feedback_freq_steps",
         type=int,
+        default=1,
         help="how often to provide feedback (every n-steps)",
     )
     parser.add_argument(
         "--feedback_freq_type",
         type=str,
+        default="exact",
         help="'exact' or 'poisson' - whether to provide feedback exactly every n-steps or use a poisson distribution",
     )
     return vars(parser.parse_args())

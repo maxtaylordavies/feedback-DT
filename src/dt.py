@@ -65,6 +65,7 @@ class FeedbackDT(DecisionTransformerModel):
         rewards=None,
         returns_to_go=None,
         timesteps=None,
+        feedback=None,
         attention_mask=None,
         output_hidden_states=None,
         output_attentions=None,
@@ -179,7 +180,9 @@ class FeedbackDT(DecisionTransformerModel):
         return {"loss": torch.mean((action_preds - action_targets) ** 2)}
 
     # function that gets an action from the model using autoregressive prediction with a window of the previous 20 timesteps.
-    def get_action(self, states, actions, rewards, returns_to_go, timesteps, context=64, one_hot=False):
+    def get_action(
+        self, states, actions, rewards, returns_to_go, timesteps, context=64, one_hot=False
+    ):
         # This implementation does not condition on past rewards
         device = states.device
 
@@ -188,10 +191,10 @@ class FeedbackDT(DecisionTransformerModel):
         returns_to_go = returns_to_go.reshape(1, -1, 1)
         timesteps = timesteps.reshape(1, -1)
 
-        states = states[:, -context :]
-        actions = actions[:, -context :]
-        returns_to_go = returns_to_go[:, -context :]
-        timesteps = timesteps[:, -context :]
+        states = states[:, -context:]
+        actions = actions[:, -context:]
+        returns_to_go = returns_to_go[:, -context:]
+        timesteps = timesteps[:, -context:]
 
         # pad all tokens to sequence length
         padding = context - states.shape[1]
