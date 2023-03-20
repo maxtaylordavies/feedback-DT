@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import accumulate
 import os
 import socket
 
@@ -22,12 +23,12 @@ def log(msg, outPath=None):
 
 def setup_devices(seed, useGpu=True):
     useCuda = useGpu and torch.cuda.is_available()
-    # if useGpu and not useCuda:
-    #     raise ValueError(
-    #         "You wanted to use cuda but it is not available. "
-    #         "Check nvidia-smi and your configuration. If you do "
-    #         "not want to use cuda, pass the --no_gpu flag."
-    #     )
+    if useGpu and not useCuda:
+        raise ValueError(
+            "You wanted to use cuda but it is not available. "
+            "Check nvidia-smi and your configuration. If you do "
+            "not want to use cuda, pass the --no_gpu flag."
+        )
 
     device = torch.device("cuda" if useCuda else "cpu")
     log(f"Using device: {torch.cuda.get_device_name()}")
@@ -54,7 +55,14 @@ def is_network_connection():
         return False
 
 
-def to_one_hot(x, width):
-    res = np.zeros((x.size, width))
-    res[np.arange(x.size), x] = 1
+def to_one_hot(x, width=None):
+    if width:
+        res = np.zeros((x.size, width))
+        res[np.arange(x.size), x] = 1
+    else:
+        res = torch.zeros_like(x)
+        res[x.argmax()] = 1
     return res
+
+def discounted_cumsum(x, gamma=1):
+    return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]

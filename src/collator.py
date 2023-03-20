@@ -1,30 +1,33 @@
 from dataclasses import dataclass
-from itertools import accumulate
 
 import numpy as np
 import torch
 
-from src.utils import to_one_hot
+from src.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
 class DecisionTransformerMinariDataCollator:
-    def __init__(self, minari_dataset, max_sample_len=20, scale=1000.0, gamma=0.99) -> None:
-        self.max_sample_len, self.scale, self.gamma = max_sample_len, scale, gamma
-        self.num_episodes = len(minari_dataset)
+    def __init__(
+        self, minari_dataset, context_length=64, scale=1, gamma=1.0, randomise_starts=False
+    ) -> None:
+        self.context_length, self.scale, self.gamma, self.randomise_starts = (
+            context_length,
+            scale,
+            gamma,
+            randomise_starts,
+        )
 
         # compute start and end timesteps for each episode
         self.episode_ends = np.where(
             minari_dataset.terminations + minari_dataset.truncations == 1
         )[0]
-        self.episode_starts = np.concatenate(
-            [[0], self.episode_ends[: self.num_episodes - 1] + 1]
-        )
+        self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
+        self.num_episodes = len(self.episode_starts)
 
-        # compute episode lengths, and thus define a distribution
-        # for sampling episodes with a probability proportional to their length
-        self.episode_lengths = self.episode_ends - self.episode_starts + 1
-        self.episode_probabilities = self.episode_lengths / sum(self.episode_lengths)
+        # define a distribution for sampling episodes with probability inversely proportional to their length
+        self.episode_probabilities = 1 / (self.episode_ends - self.episode_starts + 1)
+        self.episode_probabilities /= np.sum(self.episode_probabilities)
 
         # set state and action dimensions
         self.state_dim, self.act_dim = (
@@ -35,7 +38,7 @@ class DecisionTransformerMinariDataCollator:
         # store observations, actions and rewards
         self.observations = minari_dataset.observations.reshape((-1, self.state_dim))
         self.actions = to_one_hot(
-            minari_dataset.actions, self.act_dim
+            minari_dataset.actions, width=self.act_dim
         )  # convert from index integer representation to one-hot
         self.rewards = minari_dataset.rewards
 
@@ -50,30 +53,31 @@ class DecisionTransformerMinariDataCollator:
 
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
-        pad_width = pad_width or max(self.max_sample_len - x.shape[1], 0)
+        pad_width = pad_width or max(self.context_length - x.shape[1], 0)
         pad_shape = [(0, 0)] * len(x.shape)
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
-    def _discounted_cumsum(self, x, gamma):
-        return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
-
     def _sample_batch(self, batch_size):
         t, s, a, r, rtg, mask = [], [], [], [], [], []
 
-        # sample episodes with a probability proportional to their length
+        # sample episodes with a probability inversely proportional to their length (successful eps are shorter)
         episode_indices = np.random.choice(
             np.arange(self.num_episodes), size=batch_size, p=self.episode_probabilities
         )
 
         # sample a subsequence of each chosen episode
         for ep_idx in episode_indices:
-            # sample an actual random start timestep for this episode
+            # optionally sample a random start timestep for this episode
             # note: end represents the last timestep _included_ in the sequence,
             # which means when we're using exclusive range operators like [:]
             # or np.arange, we need to use end + 1
-            start = np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
-            end = min(start + self.max_sample_len - 1, self.episode_ends[ep_idx])
+            start = (
+                np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
+                if self.randomise_starts
+                else self.episode_starts[ep_idx]
+            )
+            end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
 
             # store data
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
@@ -90,7 +94,7 @@ class DecisionTransformerMinariDataCollator:
             r.append(self._pad(self.rewards[start : end + 1].reshape(1, -1, 1)))
             rtg.append(
                 self._pad(
-                    self._discounted_cumsum(
+                    discounted_cumsum(
                         self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
                     )[: s[-1].shape[1]].reshape(1, -1, 1)
                 )
@@ -99,7 +103,7 @@ class DecisionTransformerMinariDataCollator:
             mask.append(
                 np.concatenate(
                     [
-                        np.zeros((1, self.max_sample_len - (end - start + 1))),
+                        np.zeros((1, self.context_length - (end - start + 1))),
                         np.ones((1, end - start + 1)),
                     ],
                     axis=1,

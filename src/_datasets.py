@@ -7,10 +7,11 @@ import numpy as np
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from minari.storage.datasets_root_dir import get_file_path
 from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
+from tqdm import tqdm
 
-from argparsing import get_args
-from custom_dataset import CustomDataset
-from utils import log
+from src.argparsing import get_args
+from src.custom_dataset import CustomDataset
+from src.utils import log
 
 basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
 if not basepath in sys.path:
@@ -75,9 +76,7 @@ def generate_new_dataset(args):
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
         "symbolic_observation": np.array(
-            [np.zeros_like(full_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
+            [np.zeros_like(full_observation["image"])] * env.max_steps * args["num_episodes"],
             dtype=np.uint8,
         ),
         "goal_position": np.array(
@@ -91,29 +90,21 @@ def generate_new_dataset(args):
         "direction_observation": np.array(
             [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
-        "episode": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
-        ),
+        "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
         "observation": np.array(
-            [np.zeros_like(rgb_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
+            [np.zeros_like(rgb_observation["image"])] * env.max_steps * args["num_episodes"],
             dtype=np.uint8,
         ),
-        "action": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
-        ),
-        "reward": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
-        ),
-        "terminated": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
-        ),
+        "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
         "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
     }
 
+    pi = args["policy"] or env.action_space.sample
+
     total_steps = 0
-    for episode in range(args["num_episodes"]):
+    for episode in tqdm(range(args["num_episodes"])):
         episode_step, terminated, truncated = 0, False, False
         observation, _ = env.reset(seed=args["seed"])
         rgb_env = RGBImgPartialObsWrapper(env)
@@ -121,9 +112,7 @@ def generate_new_dataset(args):
         goal_position_list = [
             x
             for x, y in enumerate(fully_obs_env.grid.grid)
-            if y
-            and y.type in observation["mission"]
-            and y.color in observation["mission"]
+            if y and y.type in observation["mission"] and y.color in observation["mission"]
         ]
 
         # For cases with multiple goals, we want to return a random goal's position
@@ -132,11 +121,14 @@ def generate_new_dataset(args):
             goal_position_list[0] % env.width,
             int(goal_position_list[0] / env.height),
         )
+
         while not (terminated or truncated):
-            action = env.action_space.sample()  # User-defined policy function
+            action = pi()
             observation, reward, terminated, truncated, _ = env.step(action)
+
             rgb_observation = rgb_env.observation({})
             full_observation = fully_obs_env.observation({})
+
             replay_buffer["symbolic_observation"][total_steps] = np.array(
                 full_observation["image"]
             )
@@ -146,9 +138,7 @@ def generate_new_dataset(args):
                 observation["direction"]
             )
             replay_buffer["episode"][total_steps] = np.array(episode)
-            replay_buffer["observation"][total_steps] = np.array(
-                rgb_observation["image"]
-            )
+            replay_buffer["observation"][total_steps] = np.array(rgb_observation["image"])
             replay_buffer["action"][total_steps] = np.array(action)
             replay_buffer["reward"][total_steps] = np.array(reward)
             replay_buffer["terminated"][total_steps] = np.array(terminated)
@@ -158,14 +148,14 @@ def generate_new_dataset(args):
 
     env.close()
 
-    # truncate the replay buffer to the actual number of steps taken
     for key in replay_buffer.keys():
         replay_buffer[key] = replay_buffer[key][:total_steps]
 
-    if args["include_timeout"]:
-        episode_terminals = replay_buffer["terminated"] + replay_buffer["truncated"]
-    else:
-        episode_terminals = None
+    episode_terminals = (
+        replay_buffer["terminated"] + replay_buffer["truncated"]
+        if args["include_timeout"]
+        else None
+    )
 
     return CustomDataset(
         symbolic_observations=replay_buffer["symbolic_observation"],
