@@ -110,6 +110,12 @@ def get_args():
     )
     # Feedback arguments (use with feedback.py)
     parser.add_argument(
+        "--use_feedback",
+        type=bool,
+        default=False,
+        help="whether to use feedback during training",
+    )
+    parser.add_argument(
         "--feedback_type",
         type=str,
         default="direction",

@@ -10,6 +10,9 @@ from scipy.spatial.distance import cdist
 
 from src._datasets import get_dataset, name_dataset
 from src.argparsing import get_args
+from src.utils import log
+
+FEEDBACK_DIR = f"{os.path.abspath('')}/feedback_data"
 
 OBJECT_TO_STR = {
     0: "unseen",
@@ -56,7 +59,6 @@ class Feedback(ABC):
         self.episode_data = self._get_episode_data()
         self.rng = default_rng(args["seed"])
         self.feedback_data = {self.feedback_type: {}}
-        self.feedback_dir = f"{os.path.abspath('')}/feedback_data"
 
     def _get_goal_metadata(self):
         env_name = re.split("_", self.dataset_name)[0]
@@ -103,9 +105,7 @@ class Feedback(ABC):
         ) as json_file:
             feedback_variants = json.load(json_file)[self.feedback_type]
 
-        self.feedback_data[self.feedback_type][self.feedback_mode] = {
-            self.feedback_freq: []
-        }
+        self.feedback_data[self.feedback_type][self.feedback_mode] = {self.feedback_freq: []}
         for e, episode in enumerate(self.episode_data[attribute]):
             episode_feedback = []
             if self.feedback_freq_type.lower() == "poisson":
@@ -115,16 +115,12 @@ class Feedback(ABC):
             else:
                 feedback_freq = self.feedback_freq_steps
             for i, attribute_value in enumerate(episode):
-                # plt.imshow(self.episode_data["rgb_observations"][e][i])
-                # plt.show()
                 if i == 0 and self.feedback_type == "distance":
                     self._save_previous_agent_position(attribute_value)
                     episode_feedback.append("")
                     continue
                 if (i + 1) % feedback_freq == 0:
                     polarity = self._get_polarity(attribute_value, e, i)
-                    # plt.imshow(self.episode_data["rgb_observations"][e][i])
-                    # plt.show()
                     feedback = feedback_variants[polarity][self.feedback_mode]
                     if not isinstance(feedback, str):
                         random_id = self.rng.integers(len(feedback))
@@ -140,9 +136,7 @@ class Feedback(ABC):
                                 .replace("{goal object col}", self.goal_color)
                                 .replace("{goal/current object col}", self.goal_color)
                                 .replace("{current/goal object col}", self.goal_color)
-                                .replace(
-                                    "{current object type}", self.adjacent_object_type
-                                )
+                                .replace("{current object type}", self.adjacent_object_type)
                                 .replace("{goal object type}", self.goal_type)
                                 .replace("{goal/current object type}", self.goal_type)
                                 .replace("{current/goal object type}", self.goal_type)
@@ -154,17 +148,18 @@ class Feedback(ABC):
                         episode_feedback.append(feedback)
                 else:
                     episode_feedback.append("")
-
             else:
                 final_episode_feedback = episode_feedback
             self.feedback_data[self.feedback_type][self.feedback_mode][
                 self.feedback_freq
             ].append(final_episode_feedback)
+        
+        return self.feedback_data
 
     def save_feedback(self):
-        if not os.path.exists(self.feedback_dir):
-            os.mkdir(self.feedback_dir)
-        feedback_path = f"{self.feedback_dir}/{self.dataset_name}.json"
+        if not os.path.exists(FEEDBACK_DIR):
+            os.mkdir(FEEDBACK_DIR)
+        feedback_path = f"{FEEDBACK_DIR}/{self.dataset_name}.json"
         if os.path.exists(feedback_path):
             with open(feedback_path, encoding="utf-8") as json_file:
                 existing_feedback_data = json.load(json_file)
@@ -172,9 +167,7 @@ class Feedback(ABC):
                 if self.feedback_mode in existing_feedback_data[self.feedback_type]:
                     if (
                         self.feedback_freq
-                        in existing_feedback_data[self.feedback_type][
-                            self.feedback_mode
-                        ]
+                        in existing_feedback_data[self.feedback_type][self.feedback_mode]
                     ):
                         existing_feedback_data[self.feedback_type][self.feedback_mode][
                             self.feedback_freq
@@ -182,9 +175,7 @@ class Feedback(ABC):
                             self.feedback_freq
                         ]
                     else:
-                        existing_feedback_data[self.feedback_type][
-                            self.feedback_mode
-                        ].update(
+                        existing_feedback_data[self.feedback_type][self.feedback_mode].update(
                             self.feedback_data[self.feedback_type][self.feedback_mode]
                         )
                 else:
@@ -245,9 +236,7 @@ class DirectionFeedback(Feedback):
         y_offset = abs(agent_y - goal_y)
         return x_offset, y_offset
 
-    def _facing_goal(
-        self, direction_observation, relative_goal_position, x_offset, y_offset
-    ):
+    def _facing_goal(self, direction_observation, relative_goal_position, x_offset, y_offset):
         if direction_observation in np.where(relative_goal_position)[0]:
             # AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
             if len(np.where(relative_goal_position)[0]) > 1:
@@ -294,9 +283,7 @@ class DistanceFeedback(Feedback):
         )[0][0]
 
     def _get_polarity(self, agent_position, current_episode, current_step):
-        goal_position = self.episode_data["goal_positions"][current_episode][
-            current_step
-        ]
+        goal_position = self.episode_data["goal_positions"][current_episode][current_step]
         current_agent_position = agent_position
         d_current = self._get_distance(goal_position, current_agent_position)
         d_previous = self._get_distance(goal_position, self.previous_agent_position)
@@ -439,16 +426,50 @@ class AdjacencyFeedback(Feedback):
         return super().generate_feedback("symbolic_observations")
 
 
+def _feedback_contains_config(feedback, args):
+    if args["feedback_type"] in feedback:
+        if args["feedback_mode"] in feedback[args["feedback_type"]]:
+            if (
+                args[f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"]
+                in feedback[args["feedback_type"]][args["feedback_mode"]]
+            ):
+                return True
+    return False
+
+
+def _get_feedback_with_config(feedback, args):
+    return feedback[args["feedback_type"]][args["feedback_mode"]][
+        args[f"{args['feedback_freq_type']}_{args['feedback_freq_steps']}"]
+    ]
+
+
+def get_feedback(args, dataset):
+    generator = {
+        "direction": DirectionFeedback,
+        "distance": DistanceFeedback,
+        "action": ActionFeedback,
+        "adjacency": AdjacencyFeedback,
+    }[args["feedback_type"]](dataset, args)
+
+    dataset_name = name_dataset(args)
+
+    # if we don't already have feedback for this dataset, generate it
+    should_generate = True
+    if os.path.exists(os.path.join(FEEDBACK_DIR, dataset_name)):
+        log("found existing feedback file for this dataset, loading...")
+        with open(os.path.join(FEEDBACK_DIR, dataset_name)) as f:
+            feedback = json.load(f)
+            should_generate = not _feedback_contains_config(feedback, args)
+
+    if should_generate:
+        log("generating feedback...")
+        feedback = generator.generate_feedback()
+        generator.save_feedback()
+
+    return _get_feedback_with_config(feedback, args)
+
+
 if __name__ == "__main__":
     args = get_args()
     dataset = get_dataset(args)
-    type = args["feedback_type"]
-    type_to_generator = {
-        "direction": DirectionFeedback(args, dataset),
-        "distance": DistanceFeedback(args, dataset),
-        "action": ActionFeedback(args, dataset),
-        "adjacency": AdjacencyFeedback(args, dataset),
-    }
-    feedback_generator = type_to_generator[type]
-    feedback_generator.generate_feedback()
-    feedback_generator.save_feedback()
+    feedback = get_feedback(args, dataset)
