@@ -8,8 +8,8 @@ import numpy as np
 from numpy.random import default_rng
 from scipy.spatial.distance import cdist
 
-from _datasets import get_dataset, name_dataset
-from argparsing import get_args
+from src._datasets import get_dataset, name_dataset
+from src.argparsing import get_args
 
 OBJECT_TO_STR = {
     0: "unseen",
@@ -53,13 +53,9 @@ class Feedback(ABC):
         self.dataset = dataset
 
         self.goal_color, self.goal_type = self._get_goal_metadata()
-
         self.episode_data = self._get_episode_data()
-
         self.rng = default_rng(args["seed"])
-
         self.feedback_data = {self.feedback_type: {}}
-
         self.feedback_dir = f"{os.path.abspath('')}/feedback_data"
 
     def _get_goal_metadata(self):
