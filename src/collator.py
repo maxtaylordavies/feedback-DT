@@ -3,13 +3,19 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from src.custom_dataset import CustomDataset
 from src.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
-class DecisionTransformerMinariDataCollator:
+class FeedbackDecisionTransformerDataCollator:
     def __init__(
-        self, minari_dataset, context_length=64, scale=1, gamma=1.0, randomise_starts=False
+        self,
+        custom_dataset: CustomDataset,
+        context_length=64,
+        scale=1,
+        gamma=1.0,
+        randomise_starts=False,
     ) -> None:
         self.context_length, self.scale, self.gamma, self.randomise_starts = (
             context_length,
@@ -20,7 +26,7 @@ class DecisionTransformerMinariDataCollator:
 
         # compute start and end timesteps for each episode
         self.episode_ends = np.where(
-            minari_dataset.terminations + minari_dataset.truncations == 1
+            custom_dataset.terminations + custom_dataset.truncations == 1
         )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.num_episodes = len(self.episode_starts)
@@ -31,16 +37,16 @@ class DecisionTransformerMinariDataCollator:
 
         # set state and action dimensions
         self.state_dim, self.act_dim = (
-            np.prod(minari_dataset.get_observation_shape()),
-            minari_dataset.get_action_size(),
+            np.prod(custom_dataset.get_observation_shape()),
+            custom_dataset.get_action_size(),
         )
 
         # store observations, actions and rewards
-        self.observations = minari_dataset.observations.reshape((-1, self.state_dim))
+        self.observations = custom_dataset.observations.reshape((-1, self.state_dim))
         self.actions = to_one_hot(
-            minari_dataset.actions, width=self.act_dim
+            custom_dataset.actions, width=self.act_dim
         )  # convert from index integer representation to one-hot
-        self.rewards = minari_dataset.rewards
+        self.rewards = custom_dataset.rewards
 
         # compute observation statistics
         self.state_mean, self.state_std = (
@@ -59,7 +65,7 @@ class DecisionTransformerMinariDataCollator:
         return np.pad(x, pad_shape, constant_values=val)
 
     def _sample_batch(self, batch_size):
-        t, s, a, r, rtg, mask = [], [], [], [], [], []
+        t, s, a, r, f, rtg, mask = [], [], [], [], [], [], []
 
         # sample episodes with a probability inversely proportional to their length (successful eps are shorter)
         episode_indices = np.random.choice(
@@ -79,8 +85,10 @@ class DecisionTransformerMinariDataCollator:
             )
             end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
 
-            # store data
+            # timesteps
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
+
+            # states
             s.append(
                 self._normalise_states(
                     self._pad(
@@ -88,10 +96,16 @@ class DecisionTransformerMinariDataCollator:
                     )
                 )
             )
+
+            # actions
             a.append(
                 self._pad(self.actions[start : end + 1].reshape(1, -1, self.act_dim), val=-10)
             )
+
+            # rewards
             r.append(self._pad(self.rewards[start : end + 1].reshape(1, -1, 1)))
+
+            # returns-to-go
             rtg.append(
                 self._pad(
                     discounted_cumsum(
@@ -100,6 +114,11 @@ class DecisionTransformerMinariDataCollator:
                 )
                 / self.scale
             )
+
+            # feedback
+            f.append(np.zeros(self.context_length))
+
+            # attention mask
             mask.append(
                 np.concatenate(
                     [
@@ -117,6 +136,7 @@ class DecisionTransformerMinariDataCollator:
             "rewards": torch.from_numpy(np.concatenate(r, axis=0)).float(),
             "returns_to_go": torch.from_numpy(np.concatenate(rtg, axis=0)).float(),
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
+            "feedback": torch.from_numpy(np.concatenate(f, axis=0)).float()
         }
 
     def __call__(self, features):
