@@ -3,12 +3,14 @@ from dataclasses import dataclass
 import torch
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
+from sentence_transformers import SentenceTransformer
 
 from src.utils import to_one_hot
 
-#ASG: required for embedding first option
+# ASG: required for embedding first option
 # pip install -U sentence-transformers
 # from sentence_transformers import SentenceTransformer
+
 
 @dataclass
 class DecisionTransformerOutput(ModelOutput):
@@ -50,13 +52,23 @@ class FeedbackDT(DecisionTransformerModel):
         super().__init__(config)
 
         # embed image states using very simple conv net
-        self.embed_state_convolutional = torch.nn.Sequential(
+        self.state_embedding_model = torch.nn.Sequential(
             torch.nn.Conv2d(3, 32, 4, stride=1, padding=0),
             torch.nn.ReLU(),
             torch.nn.Flatten(),
             torch.nn.Linear(512, config.hidden_size),
             torch.nn.Tanh(),
         )
+
+        self.feedback_embedding_model = SentenceTransformer(
+            "sentence-transformers/paraphrase-xlm-r-multilingual-v1"
+        )
+
+    def embed_state_convolutional(self, states):
+        return self.state_embedding_model(states)
+
+    def embed_feedback(self, feedback):
+        return self.feedback_embedding_model.encode(feedback)
 
     def _forward(
         self,
@@ -96,10 +108,10 @@ class FeedbackDT(DecisionTransformerModel):
         action_embeddings = self.embed_action(actions)
         returns_embeddings = self.embed_return(returns_to_go)
         time_embeddings = self.embed_timestep(timesteps)
-        # TODO: add feedback embeddings
+        feedback_embeddings = self.embed_feedback(feedback)
 
-        #ASG: we have three options here, I am writing the simplest one
-        # ASG: Chat about how should we get the feedback. 
+        # ASG: we have three options here, I am writing the simplest one
+        # ASG: Chat about how should we get the feedback.
 
         # feedback_sentence = ["Feedback example, we need to get it from Sabrinas stuff]
         # model = SentenceTransformer('sentence-transformers/paraphrase-xlm-r-multilingual-v1')
@@ -109,32 +121,40 @@ class FeedbackDT(DecisionTransformerModel):
         state_embeddings = state_embeddings + time_embeddings
         action_embeddings = action_embeddings + time_embeddings
         returns_embeddings = returns_embeddings + time_embeddings
+        feedback_embeddings = feedback_embeddings + time_embeddings
 
-        s#ASG
-        #feedback_embeddings= feedback_embeddings + time_embeddings
-
-        # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
+        # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
         stacked_inputs = (
-            torch.stack((returns_embeddings, state_embeddings, action_embeddings), dim=1)
+            torch.stack(
+                (
+                    returns_embeddings,
+                    state_embeddings,
+                    action_embeddings,
+                    feedback_embeddings,
+                ),
+                dim=1,
+            )
             .permute(0, 2, 1, 3)
-            .reshape(batch_size, 3 * seq_length, self.hidden_size)
+            .reshape(batch_size, 4 * seq_length, self.hidden_size)
         )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
         stacked_attention_mask = (
-            torch.stack((attention_mask, attention_mask, attention_mask), dim=1)
+            torch.stack(
+                (attention_mask, attention_mask, attention_mask, attention_mask), dim=1
+            )
             .permute(0, 2, 1)
-            .reshape(batch_size, 3 * seq_length)
+            .reshape(batch_size, 4 * seq_length)
         )
-        device = stacked_inputs.device
+
         # we feed in the input embeddings (not word indices as in NLP) to the model
         encoder_outputs = self.encoder(
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
             position_ids=torch.zeros(
-                stacked_attention_mask.shape, device=device, dtype=torch.long
+                stacked_attention_mask.shape, device=stacked_inputs.device, dtype=torch.long
             ),
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -144,7 +164,7 @@ class FeedbackDT(DecisionTransformerModel):
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(0, 2, 1, 3)
 
         # get predictions
         return_preds = self.predict_return(
