@@ -146,7 +146,7 @@ class FeedbackDecisionTransformerDataCollator:
             "rewards": torch.from_numpy(np.concatenate(r, axis=0)).float(),
             "returns_to_go": torch.from_numpy(np.concatenate(rtg, axis=0)).float(),
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
-            "feedback": torch.from_numpy(np.concatenate(f, axis=0)),
+            "feedback": np.concatenate(f, axis=0),
         }
 
     def __call__(self, features):
