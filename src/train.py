@@ -34,7 +34,7 @@ def create_collator_and_model(args, dataset, feedback, device):
     config = DecisionTransformerConfig(
         state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64
     )
-    model = FeedbackDT(config, device)
+    model = FeedbackDT(config, use_feedback=args["use_feedback"])
 
     return collator, model
 

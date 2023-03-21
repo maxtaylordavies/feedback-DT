@@ -44,11 +44,10 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FeedbackDT(DecisionTransformerModel):
-    def __init__(self, config, device):
-        # self.device = device
+    def __init__(self, config, use_feedback=True):
         super().__init__(config)
 
-        print(self.device)
+        self.use_feedback = use_feedback
 
         # embed image states using very simple conv net
         self.state_embedding_model = torch.nn.Sequential(
@@ -59,15 +58,17 @@ class FeedbackDT(DecisionTransformerModel):
             torch.nn.Tanh(),
         )
 
+        x = 1 + int(self.use_feedback)
+
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
-        self.predict_state = torch.nn.Linear(2 * config.hidden_size, config.state_dim)
+        self.predict_state = torch.nn.Linear(x * config.hidden_size, config.state_dim)
         self.predict_action = torch.nn.Sequential(
             *(
-                [torch.nn.Linear(2 * config.hidden_size, config.act_dim)]
+                [torch.nn.Linear(x * config.hidden_size, config.act_dim)]
                 + ([torch.nn.Tanh()] if config.action_tanh else [])
             )
         )
-        self.predict_return = torch.nn.Linear(2 * config.hidden_size, 1)
+        self.predict_return = torch.nn.Linear(x * config.hidden_size, 1)
 
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
@@ -160,14 +161,15 @@ class FeedbackDT(DecisionTransformerModel):
             0, 2, 1, 3
         )  # shape (batch_size, 4, seq_length, hidden_size)
 
-        _f = x[:, 3]
-        _sf = torch.cat([x[:, 1], _f], axis=2)
-        _af = torch.cat([x[:, 2], _f], axis=2)
+        _s, _a, _f = x[:, 1], x[:, 2], x[:, 3]
+        if self.use_feedback:
+            _s = torch.cat([_s, _f], axis=2)
+            _a = torch.cat([_a, _f], axis=2)
 
         # get predictions
-        return_preds = self.predict_return(_af)  # predict return from action + feedback
-        state_preds = self.predict_state(_af)  # predict state from action + feedback
-        action_preds = self.predict_action(_sf)  # predict action from state + feedback
+        return_preds = self.predict_return(_a)
+        state_preds = self.predict_state(_a)
+        action_preds = self.predict_action(_s)
 
         if not return_dict:
             return (state_preds, action_preds, return_preds)

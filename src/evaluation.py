@@ -102,6 +102,7 @@ class EvaluationCallback(TrainerCallback):
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+        feedback_embeddings = torch.zeros(0, device=self.device, dtype=torch.float32)
 
         for t in range(max_ep_len):
             actions = torch.cat(
