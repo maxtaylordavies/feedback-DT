@@ -16,7 +16,7 @@ from src._feedback import get_feedback
 from src.dt import FeedbackDT
 from src.utils import log, setup_devices, is_network_connection
 
-# from src.evaluation import EvaluationCallback
+from src.evaluation import EvaluationCallback
 
 
 def create_collator_and_model(args, dataset, feedback, device):
@@ -63,7 +63,7 @@ def train_model(args, dataset, collator, model):
         args=training_args,
         train_dataset=dataset,
         data_collator=collator,
-        # callbacks=[EvaluationCallback(user_args=args, collator=collator, gamma=1)],
+        callbacks=[EvaluationCallback(user_args=args, collator=collator, gamma=1)],
     )
 
     # train the model

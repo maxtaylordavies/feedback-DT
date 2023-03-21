@@ -5,11 +5,10 @@ import gymnasium as gym
 import torch
 import numpy as np
 import pandas as pd
-from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
+from minigrid.wrappers import FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
-from tqdm import tqdm
 
-from src.utils import discounted_cumsum, log, get_empty_feedback
+from src.utils import discounted_cumsum, log
 
 
 class EvaluationCallback(TrainerCallback):
@@ -35,10 +34,12 @@ class EvaluationCallback(TrainerCallback):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        self.empty_feedback = get_empty_feedback(1, self.user_args["context_length"])
-
         # initialise a dataframe to store the results
         self.results = {"epoch": [], "return": [], "target_return": []}
+
+        self.feedback_embeddings = self.collator._embed_feedback(
+            np.array([[""] * user_args["context_length"]]).reshape(-1, 1)
+        ).to(self.device)
 
     def on_epoch_end(
         self,
@@ -71,8 +72,16 @@ class EvaluationCallback(TrainerCallback):
 
                 env.release()
 
-        # write the returns data to disk
-        pd.DataFrame(self.results).to_pickle(os.path.join(self.output_dir, "returns.pkl"))
+        # convert results to dataframe
+        df = pd.DataFrame(self.results)
+
+        # log the average episode return for the current epoch
+        log(
+            f"Average episode return: {df[df['epoch'] == self.epochs_complete]['return'].mean()}"
+        )
+
+        # save the results to disk
+        df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
     def _run_model_on_environment(self, model, env, target_return=1000):
         max_ep_len = env.max_steps or 64
@@ -102,7 +111,6 @@ class EvaluationCallback(TrainerCallback):
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
-        feedback_embeddings = torch.zeros(0, device=self.device, dtype=torch.float32)
 
         for t in range(max_ep_len):
             actions = torch.cat(
@@ -116,7 +124,7 @@ class EvaluationCallback(TrainerCallback):
                 rewards,
                 target_return,
                 timesteps,
-                # feedback=self.empty_feedback,
+                self.feedback_embeddings,
                 context=self.user_args["context_length"],
                 one_hot=True,
             )
@@ -124,13 +132,13 @@ class EvaluationCallback(TrainerCallback):
 
             obs, reward, done, _, _ = env.step(np.argmax(a))
             obs = fully_obs_env.observation(obs)
-
             cur_state = (
                 torch.from_numpy(obs["image"])
                 .to(device=self.device)
                 .reshape(1, self.collator.state_dim)
             )
             states = torch.cat([states, cur_state], dim=0)
+
             rewards[-1] = reward
 
             pred_return = target_return[0, -1] - reward

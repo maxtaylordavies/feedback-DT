@@ -114,7 +114,10 @@ class FeedbackDT(DecisionTransformerModel):
         )
         action_embeddings = self.embed_action(actions) + time_embeddings
         returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
-        feedback_embeddings = feedback_embeddings + time_embeddings
+        feedback_embeddings = (
+            feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
+            + time_embeddings
+        )
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
@@ -205,6 +208,7 @@ class FeedbackDT(DecisionTransformerModel):
         rewards,
         returns_to_go,
         timesteps,
+        feedback_embeddings,
         context=64,
         one_hot=False,
     ):
@@ -214,6 +218,7 @@ class FeedbackDT(DecisionTransformerModel):
         states = states.reshape(1, -1, self.config.state_dim)
         actions = actions.reshape(1, -1, self.config.act_dim)
         returns_to_go = returns_to_go.reshape(1, -1, 1)
+        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.config.hidden_size)
         timesteps = timesteps.reshape(1, -1)
 
         states = states[:, -context:]
@@ -250,6 +255,7 @@ class FeedbackDT(DecisionTransformerModel):
             rewards=rewards,
             returns_to_go=returns_to_go,
             timesteps=timesteps,
+            feedback_embeddings=feedback_embeddings,
             attention_mask=attention_mask,
             return_dict=False,
         )
