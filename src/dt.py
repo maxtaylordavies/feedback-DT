@@ -59,6 +59,16 @@ class FeedbackDT(DecisionTransformerModel):
             torch.nn.Tanh(),
         )
 
+        # we override the parent class prediction functions so we can incorporate the feedback embeddings
+        self.predict_state = torch.nn.Linear(2 * config.hidden_size, config.state_dim)
+        self.predict_action = torch.nn.Sequential(
+            *(
+                [torch.nn.Linear(2 * config.hidden_size, config.act_dim)]
+                + ([torch.nn.Tanh()] if config.action_tanh else [])
+            )
+        )
+        self.predict_return = torch.nn.Linear(2 * config.hidden_size, 1)
+
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
 
@@ -146,14 +156,18 @@ class FeedbackDT(DecisionTransformerModel):
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(
+            0, 2, 1, 3
+        )  # shape (batch_size, 4, seq_length, hidden_size)
+
+        _f = x[:, 3]
+        _sf = torch.cat([x[:, 1], _f], axis=2)
+        _af = torch.cat([x[:, 2], _f], axis=2)
 
         # get predictions
-        return_preds = self.predict_return(
-            x[:, 2]
-        )  # predict next return given state and action
-        state_preds = self.predict_state(x[:, 2])  # predict next state given state and action
-        action_preds = self.predict_action(x[:, 1])  # predict next action given state
+        return_preds = self.predict_return(_af)  # predict return from action + feedback
+        state_preds = self.predict_state(_af)  # predict state from action + feedback
+        action_preds = self.predict_action(_sf)  # predict action from state + feedback
 
         if not return_dict:
             return (state_preds, action_preds, return_preds)
