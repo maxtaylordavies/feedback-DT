@@ -4,13 +4,8 @@ import numpy as np
 import torch
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
-from sentence_transformers import SentenceTransformer
 
-from src.utils import to_one_hot, get_empty_feedback
-
-# ASG: required for embedding first option
-# pip install -U sentence-transformers
-# from sentence_transformers import SentenceTransformer
+from src.utils import to_one_hot
 
 
 @dataclass
@@ -64,25 +59,8 @@ class FeedbackDT(DecisionTransformerModel):
             torch.nn.Tanh(),
         )
 
-        self.feedback_embedding_model = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2", device=device
-        )
-        self.feedback_embedding_downsampler = torch.nn.AvgPool1d(
-            int(384 / config.hidden_size)
-        )
-
-        empty_feedback = get_empty_feedback(64, 64).reshape((64 * 64))
-        self.empty_feedback_embedding = self.embed_feedback(empty_feedback).reshape(
-            (64, 64, 128)
-        )
-
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
-
-    def embed_feedback(self, feedback):
-        return self.feedback_embedding_downsampler(
-            self.feedback_embedding_model.encode(feedback, convert_to_tensor=True)
-        )
 
     def _forward(
         self,
@@ -91,7 +69,7 @@ class FeedbackDT(DecisionTransformerModel):
         rewards=None,
         returns_to_go=None,
         timesteps=None,
-        feedback=None,
+        feedback_embeddings=None,
         attention_mask=None,
         output_hidden_states=None,
         output_attentions=None,
@@ -125,14 +103,6 @@ class FeedbackDT(DecisionTransformerModel):
         )
         action_embeddings = self.embed_action(actions) + time_embeddings
         returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
-
-        feedback_embeddings = (
-            self.embed_feedback(feedback.reshape((batch_size * seq_length))).reshape(
-                batch_size, seq_length, self.hidden_size
-            )
-            if feedback is not None
-            else self.empty_feedback_embedding[:batch_size]
-        )
         feedback_embeddings = feedback_embeddings + time_embeddings
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)

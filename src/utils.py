@@ -69,7 +69,3 @@ def to_one_hot(x, width=None):
 
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
-
-
-def get_empty_feedback(batch_size, episode_length):
-    return np.array([[""] * episode_length] * batch_size).reshape((batch_size, episode_length, 1))

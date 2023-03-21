@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+from sentence_transformers import SentenceTransformer
 
 from src.custom_dataset import CustomDataset
 from src._feedback import FeedbackArray
@@ -18,12 +19,20 @@ class FeedbackDecisionTransformerDataCollator:
         context_length=64,
         scale=1,
         gamma=1.0,
+        embedding_dim=128,
         randomise_starts=False,
     ) -> None:
-        self.context_length, self.scale, self.gamma, self.randomise_starts = (
+        (
+            self.context_length,
+            self.scale,
+            self.gamma,
+            self.embedding_dim,
+            self.randomise_starts,
+        ) = (
             context_length,
             scale,
             gamma,
+            embedding_dim,
             randomise_starts,
         )
 
@@ -63,6 +72,33 @@ class FeedbackDecisionTransformerDataCollator:
             if feedback is not None
             else np.array([""] * len(self.observations))
         )
+        self._feedback_embeddings_map = self._precompute_feedback_embeddings(
+            dim=embedding_dim
+        )
+
+    def _precompute_feedback_embeddings(self):
+        self.feedback_embedding_model = SentenceTransformer(
+            "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
+        )
+        self.feedback_embedding_downsampler = torch.nn.AvgPool1d(
+            int(768 / self.embedding_dim)
+        )
+
+        # create a mapping from each unique feedback string to an embedding of shape (1, embedding_dim)
+        return {
+            s: self.feedback_embedding_downsampler(
+                self.feedback_embedding_model.encode(
+                    s, convert_to_tensor=True, device="cpu"
+                ).reshape(1, -1)
+            )
+            for s in np.unique(self.feedback)
+        }
+
+    def _embed_feedback(self, feedback):
+        emb = torch.zeros((len(feedback), self.embedding_dim))
+        for i in range(len(feedback)):
+            emb[i] = self._feedback_embeddings_map[feedback[i, 0]]
+        return emb
 
     def _normalise_states(self, states):
         return (states - self.state_mean) / self.state_std
@@ -126,7 +162,11 @@ class FeedbackDecisionTransformerDataCollator:
             )
 
             # feedback
-            f.append(self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val=""))
+            f.append(
+                self._embed_feedback(
+                    self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[0]
+                )
+            ).reshape(1, -1, self.embedding_dim)
 
             # attention mask
             mask.append(
@@ -146,7 +186,7 @@ class FeedbackDecisionTransformerDataCollator:
             "rewards": torch.from_numpy(np.concatenate(r, axis=0)).float(),
             "returns_to_go": torch.from_numpy(np.concatenate(rtg, axis=0)).float(),
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
-            "feedback": np.concatenate(f, axis=0),
+            "feedback_embeddings": torch.cat(f, axis=0),
         }
 
     def __call__(self, features):
