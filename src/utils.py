@@ -43,6 +43,8 @@ def setup_devices(seed, useGpu=True):
         # This does make things slower :(
         torch.backends.cudnn.benchmark = False
 
+    return device
+
 
 def is_network_connection():
     host, port, timeout = "8.8.8.8", 53, 3
@@ -64,5 +66,10 @@ def to_one_hot(x, width=None):
         res[x.argmax()] = 1
     return res
 
+
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
+
+
+def get_empty_feedback(batch_size, episode_length):
+    return np.array([[""] * episode_length] * batch_size).reshape((batch_size, episode_length, 1))

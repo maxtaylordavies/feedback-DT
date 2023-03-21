@@ -5,9 +5,11 @@ import gymnasium as gym
 import torch
 import numpy as np
 import pandas as pd
+from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+from tqdm import tqdm
 
-from src.utils import discounted_cumsum, log
+from src.utils import discounted_cumsum, log, get_empty_feedback
 
 
 class EvaluationCallback(TrainerCallback):
@@ -15,8 +17,8 @@ class EvaluationCallback(TrainerCallback):
         self,
         user_args,
         collator,
-        target_returns=[1000, 100000],
-        num_repeats=20,
+        target_returns=[1000],
+        num_repeats=10,
         gamma=1.0,
     ) -> None:
         super().__init__()
@@ -33,6 +35,8 @@ class EvaluationCallback(TrainerCallback):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
+        self.empty_feedback = get_empty_feedback(1, self.user_args["context_length"])
+
         # initialise a dataframe to store the results
         self.results = {"epoch": [], "return": [], "target_return": []}
 
@@ -45,7 +49,7 @@ class EvaluationCallback(TrainerCallback):
         **kwargs,
     ):
         self.epochs_complete = state.epoch
-        log(f"Running evaluation at end of epoch {self.epochs_complete}")
+        # log(f"Running evaluation at end of epoch {self.epochs_complete}")
         self._evaluate_model(model)
 
     def _evaluate_model(self, model):
@@ -85,9 +89,11 @@ class EvaluationCallback(TrainerCallback):
         ).reshape(1, 1)
 
         tmp = env.reset(seed=self.user_args["seed"])
+        fully_obs_env = FullyObsWrapper(env)
+        obs = fully_obs_env.observation(tmp[0])
 
         states = (
-            torch.from_numpy(tmp[0]["image"])
+            torch.from_numpy(obs["image"])
             .reshape(1, self.collator.state_dim)
             .to(device=self.device, dtype=torch.float32)
         )
@@ -109,14 +115,17 @@ class EvaluationCallback(TrainerCallback):
                 rewards,
                 target_return,
                 timesteps,
+                # feedback=self.empty_feedback,
                 context=self.user_args["context_length"],
                 one_hot=True,
             )
             a = actions[-1].detach().cpu().numpy()
 
-            env_state, reward, done, _, _ = env.step(np.argmax(a))
+            obs, reward, done, _, _ = env.step(np.argmax(a))
+            obs = fully_obs_env.observation(obs)
+
             cur_state = (
-                torch.from_numpy(env_state["image"])
+                torch.from_numpy(obs["image"])
                 .to(device=self.device)
                 .reshape(1, self.collator.state_dim)
             )

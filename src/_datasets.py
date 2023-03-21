@@ -59,18 +59,18 @@ def generate_new_dataset(args):
     # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(env.spec_stack)
 
-    replay_buffer = {
-        "symbolic_observation": np.array([]),
-        "goal_position": np.array([]),
-        "agent_position": np.array([]),
-        "direction_observation": np.array([]),
-        "episode": np.array([]),
-        "observation": np.array([]),
-        "action": np.array([]),
-        "reward": np.array([]),
-        "terminated": np.array([]),
-        "truncated": np.array([]),
-    }
+    # replay_buffer = {
+    #     "symbolic_observation": np.array([]),
+    #     "goal_position": np.array([]),
+    #     "agent_position": np.array([]),
+    #     "direction_observation": np.array([]),
+    #     "episode": np.array([]),
+    #     "observation": np.array([]),
+    #     "action": np.array([]),
+    #     "reward": np.array([]),
+    #     "terminated": np.array([]),
+    #     "truncated": np.array([]),
+    # }
 
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
@@ -91,10 +91,10 @@ def generate_new_dataset(args):
             [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
         "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
-        "observation": np.array(
-            [np.zeros_like(rgb_observation["image"])] * env.max_steps * args["num_episodes"],
-            dtype=np.uint8,
-        ),
+        # "observation": np.array(
+        #     [np.zeros_like(rgb_observation["image"])] * env.max_steps * args["num_episodes"],
+        #     dtype=np.uint8,
+        # ),
         "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
         "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
         "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
@@ -138,7 +138,7 @@ def generate_new_dataset(args):
                 observation["direction"]
             )
             replay_buffer["episode"][total_steps] = np.array(episode)
-            replay_buffer["observation"][total_steps] = np.array(rgb_observation["image"])
+            # replay_buffer["observation"][total_steps] = np.array(rgb_observation["image"])
             replay_buffer["action"][total_steps] = np.array(action)
             replay_buffer["reward"][total_steps] = np.array(reward)
             replay_buffer["terminated"][total_steps] = np.array(terminated)
@@ -170,7 +170,7 @@ def generate_new_dataset(args):
         code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
         author="Sabrina McCallum",
         author_email="s2431177@ed.ac.uk",
-        observations=replay_buffer["observation"],
+        observations=replay_buffer["symbolic_observation"],
         actions=replay_buffer["action"],
         rewards=replay_buffer["reward"],
         terminations=replay_buffer["terminated"],

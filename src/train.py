@@ -18,7 +18,7 @@ from src.utils import log, setup_devices, is_network_connection
 from src.evaluation import EvaluationCallback
 
 
-def create_collator_and_model(args, dataset, feedback):
+def create_collator_and_model(args, dataset, feedback, device):
     # create the data collator
     collator = FeedbackDecisionTransformerDataCollator(
         dataset,
@@ -33,7 +33,7 @@ def create_collator_and_model(args, dataset, feedback):
     config = DecisionTransformerConfig(
         state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64
     )
-    model = FeedbackDT(config)
+    model = FeedbackDT(config, device)
 
     return collator, model
 
@@ -97,7 +97,7 @@ def main(args):
         args["policy"] = lambda: np.random.randint(3)
 
     # setup compute devices
-    setup_devices(args["seed"], not args["no_gpu"])
+    device = setup_devices(args["seed"], not args["no_gpu"])
 
     # create or load training dataset
     dataset = get_dataset(args)
@@ -107,7 +107,7 @@ def main(args):
     feedback = get_feedback(args, dataset) if args["use_feedback"] else None
 
     # create the data collator and model
-    collator, model = create_collator_and_model(args, dataset, feedback)
+    collator, model = create_collator_and_model(args, dataset, feedback, device)
 
     # train the model
     model = train_model(args, dataset, collator, model)

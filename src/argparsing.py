@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument(
         "--num_episodes",
         type=int,
-        default=10000,
+        default=100,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -82,14 +82,14 @@ def get_args():
     parser.add_argument(
         "--log_interval",
         type=int,
-        default=50,
-        help="how many training steps between logging output (default: 50)",
+        default=10,
+        help="how many training steps between logging output (default: 10)",
     )
     parser.add_argument(
         "--wandb_mode",
         type=str,
-        default="online",
-        help="wandb mode - can be online, offline, or disabled (default: online)",
+        default="offline",
+        help="wandb mode - can be online, offline, or disabled (default: offline)",
     )
     parser.add_argument(
         "--checkpoint", type=str, default="", help="path to pytorch checkpoint file"
@@ -112,7 +112,7 @@ def get_args():
     parser.add_argument(
         "--use_feedback",
         type=bool,
-        default=False,
+        default=True,
         help="whether to use feedback during training",
     )
     parser.add_argument(

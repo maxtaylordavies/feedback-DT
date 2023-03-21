@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 from sentence_transformers import SentenceTransformer
 
-from src.utils import to_one_hot
+from src.utils import to_one_hot, get_empty_feedback
 
 # ASG: required for embedding first option
 # pip install -U sentence-transformers
@@ -48,23 +49,31 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FeedbackDT(DecisionTransformerModel):
-    def __init__(self, config):
+    def __init__(self, config, device):
+        # self.device = device
         super().__init__(config)
+
+        print(self.device)
 
         # embed image states using very simple conv net
         self.state_embedding_model = torch.nn.Sequential(
             torch.nn.Conv2d(3, 32, 4, stride=1, padding=0),
             torch.nn.ReLU(),
             torch.nn.Flatten(),
-            torch.nn.Linear(512, config.hidden_size),
+            torch.nn.Linear(800, config.hidden_size),
             torch.nn.Tanh(),
         )
 
         self.feedback_embedding_model = SentenceTransformer(
-            "sentence-transformers/paraphrase-xlm-r-multilingual-v1"
+            "sentence-transformers/all-MiniLM-L6-v2", device=device
         )
         self.feedback_embedding_downsampler = torch.nn.AvgPool1d(
-            int(768 / config.hidden_size)
+            int(384 / config.hidden_size)
+        )
+
+        empty_feedback = get_empty_feedback(64, 64).reshape((64 * 64))
+        self.empty_feedback_embedding = self.embed_feedback(empty_feedback).reshape(
+            (64, 64, 128)
         )
 
     def embed_state_convolutional(self, states):
@@ -72,7 +81,7 @@ class FeedbackDT(DecisionTransformerModel):
 
     def embed_feedback(self, feedback):
         return self.feedback_embedding_downsampler(
-            self.feedback_embedding_model.encode(feedback)
+            self.feedback_embedding_model.encode(feedback, convert_to_tensor=True)
         )
 
     def _forward(
@@ -110,13 +119,21 @@ class FeedbackDT(DecisionTransformerModel):
         time_embeddings = self.embed_timestep(timesteps)
         state_embeddings = (
             self.embed_state_convolutional(
-                states.reshape(-1, 3, 7, 7).type(torch.float32).contiguous()
+                states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
             ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
         action_embeddings = self.embed_action(actions) + time_embeddings
         returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
-        feedback_embeddings = self.embed_feedback(feedback) + time_embeddings
+
+        feedback_embeddings = (
+            self.embed_feedback(feedback.reshape((batch_size * seq_length))).reshape(
+                batch_size, seq_length, self.hidden_size
+            )
+            if feedback is not None
+            else self.empty_feedback_embedding[:batch_size]
+        )
+        feedback_embeddings = feedback_embeddings + time_embeddings
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
@@ -196,7 +213,14 @@ class FeedbackDT(DecisionTransformerModel):
 
     # function that gets an action from the model using autoregressive prediction with a window of the previous 20 timesteps.
     def get_action(
-        self, states, actions, rewards, returns_to_go, timesteps, context=64, one_hot=False
+        self,
+        states,
+        actions,
+        rewards,
+        returns_to_go,
+        timesteps,
+        context=64,
+        one_hot=False,
     ):
         # This implementation does not condition on past rewards
         device = states.device
