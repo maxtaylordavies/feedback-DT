@@ -16,8 +16,8 @@ class EvaluationCallback(TrainerCallback):
         self,
         user_args,
         collator,
-        target_returns=[1000],
-        num_repeats=10,
+        target_returns=[1000, 10000],
+        num_repeats=20,
         gamma=1.0,
     ) -> None:
         super().__init__()
