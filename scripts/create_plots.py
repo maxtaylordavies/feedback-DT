@@ -1,3 +1,5 @@
+import json
+
 import wandb
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -5,89 +7,124 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 
+from src.utils import log
+
 sns.set_theme()
 
 api = wandb.Api(timeout=30)
 
-ids = {
-    "GoToRedBallGrey": {
-        100: ["lynn0rj6", "ws5ob0by", "n40n53n2", "uqo9y0ze"],
-        1000: ["l26jsh7b", "stfpm2az", "bpua24xu", "3imbplw6"],
-        10000: [
-            "yso0ervd",
-            "1z143rkb",
-            "qnn5n6mp",
-            "9gbijtom",
-            "usrup927",
-            "813j04m1",
-            "cnqz6xa9",
-        ],
-        100000: ["7e7abva6", "9blusajw", "e0s77cml", "llm362se"],
-        250000: ["qfzuhyy6", "a9izxwmr", "rlzqusyi", "34jg6dy2"],
-        500000: ["58yqwwot", "5op05gp2", "cgmm8gfo", "rk6g5opy"],
-    },
-    "GoToRedBall": {
-        100: ["wznw458e", "z3t6j3eb", "bbprze0y", "qzrga063"],
-        1000: ["vbklnet7", "p8memrlb", "24lwq64u", "r29aia14"],
-        10000: ["k3zbgpk5", "lm7affy4", "bjhs83y3"],
-        100000: ["2atckw3p", "gsilfm1f", "776o9yem", "y8vy9m00"],
-        250000: ["ygzdkhkv", "z51wa30t", "20i87uva", "la84u3bb"],
-        500000: ["i8quzbhd", "22pmy7rw", "x0uxdd3h", "9rkap61i"],
-    },
-    "GoToRedBlueBall": {
-        100: ["vz41jrjg", "zsrkqsrz", "rh6j51zv", "crwgm4gm"],
-        1000: ["n2fjg3sk", "l427neav", "1ur1jeqt", "7xmz2nf8"],
-        10000: ["s0sypgeo", "hectsc6e", "2iqqivsx", "xmembzb2"],
-        100000: ["dz1jenjh", "yp0gjlp3", "86wj90bv", "7gcli27z"],
-        250000: ["gezknq9d", "1ajjh0ig", "38wybuj5", "7zrj3dgl"],
-        500000: ["s2oafwhi", "d8boutl2", "18nbe9g3", "n4k5mdu6"],
-    },
-    "GoToObj": {
-        100: ["vl48trto", "0k3cnh5d", "wq4mcnbl", "1b4g24dn"],
-        1000: ["babq7hi0", "udzcdq1e", "uwbl3ggb", "7nv8gxzy"],
-        10000: ["7chop2ne", "nvx9o747", "omkss99y", "sfibfgcg"],
-        100000: ["467zvfgm", "lxj2hfze", "0569b83v", "7kmdptjf"],
-        250000: ["e7vosr3b", "7hw98ojh", "nl8x7f5u", "dv5bca41"],
-        500000: ["s3eme7z7", "fm7mk8bt", "yrhat0m6", "zkgw6y52"],
-    },
+history_cols = {
+    "train/epoch": "epoch",
+    "train/loss": "loss",
 }
 
-# "e92slfvl",
+config_cols = {
+    "context": "context_length",
+    "feedback type": "feedback_type",
+    "feedback freq": "feedback_freq_steps",
+}
+
+save_dir = "../figures"
 
 
-def get_returns_data(run_name):
-    data = pd.read_pickle(f"../data/baseline-2/output/{run_name}/returns.pkl")
-    data = data[data["epoch"] <= 10]
-
-    data["return"] = data["return"].apply(lambda r: 100 * (r / 0.9))
-    data["success"] = 100 * (data["return"] > 0)
-
-    return pd.concat(
-        [data, pd.DataFrame({"epoch": [0], "return": [0], "success": [0]})], ignore_index=True
+def get_runs():
+    all_runs = api.runs(
+        path="mlp-sam/feedback-DT",
     )
+    print(len(all_runs))
+
+    def _get_runs(task):
+        task = task.replace("GoTo", "").lower()
+
+        filtered = []
+        for run in all_runs:
+            if "feedback" not in run.name:
+                continue
+            if run.name.split("-")[1].replace("goto", "") != task:
+                continue
+
+            run = _fill_in_config(run)
+            filtered.append(run)
+
+        print(len(filtered))
+        return filtered
+
+    def _fill_in_config(run):
+        if "run_name" in run.config:
+            return run
+
+        run.config["run_name"] = run.name
+        _, _, num_eps, feedback_type, feedback_freq, = run.config[
+            "run_name"
+        ].split("-")
+
+        if "num_episodes" not in run.config:
+            run.config["num_episodes"] = int(num_eps)
+        if "feedback_type" not in run.config:
+            run.config["feedback_type"] = feedback_type
+        if "feedback_freq_steps" not in run.config:
+            run.config["feedback_freq_steps"] = int(feedback_freq)
+
+        run.update()
+        return run
+
+    tasks = ["GoToRedBallGrey", "GoToRedBall", "GoToObj"]
+    ids = {task: {} for task in tasks}
+
+    for task in tasks:
+        print(f"Getting runs for {task}...")
+        for run in tqdm(_get_runs(task)):
+            num_eps = run.config["num_episodes"]
+            if num_eps not in ids[task]:
+                ids[task][num_eps] = []
+            ids[task][num_eps].append(run.id)
+
+    with open("./feedback_ids.json", "w") as f:
+        json.dump(ids, f)
 
 
-def get_data_for_n(task_name, n):
-    loss_data = pd.DataFrame({"epoch": [], "loss": [], "context": []})
-    return_data = pd.DataFrame({"epoch": [], "return": [], "context": []})
+def format_num(num):
+    return num if num < 1 else int(num)
+
+
+def get_returns_data_for_run(run):
+    try:
+        data = pd.read_pickle(f"../data/output/{run.config['run_name']}/returns.pkl")
+        data = data[data["epoch"] <= 10]
+
+        data["return"] = data["return"].apply(lambda r: 100 * (r / 0.9))
+        data["success"] = 100 * (data["return"] > 0)
+
+        return pd.concat(
+            [pd.DataFrame({"epoch": [0], "return": [0], "success": [0]}), data],
+            ignore_index=True,
+        )
+    except:
+        return pd.DataFrame({"epoch": [0], "return": [0], "success": [0]})
+
+
+def get_loss_data_for_run(run):
+    ld = run.history()[list(history_cols.keys())].rename(columns=history_cols)
+    return ld[ld["epoch"] <= 10]
+
+
+def get_data_for_n(ids, task_name, n):
+    loss_data = pd.DataFrame(
+        {x: [] for x in list(history_cols.values()) + list(config_cols.keys())}
+    )
+    return_data = pd.DataFrame(
+        {x: [] for x in ["epoch", "return", "success"] + list(config_cols.keys())}
+    )
 
     for id in ids[task_name][n]:
         run = api.run(f"mlp-sam/feedback-DT/{id}")
 
-        if "context_length" not in run.config:
-            run.config["context_length"] = 1
-        if "run_name" not in run.config:
-            run.config["run_name"] = "friday-11"
+        ld = get_loss_data_for_run(run)
+        rd = get_returns_data_for_run(run)
 
-        ld = run.history()[["train/epoch", "train/loss"]].rename(
-            columns={"train/epoch": "epoch", "train/loss": "loss"}
-        )
-        ld = ld[ld["epoch"] <= 10]
-
-        rd = get_returns_data(run.config["run_name"])
-
-        ld["context"] = int(run.config["context_length"])
-        rd["context"] = int(run.config["context_length"])
+        for k, v in config_cols.items():
+            ld[k] = run.config.get(v, None)
+            rd[k] = run.config.get(v, None)
 
         loss_data = pd.concat([loss_data, ld], ignore_index=True)
         return_data = pd.concat([return_data, rd], ignore_index=True)
@@ -95,91 +132,191 @@ def get_data_for_n(task_name, n):
     return loss_data, return_data
 
 
-def get_data_for_task(task_name):
-    data_dict = {}
-    n_vals = ids[task_name].keys()
+def get_data_for_task(ids, task_name):
+    data_dict, n_vals = {}, ids[task_name].keys()
 
     for n in tqdm(n_vals):
-        loss_data, return_data = get_data_for_n(task_name, n)
+        loss_data, return_data = get_data_for_n(ids, task_name, n)
         data_dict[n] = {"loss_data": loss_data, "return_data": return_data}
 
     return data_dict
 
 
-def create_line_plots_for_task(task_name, data, formats=["png", "pdf"], legend=False):
-    n_vals = list(data.keys())
-    fig, axs = plt.subplots(2, len(n_vals), sharex=True, sharey="row", figsize=(12, 5))
+def create_line_plots_for_task(
+    ids,
+    task_name,
+    data,
+    x="epoch",
+    loss_y="loss",
+    return_y="return",
+    hue="context",
+    hue_order=None,
+    style=None,
+    style_order=None,
+    formats=["svg", "pdf"],
+    legend=False,
+    prefix="",
+    palette_name="flare",
+    **kwargs,
+):
+    n_vals = sorted(list(data.keys()))
+    fig, axs = plt.subplots(
+        3 if style else 2,
+        len(n_vals),
+        sharex=True,
+        sharey="row",
+        figsize=(12, 7.5 if style else 5),
+    )
 
-    for i, n in tqdm(list(enumerate(n_vals))):
+    for i, n in enumerate(n_vals):
         palette = sns.color_palette(
-            "flare", n_colors=len(data[n]["loss_data"]["context"].unique())
+            palette_name, n_colors=len(data[n]["loss_data"][hue].unique())
         )
         show_legend = legend and i == len(ids[task_name].keys()) - 1
 
         loss_ax = sns.lineplot(
             data[n]["loss_data"],
-            x="epoch",
-            y="loss",
-            hue="context",
+            x=x,
+            y=loss_y,
+            hue=hue,
+            hue_order=hue_order or data[n]["loss_data"][hue].unique(),
+            style=style,
             errorbar=None,
             ax=axs[0, i],
             legend=show_legend,
             palette=palette,
         )
-        loss_ax.set(title=f"{n} episodes", ylabel="Training loss")
+        loss_ax.set(title=f"{format_num(int(n)/1000)}k episodes", ylabel="Training loss")
+
         if show_legend:
             sns.move_legend(axs[0, i], "upper left", bbox_to_anchor=(1, 1))
 
         return_ax = sns.lineplot(
             data[n]["return_data"],
-            x="epoch",
-            y="return",
-            hue="context",
+            x=x,
+            y=return_y,
+            hue=hue,
+            hue_order=hue_order or data[n]["return_data"][hue].unique(),
+            errorbar="se",
             ax=axs[1, i],
             legend=False,
             palette=palette,
         )
-        return_ax.set(ylabel="Test episode success rate (%)")
+        return_ax.set(ylabel="Test return (%)", ylim=(0, 100))
+
+        if style:
+            return_ax_2 = sns.lineplot(
+                data[n]["return_data"],
+                x=x,
+                y=return_y,
+                style=style,
+                style_order=style_order or data[n]["return_data"][style].unique(),
+                errorbar="se",
+                ax=axs[2, i],
+                legend=False,
+            )
+            return_ax_2.set(ylabel="Test return (%)", ylim=(0, 100))
 
     fig.suptitle(task_name)
     fig.tight_layout()
 
     for format in formats:
-        fig.savefig(f"{task_name}.{format}")
+        fig.savefig(f"{save_dir}/{prefix}_{task_name}.{format}")
 
 
-def create_bar_plot_for_task(task_name, data, axs, i):
-    n_vals, d = list(data.keys()), []
+def create_bar_plot_for_task(
+    task_name, baseline_data, feedback_data, axs, i, return_y="return", **kwargs
+):
+    n_vals, d = sorted(list(feedback_data.keys())), []
+
     for n in n_vals:
-        tmp = []
-        for cl in [1, 4, 16, 64]:
-            df = data[n]["return_data"][data[n]["return_data"]["context"] == cl]
-            tmp.append(df.groupby("epoch")["return"].mean().max())
-        d.append({"n": n, "return": np.max(tmp)})
+        bd, fd = baseline_data[n]["return_data"], feedback_data[n]["return_data"]
 
-    sns.barplot(data=pd.DataFrame(d), x="n", y="return", palette="flare", ax=axs[i])
-    axs[i].set(
-        title=task_name,
-        xlabel="Size of training dataset (episodes)",
-        ylabel="Best average return (%)" if i == 0 else None,
+        for type_val in ["action", "adjacency", "distance", "direction"]:
+            tmp = []
+            for freq_val in fd["feedback freq"].unique():
+                _max = (
+                    fd[(fd["feedback type"] == type_val) & (fd["feedback freq"] == freq_val)]
+                    .groupby("epoch")[return_y]
+                    .mean()
+                    .max()
+                )
+                if not np.isnan(_max):
+                    tmp.append(_max)
+            if tmp:
+                d.append({"n": n, return_y: max(tmp), "model": type_val})
+
+        # also record average of all feedback types
+        feedback_maxes = [x[return_y] for x in d if x["n"] == n and x["model"] != "baseline"]
+        d.append({"n": n, return_y: np.mean(feedback_maxes), "model": "feedback avg"})
+
+        bd_best = bd[bd["context"] == 64].groupby("epoch")[return_y].mean().max()
+        d.append({"n": n, return_y: bd_best, "model": "baseline"})
+
+    sns.barplot(
+        data=pd.DataFrame(d),
+        x="n",
+        y=return_y,
+        hue="model",
+        ax=axs[i],
+        palette=sns.color_palette("husl", 6),
+        saturation=0.8,
+        linewidth=0,
     )
 
-
-def create_plots_for_tasks(task_names, formats=["svg", "pdf"]):
-    fig, axs = plt.subplots(1, len(task_names), sharey=True, figsize=(12, 4))
-
-    for i, task_name in enumerate(task_names):
-        data_dict = get_data_for_task(task_name)
-        create_line_plots_for_task(task_name, data_dict, legend=False, formats=formats)
-        create_bar_plot_for_task(task_name, data_dict, axs, i)
-
-    fig.tight_layout()
-    for format in formats:
-        fig.savefig(f"bar.{format}")
+    axs[i].set(
+        title=task_name,
+        xticklabels=[f"{format_num(int(n) / 1000)}k" for n in n_vals],
+        xlabel="Size of training dataset (episodes)",
+        ylabel="Best average return (%)" if i == 0 else None,
+        ylim=(0, 100),
+    )
+    axs[i].legend_.remove()
 
 
 def main():
-    create_plots_for_tasks(["GoToRedBallGrey", "GoToRedBall", "GoToObj"])
+    get_runs()
+
+    with open("./baseline_ids.json", "r") as f:
+        baseline_ids = json.load(f)
+    with open("./feedback_ids.json", "r") as f:
+        feedback_ids = json.load(f)
+
+    ids = {"baseline": baseline_ids, "feedback": feedback_ids}
+    tasks = ["GoToRedBallGrey", "GoToRedBall", "GoToObj"]
+
+    fig, axs = plt.subplots(1, len(tasks), sharey=True, figsize=(16, 4))
+
+    for i, task in enumerate(tasks):
+        print(f"Processing task {task}...")
+        data = {
+            "baseline": get_data_for_task(baseline_ids, task),
+            "feedback": get_data_for_task(feedback_ids, task),
+        }
+        create_line_plots_for_task(
+            ids["baseline"],
+            task,
+            data["baseline"],
+            legend=False,
+            prefix="baseline",
+            hue="context",
+            style=None,
+        )
+        create_line_plots_for_task(
+            ids["feedback"],
+            task,
+            data["feedback"],
+            legend=False,
+            prefix="feedback",
+            hue="feedback freq",
+            style="feedback type",
+            palette_name="mako",
+        )
+        create_bar_plot_for_task(task, data["baseline"], data["feedback"], axs, i)
+
+    fig.tight_layout()
+    fig.savefig(f"{save_dir}/bars.svg")
+    fig.savefig(f"{save_dir}/bars.pdf")
 
 
 if __name__ == "__main__":

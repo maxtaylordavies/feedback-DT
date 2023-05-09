@@ -46,6 +46,7 @@ AGENT_DIR_TO_STR = {0: "east", 1: "south", 2: "west", 3: "north"}
 # type alias for feedback
 FeedbackArray = List[List[str]]
 
+
 class Feedback(ABC):
     def __init__(self, args, dataset):
         self.feedback_mode = args["feedback_mode"]
@@ -75,7 +76,7 @@ class Feedback(ABC):
         episode_data["goal_positions"] = []
         episode_data["agent_positions"] = []
         episode_data["direction_observations"] = []
-        episode_data["rgb_observations"] = []
+        # episode_data["rgb_observations"] = []
         episode_data["symbolic_observations"] = []
         episode_data["actions"] = []
         total_steps = 0
@@ -91,7 +92,7 @@ class Feedback(ABC):
             episode_data["direction_observations"].append(
                 self.dataset.direction_observations[previous_total_steps:total_steps]
             )
-            episode_data["rgb_observations"].append(episode.observations)
+            # episode_data["rgb_observations"].append(episode.observations)
             episode_data["symbolic_observations"].append(
                 self.dataset.symbolic_observations[previous_total_steps:total_steps]
             )

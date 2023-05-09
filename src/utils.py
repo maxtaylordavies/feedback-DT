@@ -43,6 +43,8 @@ def setup_devices(seed, useGpu=True):
         # This does make things slower :(
         torch.backends.cudnn.benchmark = False
 
+    return device
+
 
 def is_network_connection():
     host, port, timeout = "8.8.8.8", 53, 3
@@ -63,6 +65,7 @@ def to_one_hot(x, width=None):
         res = torch.zeros_like(x)
         res[x.argmax()] = 1
     return res
+
 
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]

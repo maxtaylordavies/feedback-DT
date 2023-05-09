@@ -5,6 +5,7 @@ import gymnasium as gym
 import torch
 import numpy as np
 import pandas as pd
+from minigrid.wrappers import FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
 from src.utils import discounted_cumsum, log
@@ -15,7 +16,7 @@ class EvaluationCallback(TrainerCallback):
         self,
         user_args,
         collator,
-        target_returns=[1000, 100000],
+        target_returns=[1000, 10000],
         num_repeats=20,
         gamma=1.0,
     ) -> None:
@@ -36,6 +37,10 @@ class EvaluationCallback(TrainerCallback):
         # initialise a dataframe to store the results
         self.results = {"epoch": [], "return": [], "target_return": []}
 
+        self.feedback_embeddings = self.collator._embed_feedback(
+            np.array([[""] * user_args["context_length"]]).reshape(-1, 1)
+        ).to(self.device)
+
     def on_epoch_end(
         self,
         args: TrainingArguments,
@@ -45,7 +50,7 @@ class EvaluationCallback(TrainerCallback):
         **kwargs,
     ):
         self.epochs_complete = state.epoch
-        log(f"Running evaluation at end of epoch {self.epochs_complete}")
+        # log(f"Running evaluation at end of epoch {self.epochs_complete}")
         self._evaluate_model(model)
 
     def _evaluate_model(self, model):
@@ -67,8 +72,16 @@ class EvaluationCallback(TrainerCallback):
 
                 env.release()
 
-        # write the returns data to disk
-        pd.DataFrame(self.results).to_pickle(os.path.join(self.output_dir, "returns.pkl"))
+        # convert results to dataframe
+        df = pd.DataFrame(self.results)
+
+        # log the average episode return for the current epoch
+        log(
+            f"Average episode return: {df[df['epoch'] == self.epochs_complete]['return'].mean()}"
+        )
+
+        # save the results to disk
+        df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
     def _run_model_on_environment(self, model, env, target_return=1000):
         max_ep_len = env.max_steps or 64
@@ -85,9 +98,11 @@ class EvaluationCallback(TrainerCallback):
         ).reshape(1, 1)
 
         tmp = env.reset(seed=self.user_args["seed"])
+        fully_obs_env = FullyObsWrapper(env)
+        obs = fully_obs_env.observation(tmp[0])
 
         states = (
-            torch.from_numpy(tmp[0]["image"])
+            torch.from_numpy(obs["image"])
             .reshape(1, self.collator.state_dim)
             .to(device=self.device, dtype=torch.float32)
         )
@@ -109,18 +124,21 @@ class EvaluationCallback(TrainerCallback):
                 rewards,
                 target_return,
                 timesteps,
+                self.feedback_embeddings,
                 context=self.user_args["context_length"],
                 one_hot=True,
             )
             a = actions[-1].detach().cpu().numpy()
 
-            env_state, reward, done, _, _ = env.step(np.argmax(a))
+            obs, reward, done, _, _ = env.step(np.argmax(a))
+            obs = fully_obs_env.observation(obs)
             cur_state = (
-                torch.from_numpy(env_state["image"])
+                torch.from_numpy(obs["image"])
                 .to(device=self.device)
                 .reshape(1, self.collator.state_dim)
             )
             states = torch.cat([states, cur_state], dim=0)
+
             rewards[-1] = reward
 
             pred_return = target_return[0, -1] - reward

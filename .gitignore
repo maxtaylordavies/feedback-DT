@@ -12,3 +12,5 @@ Pipfile.lock
 **/*.svg
 src/temp.py
 src/old_*
+scripts/baseline_ids.json
+*.json
