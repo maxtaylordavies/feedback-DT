@@ -5,7 +5,7 @@ import torch
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
-from src.utils import to_one_hot
+from utils.utils import to_one_hot
 
 
 @dataclass
@@ -43,7 +43,7 @@ class DecisionTransformerOutput(ModelOutput):
     last_hidden_state: torch.FloatTensor = None
 
 
-class FeedbackDT(DecisionTransformerModel):
+class FDTAgent(DecisionTransformerModel):
     def __init__(self, config, use_feedback=True):
         super().__init__(config)
 

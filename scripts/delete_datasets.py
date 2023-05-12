@@ -3,8 +3,8 @@ import sys
 
 import minari
 
-from _datasets import list_local_datasets, name_dataset
-from argparsing import get_args
+from .generate_datasets import list_local_datasets, name_dataset
+from src.utils.argparsing import get_args
 
 basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
 if not basepath in sys.path:

@@ -1,17 +1,34 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from src.custom_dataset import CustomDataset
-from src._feedback import FeedbackArray
-from src.utils import to_one_hot, discounted_cumsum
+from dataset.custom_dataset import CustomDataset
+from dataset.feedback import FeedbackArray
+from utils.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
-class FeedbackDecisionTransformerDataCollator:
+class Collator:
+    def __init__(
+        self,
+        custom_dataset: CustomDataset,
+        feedback: Optional[FeedbackArray] = None,
+    ) -> None:
+        pass
+
+    def _sample_batch(self, batch_size: int) -> Dict:
+        return {}
+
+    def __call__(self, features):
+        batch_size = len(features)
+        return self._sample_batch(batch_size)
+
+
+@dataclass
+class FeedbackDecisionTransformerDataCollator(Collator):
     def __init__(
         self,
         custom_dataset: CustomDataset,
@@ -85,7 +102,9 @@ class FeedbackDecisionTransformerDataCollator:
             s: downsampler(
                 model.encode(s, convert_to_tensor=True, device="cpu").reshape(1, -1)
             )
-            for s in np.unique(np.append(self.feedback, "")) # add empty string to ensure it has an embedding
+            for s in np.unique(
+                np.append(self.feedback, "")
+            )  # add empty string to ensure it has an embedding
         }
 
     def _embed_feedback(self, feedback):
@@ -182,7 +201,3 @@ class FeedbackDecisionTransformerDataCollator:
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
             "feedback_embeddings": torch.cat(f, axis=0),
         }
-
-    def __call__(self, features):
-        batch_size = len(features)
-        return self._sample_batch(batch_size)

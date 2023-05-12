@@ -8,7 +8,7 @@ import pandas as pd
 from minigrid.wrappers import FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
-from src.utils import discounted_cumsum, log
+from utils.utils import discounted_cumsum, log
 
 
 class EvaluationCallback(TrainerCallback):
