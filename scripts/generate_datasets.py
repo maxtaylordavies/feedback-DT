@@ -9,9 +9,9 @@ from minari.storage.datasets_root_dir import get_file_path
 from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
 from tqdm import tqdm
 
-from src.argparsing import get_args
-from src.custom_dataset import CustomDataset
-from src.utils import log
+from src.utils.argparsing import get_args
+from src.dataset.custom_dataset import CustomDataset
+from src.utils.utils import log, name_dataset
 
 basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
 if not basepath in sys.path:
@@ -41,10 +41,6 @@ def list_local_datasets():
         for f in os.listdir(datasets_path)
         if os.path.isfile(os.path.join(datasets_path, f))
     ]
-
-
-def name_dataset(args):
-    return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
 
 
 def generate_new_dataset(args):

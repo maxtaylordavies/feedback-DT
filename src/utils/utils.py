@@ -5,9 +5,10 @@ import socket
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 
-def log(msg, outPath=None):
+def log(msg, outPath=None, with_tqdm=False):
     """Prints a message to the console and optionally writes it to a file.
 
     Args:
@@ -15,7 +16,12 @@ def log(msg, outPath=None):
         outPath (str) (optional): The path to the file to write the message to.
     """
     msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: {msg}"
-    print(msg)
+
+    if with_tqdm:
+        tqdm.write(msg)
+    else:
+        print(msg)
+
     if outPath:
         with open(outPath, "a+") as f:
             f.write(msg + "\n")
@@ -69,3 +75,7 @@ def to_one_hot(x, width=None):
 
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
+
+
+def name_dataset(args):
+    return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"

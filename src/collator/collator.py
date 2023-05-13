@@ -1,17 +1,16 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from src.custom_dataset import CustomDataset
-from src._feedback import FeedbackArray
-from src.utils import to_one_hot, discounted_cumsum
+from src.dataset import CustomDataset, FeedbackArray
+from src.utils.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
-class FeedbackDecisionTransformerDataCollator:
+class Collator:
     def __init__(
         self,
         custom_dataset: CustomDataset,
@@ -72,7 +71,16 @@ class FeedbackDecisionTransformerDataCollator:
             if feedback is not None
             else np.array([""] * len(self.observations))
         )
-        self._feedback_embeddings_map = self._precompute_feedback_embeddings()
+        self._feedback_embeddings_map = (
+            self._precompute_feedback_embeddings()
+            if feedback is not None
+            else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
+        )
+
+        self.reset_counter()
+
+    def reset_counter(self):
+        self.samples_processed = 0
 
     def _precompute_feedback_embeddings(self):
         model = SentenceTransformer(
@@ -85,7 +93,9 @@ class FeedbackDecisionTransformerDataCollator:
             s: downsampler(
                 model.encode(s, convert_to_tensor=True, device="cpu").reshape(1, -1)
             )
-            for s in np.unique(np.append(self.feedback, "")) # add empty string to ensure it has an embedding
+            for s in np.unique(
+                np.append(self.feedback, "")
+            )  # add empty string to ensure it has an embedding
         }
 
     def _embed_feedback(self, feedback):
@@ -124,6 +134,9 @@ class FeedbackDecisionTransformerDataCollator:
                 else self.episode_starts[ep_idx]
             )
             end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
+
+            # increment counter
+            self.samples_processed += end - start + 1
 
             # timesteps
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))

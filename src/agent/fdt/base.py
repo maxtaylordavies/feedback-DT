@@ -5,7 +5,8 @@ import torch
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
-from src.utils import to_one_hot
+from src.agent import Agent, AgentInput
+from src.utils.utils import to_one_hot
 
 
 @dataclass
@@ -43,7 +44,7 @@ class DecisionTransformerOutput(ModelOutput):
     last_hidden_state: torch.FloatTensor = None
 
 
-class FeedbackDT(DecisionTransformerModel):
+class FDTAgent(Agent, DecisionTransformerModel):
     def __init__(self, config, use_feedback=True):
         super().__init__(config)
 
@@ -73,47 +74,23 @@ class FeedbackDT(DecisionTransformerModel):
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
 
-    def _forward(
-        self,
-        states=None,
-        actions=None,
-        rewards=None,
-        returns_to_go=None,
-        timesteps=None,
-        feedback_embeddings=None,
-        attention_mask=None,
-        output_hidden_states=None,
-        output_attentions=None,
-        return_dict=None,
-    ):
-        output_attentions = (
-            output_attentions
-            if output_attentions is not None
-            else self.config.output_attentions
-        )
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        batch_size, seq_length = states.shape[0], states.shape[1]
+    def _forward(self, input: AgentInput):
+        batch_size, seq_length = input.states.shape[0], input.states.shape[1]
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
             attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
-        time_embeddings = self.embed_timestep(timesteps)
+        time_embeddings = self.embed_timestep(input.timesteps)
         state_embeddings = (
             self.embed_state_convolutional(
-                states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
+                input.states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
             ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
-        action_embeddings = self.embed_action(actions) + time_embeddings
-        returns_embeddings = self.embed_return(returns_to_go) + time_embeddings
+        action_embeddings = self.embed_action(input.actions) + time_embeddings
+        returns_embeddings = self.embed_return(input.returns_to_go) + time_embeddings
         feedback_embeddings = (
             feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
@@ -152,9 +129,9 @@ class FeedbackDT(DecisionTransformerModel):
             position_ids=torch.zeros(
                 stacked_attention_mask.shape, device=stacked_inputs.device, dtype=torch.long
             ),
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
+            output_attentions=self.config.output_attentions,
+            output_hidden_states=self.config.output_hidden_states,
+            return_dict=self.config.use_return_dict,
         )
         x = encoder_outputs[0]
 
@@ -174,9 +151,6 @@ class FeedbackDT(DecisionTransformerModel):
         state_preds = self.predict_state(_a)
         action_preds = self.predict_action(_s)
 
-        if not return_dict:
-            return (state_preds, action_preds, return_preds)
-
         return DecisionTransformerOutput(
             last_hidden_state=encoder_outputs.last_hidden_state,
             state_preds=state_preds,
@@ -186,79 +160,67 @@ class FeedbackDT(DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def forward(self, **kwargs):
-        output = self._forward(**kwargs)
+    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
+        act_dim = output.action_preds.shape[2]
+        action_preds = output.action_preds.reshape(-1, act_dim)[
+            input.attention_mask.reshape(-1) > 0
+        ]
+        action_targets = input.actions.reshape(-1, act_dim)[
+            input.attention_mask.reshape(-1) > 0
+        ]
 
-        # compute and return the loss
-        action_preds = output[1]
-        action_targets = kwargs["actions"]
+        return torch.mean((action_preds - action_targets) ** 2)
 
-        attention_mask = kwargs["attention_mask"]
-        act_dim = action_preds.shape[2]
-        action_preds = action_preds.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_targets = action_targets.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-
-        return {"loss": torch.mean((action_preds - action_targets) ** 2)}
-
-    # function that gets an action from the model using autoregressive prediction with a window of the previous 20 timesteps.
+    # function that gets an action from the model using autoregressive prediction
     def get_action(
         self,
-        states,
-        actions,
-        rewards,
-        returns_to_go,
-        timesteps,
-        feedback_embeddings,
+        input: AgentInput,
         context=64,
         one_hot=False,
     ):
         # This implementation does not condition on past rewards
-        device = states.device
+        device = input.states.device
 
-        states = states.reshape(1, -1, self.config.state_dim)
-        actions = actions.reshape(1, -1, self.config.act_dim)
-        returns_to_go = returns_to_go.reshape(1, -1, 1)
+        input.states = input.states.reshape(1, -1, self.config.state_dim)
+        input.actions = input.actions.reshape(1, -1, self.config.act_dim)
+        input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
         # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.config.hidden_size)
-        timesteps = timesteps.reshape(1, -1)
+        input.timesteps = input.timesteps.reshape(1, -1)
 
-        states = states[:, -context:]
-        actions = actions[:, -context:]
-        returns_to_go = returns_to_go[:, -context:]
-        timesteps = timesteps[:, -context:]
+        input.states = input.states[:, -context:]
+        input.actions = input.actions[:, -context:]
+        input.returns_to_go = input.returns_to_go[:, -context:]
+        input.timesteps = input.timesteps[:, -context:]
 
         # pad all tokens to sequence length
-        padding = context - states.shape[1]
-        attention_mask = torch.cat(
-            [torch.zeros(padding, device=device), torch.ones(states.shape[1], device=device)]
-        )
-        attention_mask = attention_mask.to(dtype=torch.long).reshape(1, -1)
-
-        states = torch.cat(
-            [torch.zeros((1, padding, self.config.state_dim), device=device), states],
-            dim=1,
-        ).float()
-        actions = torch.cat(
-            [torch.zeros((1, padding, self.config.act_dim), device=device), actions],
-            dim=1,
-        ).float()
-        returns_to_go = torch.cat(
-            [torch.zeros((1, padding, 1), device=device), returns_to_go], dim=1
-        ).float()
-        timesteps = torch.cat(
-            [torch.zeros((1, padding), dtype=torch.long, device=device), timesteps],
-            dim=1,
+        padding = context - input.states.shape[1]
+        input.attention_mask = (
+            torch.cat(
+                [
+                    torch.zeros(padding, device=device),
+                    torch.ones(input.states.shape[1], device=device),
+                ]
+            )
+            .to(dtype=torch.long)
+            .reshape(1, -1)
         )
 
-        _, action_preds, _ = self._forward(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            returns_to_go=returns_to_go,
-            timesteps=timesteps,
-            feedback_embeddings=feedback_embeddings,
-            attention_mask=attention_mask,
-            return_dict=False,
+        input.states = torch.cat(
+            [torch.zeros((1, padding, self.config.state_dim), device=device), input.states],
+            dim=1,
+        ).float()
+        input.actions = torch.cat(
+            [torch.zeros((1, padding, self.config.act_dim), device=device), input.actions],
+            dim=1,
+        ).float()
+        input.returns_to_go = torch.cat(
+            [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
+        ).float()
+        input.timesteps = torch.cat(
+            [torch.zeros((1, padding), dtype=torch.long, device=device), input.timesteps],
+            dim=1,
         )
 
-        action = action_preds[0, -1]
+        output = self._forward(input)
+        action = output.action_preds[0, -1]
         return to_one_hot(action) if one_hot else action
