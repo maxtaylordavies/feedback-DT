@@ -22,7 +22,7 @@ class CustomDataset(MinariDataset):
         self._level_group = level_group
         self._level_name = level_name
         self._missions = missions
-        direction_observations = np.asarray(
+        self._direction_observations = np.asarray(
             direction_observations, dtype=np.int32
         ).reshape(-1)
         self._goal_positions = goal_positions

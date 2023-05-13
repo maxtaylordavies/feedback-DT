@@ -7,7 +7,6 @@ name = "pypi"
 minigrid = "*"
 numpy = "*"
 cython = "*"
-minari = {git = "https://github.com/Farama-Foundation/Minari.git"}
 gymnasium = {ref = "spec_stack", git = "https://github.com/WillDudley/Gymnasium.git"}
 gymnasium-robotics = "*"
 huggingface = "*"

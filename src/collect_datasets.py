@@ -1,18 +1,16 @@
 import json
-from jsonc_parser.parser import JsoncParser
 import os
-import sys
 
 import gymnasium as gym
 import numpy as np
+from custom_dataset import CustomDataset
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
+from jsonc_parser.parser import JsoncParser
 from minari.storage import get_file_path
-from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper, RGBImgObsWrapper
-from tqdm import tqdm
-
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from src.argparsing import get_args
-from src.custom_dataset import CustomDataset
 from src.utils import log
+from tqdm import tqdm
 
 
 def get_dataset(args):
