@@ -7,26 +7,34 @@ import numpy as np
 import pandas as pd
 from minigrid.wrappers import FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers.training_args import TrainingArguments
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-from utils.utils import discounted_cumsum, log
+from src.agent import Agent, AgentInput
+from src.utils.utils import discounted_cumsum, log
+
+sns.set_theme()
 
 
-class EvaluationCallback(TrainerCallback):
+class Evaluator(TrainerCallback):
     def __init__(
         self,
         user_args,
         collator,
-        target_returns=[1000, 10000],
-        num_repeats=20,
+        sample_interval=100,
+        target_return=1000,
+        num_repeats=1,
         gamma=1.0,
     ) -> None:
         super().__init__()
         self.user_args = user_args
         self.collator = collator
-        self.target_returns = target_returns
+        self.sample_interval = sample_interval
+        self.target_return = target_return
         self.num_repeats = num_repeats
         self.gamma = gamma
-        self.epochs_complete = 0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # create the output directory if it doesn't exist
@@ -35,56 +43,72 @@ class EvaluationCallback(TrainerCallback):
             os.makedirs(self.output_dir)
 
         # initialise a dataframe to store the results
-        self.results = {"epoch": [], "return": [], "target_return": []}
+        self.results = {"samples": [], "return": []}
 
+        # create blank feedback embeddings
         self.feedback_embeddings = self.collator._embed_feedback(
             np.array([[""] * user_args["context_length"]]).reshape(-1, 1)
         ).to(self.device)
 
-    def on_epoch_end(
+    def on_train_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
+        if not self.user_args["plot_on_train_end"]:
+            return
+
+        # convert results to dataframe
+        df = pd.DataFrame(self.results)
+        sns.lineplot(x="samples", y="return", data=df)
+        plt.show()
+
+    def on_step_end(
         self,
         args: TrainingArguments,
         state: TrainerState,
         control: TrainerControl,
-        model,
+        model: Agent,
         **kwargs,
     ):
-        self.epochs_complete = state.epoch
-        # log(f"Running evaluation at end of epoch {self.epochs_complete}")
-        self._evaluate_model(model)
+        prev = self.results["samples"][-1] if len(self.results["samples"]) else 0
+        if self.collator.samples_processed - prev >= self.sample_interval:
+            log(
+                f"Running evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+                with_tqdm=True,
+            )
+            self._evaluate_agent(model)
 
-    def _evaluate_model(self, model):
-        # for each target return, run the model on the environment for a number of repeats
-        # for each repeat, we save a video of the trajectory and record the episode return
-        for ret in self.target_returns:
-            for rep in range(self.num_repeats):
-                env = Visualiser(
-                    gym.make(self.user_args["env_name"], render_mode="rgb_array"),
-                    self.output_dir,
-                    filename=f"{ret}-{rep}",
-                    seed=self.user_args["seed"],
+    def _evaluate_agent(self, agent: Agent):
+        # for each repeat, record the episode return (and optionally render a video of the episode)
+        for rep in range(self.num_repeats):
+            _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
+            env = (
+                Visualiser(
+                    _env, self.output_dir, filename=f"{rep}", seed=self.user_args["seed"]
                 )
-                self.results["epoch"].append(self.epochs_complete)
-                self.results["target_return"].append(ret)
-                self.results["return"].append(
-                    self._run_model_on_environment(model, env, target_return=ret)
-                )
+                if self.user_args["record_video"]
+                else _env
+            )
 
+            self.results["samples"].append(self.collator.samples_processed)
+            self.results["return"].append(self._run_agent_on_environment(agent, env))
+
+            if self.user_args["record_video"]:
                 env.release()
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
 
-        # log the average episode return for the current epoch
+        # log the average episode return for the current eval
         log(
-            f"Average episode return: {df[df['epoch'] == self.epochs_complete]['return'].mean()}"
+            f"Average episode return: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
+            with_tqdm=True,
         )
 
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
-    def _run_model_on_environment(self, model, env, target_return=1000):
-        max_ep_len = env.max_steps or 64
+    def _run_agent_on_environment(self, agent: Agent, env: gym.Env):
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 10
 
         state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
             device=self.device
@@ -93,16 +117,12 @@ class EvaluationCallback(TrainerCallback):
             device=self.device
         )
 
-        target_return = torch.tensor(
-            target_return, device=self.device, dtype=torch.float32
-        ).reshape(1, 1)
-
-        tmp = env.reset(seed=self.user_args["seed"])
-        fully_obs_env = FullyObsWrapper(env)
-        obs = fully_obs_env.observation(tmp[0])
+        obs, _ = env.reset(seed=self.user_args["seed"])
+        # fully_obs_env = FullyObsWrapper(env)
+        # obs = fully_obs_env.observation(tmp[0])
 
         states = (
-            torch.from_numpy(obs["image"])
+            torch.from_numpy(obs)
             .reshape(1, self.collator.state_dim)
             .to(device=self.device, dtype=torch.float32)
         )
@@ -110,6 +130,9 @@ class EvaluationCallback(TrainerCallback):
             (0, self.collator.act_dim), device=self.device, dtype=torch.float32
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
+        returns_to_go = torch.tensor(
+            self.target_return, device=self.device, dtype=torch.float32
+        ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
         for t in range(max_ep_len):
@@ -118,31 +141,33 @@ class EvaluationCallback(TrainerCallback):
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
-            actions[-1] = model.get_action(
-                (states - state_mean) / state_std,
-                actions,
-                rewards,
-                target_return,
-                timesteps,
-                self.feedback_embeddings,
+            actions[-1] = agent.get_action(
+                AgentInput(
+                    states=(states - state_mean) / state_std,
+                    actions=actions,
+                    rewards=rewards,
+                    returns_to_go=returns_to_go,
+                    timesteps=timesteps,
+                    feedback_embeddings=self.feedback_embeddings,
+                    attention_mask=None,
+                ),
                 context=self.user_args["context_length"],
                 one_hot=True,
             )
             a = actions[-1].detach().cpu().numpy()
 
             obs, reward, done, _, _ = env.step(np.argmax(a))
-            obs = fully_obs_env.observation(obs)
+            # obs = fully_obs_env.observation(obs)
             cur_state = (
-                torch.from_numpy(obs["image"])
+                torch.from_numpy(obs)
                 .to(device=self.device)
                 .reshape(1, self.collator.state_dim)
             )
             states = torch.cat([states, cur_state], dim=0)
 
             rewards[-1] = reward
-
-            pred_return = target_return[0, -1] - reward
-            target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
+            pred_return = returns_to_go[0, -1] - reward
+            returns_to_go = torch.cat([returns_to_go, pred_return.reshape(1, 1)], dim=1)
 
             timesteps = torch.cat(
                 [

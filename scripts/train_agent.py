@@ -8,8 +8,8 @@ import wandb
 from src.utils.argparsing import get_args
 from src.collator import FeedbackDecisionTransformerDataCollator
 from src.utils.utils import log, setup_devices, is_network_connection
-from src.agents.fdt import FDTAgent
-from src.training.trainer import AgentTrainer
+from src.agent.fdt import FDTAgent
+from src.trainer import AgentTrainer
 
 from .generate_datasets import get_dataset
 from .generate_feedback import get_feedback

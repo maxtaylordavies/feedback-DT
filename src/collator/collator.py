@@ -5,30 +5,12 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from dataset.custom_dataset import CustomDataset
-from dataset.feedback import FeedbackArray
-from utils.utils import to_one_hot, discounted_cumsum
+from src.dataset import CustomDataset, FeedbackArray
+from src.utils.utils import to_one_hot, discounted_cumsum
 
 
 @dataclass
 class Collator:
-    def __init__(
-        self,
-        custom_dataset: CustomDataset,
-        feedback: Optional[FeedbackArray] = None,
-    ) -> None:
-        pass
-
-    def _sample_batch(self, batch_size: int) -> Dict:
-        return {}
-
-    def __call__(self, features):
-        batch_size = len(features)
-        return self._sample_batch(batch_size)
-
-
-@dataclass
-class FeedbackDecisionTransformerDataCollator(Collator):
     def __init__(
         self,
         custom_dataset: CustomDataset,
@@ -89,7 +71,16 @@ class FeedbackDecisionTransformerDataCollator(Collator):
             if feedback is not None
             else np.array([""] * len(self.observations))
         )
-        self._feedback_embeddings_map = self._precompute_feedback_embeddings()
+        self._feedback_embeddings_map = (
+            self._precompute_feedback_embeddings()
+            if feedback is not None
+            else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
+        )
+
+        self.reset_counter()
+
+    def reset_counter(self):
+        self.samples_processed = 0
 
     def _precompute_feedback_embeddings(self):
         model = SentenceTransformer(
@@ -143,6 +134,9 @@ class FeedbackDecisionTransformerDataCollator(Collator):
                 else self.episode_starts[ep_idx]
             )
             end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
+
+            # increment counter
+            self.samples_processed += end - start + 1
 
             # timesteps
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
@@ -201,3 +195,7 @@ class FeedbackDecisionTransformerDataCollator(Collator):
             "attention_mask": torch.from_numpy(np.concatenate(mask, axis=0)).float(),
             "feedback_embeddings": torch.cat(f, axis=0),
         }
+
+    def __call__(self, features):
+        batch_size = len(features)
+        return self._sample_batch(batch_size)

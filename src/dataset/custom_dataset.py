@@ -151,3 +151,36 @@ class CustomDataset(MinariDataset):
     @property
     def direction_observations(self):
         return self._direction_observations
+
+    @classmethod
+    def random(cls, num_eps, ep_length, state_dim, act_dim):
+        states = np.random.rand(num_eps * ep_length, state_dim)
+        actions = np.random.randint(0, act_dim, size=(num_eps * ep_length))
+        rewards = np.random.rand(num_eps * ep_length)
+
+        terminations = np.zeros((num_eps, ep_length))
+        terminations[:, -1] = 1
+        terminations = terminations.reshape((num_eps * ep_length))
+        truncations = np.zeros_like(terminations)
+
+        return cls(
+            observations=states,
+            symbolic_observations=states,
+            actions=actions,
+            rewards=rewards,
+            terminations=terminations,
+            truncations=truncations,
+            goal_positions=None,
+            agent_positions=None,
+            direction_observations=states,
+            dataset_name="",
+            algorithm_name="",
+            environment_name="",
+            environment_stack=None,
+            seed_used=42,
+            code_permalink="",
+            author="",
+            author_email="",
+            episode_terminals=None,
+            discrete_action=None,
+        )
