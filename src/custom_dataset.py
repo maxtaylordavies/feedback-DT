@@ -2,27 +2,32 @@ import os
 
 import h5py
 import numpy as np
-from minari.dataset import MinariDataset
-from minari.logger import LOG
+from minari_dataset import MinariDataset
 
 
 class CustomDataset(MinariDataset):
     def __init__(
         self,
-        symbolic_observations,
+        level_group,
+        level_name,
+        missions,
+        direction_observations,
         goal_positions,
         agent_positions,
-        direction_observations,
+        oracle_views,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
-        self._symbolic_observations = symbolic_observations
-        self._goal_positions = goal_positions
-        self._agent_positions = agent_positions
-        self._direction_observations = np.asarray(
+        self._level_group = level_group
+        self._level_name = level_name
+        self._missions = missions
+        direction_observations = np.asarray(
             direction_observations, dtype=np.int32
         ).reshape(-1)
+        self._goal_positions = goal_positions
+        self._agent_positions = agent_positions
+        self._oracle_views = oracle_views
 
     def save(self):
         """Saves dataset as HDF5.
@@ -37,10 +42,15 @@ class CustomDataset(MinariDataset):
         os.makedirs(datasets_path, exist_ok=True)
 
         with h5py.File(file_path, "w") as f:
-            f.create_dataset("symbolic_observations", data=self._symbolic_observations)
+            f.create_dataset("level_group", data=self._level_group)
+            f.create_dataset("level_name", data=self._level_name)
+            f.create_dataset("missions", data=self._missions)
+            f.create_dataset(
+                "direction_observations", data=self._direction_observations
+            )
             f.create_dataset("goal_positions", data=self._goal_positions)
             f.create_dataset("agent_positions", data=self._agent_positions)
-            f.create_dataset("direction_observations", data=self._direction_observations)
+            f.create_dataset("oracle_views", data=self._oracle_views)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
@@ -84,10 +94,13 @@ class CustomDataset(MinariDataset):
             file_path = os.path.join(datasets_path, f"{dataset_name}.hdf5")
 
         with h5py.File(file_path, "r") as f:
-            symbolic_observations = f["symbolic_observations"][()]
+            level_group = f["level_group"][()]
+            level_name = f["level_name"][()]
+            missions = f["missions"][()]
+            direction_observations = f["direction_observations"][()]
             goal_positions = f["goal_positions"][()]
             agent_positions = f["agent_positions"][()]
-            direction_observations = f["direction_observations"][()]
+            oracle_views = f["oracle_views"][()]
             dataset_name = f["dataset_name"][()]
             algorithm_name = f["algorithm_name"][()]
             environment_name = f["environment_name"][()]
@@ -109,14 +122,14 @@ class CustomDataset(MinariDataset):
             else:
                 episode_terminals = None
 
-            if "version" not in f:
-                LOG.warning("The dataset structure might be incompatible.")
-
         dataset = cls(
-            symbolic_observations=symbolic_observations,
+            level_group=level_group,
+            level_name=level_name,
+            missions=missions,
+            direction_observations=direction_observations,
             goal_positions=goal_positions,
             agent_positions=agent_positions,
-            direction_observations=direction_observations,
+            oracle_views=oracle_views,
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
@@ -137,8 +150,20 @@ class CustomDataset(MinariDataset):
         return dataset
 
     @property
-    def symbolic_observations(self):
-        return self._symbolic_observations
+    def level_group(self):
+        return self._level_group
+
+    @property
+    def level_name(self):
+        return self._level_name
+
+    @property
+    def missions(self):
+        return self._missions
+
+    @property
+    def direction_observations(self):
+        return self._direction_observations
 
     @property
     def goal_positions(self):
@@ -149,5 +174,5 @@ class CustomDataset(MinariDataset):
         return self._agent_positions
 
     @property
-    def direction_observations(self):
-        return self._direction_observations
+    def oracle_views(self):
+        return self._oracle_views

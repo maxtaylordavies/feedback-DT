@@ -24,8 +24,8 @@ def get_args():
     )
     parser.add_argument(
         "--policy",
-        type=any,
-        default=None,
+        type=str,
+        default="random",
     )
     parser.add_argument(
         "--include_timeout",
@@ -38,6 +38,18 @@ def get_args():
         type=bool,
         default=True,
         help="whether to load the dataset from local storage if it already exists",
+    )
+    parser.add_argument(
+        "--fully_obs",
+        type=bool,
+        default=False,
+        help="whether to use fully-observed environment",
+    )
+    parser.add_argument(
+        "--rgb_obs",
+        type=bool,
+        default=False,
+        help="whether to use rgb oberservations of the environment",
     )
     parser.add_argument(
         "--epochs",
