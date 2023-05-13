@@ -53,39 +53,31 @@ def generate_new_dataset(args):
     fully_obs_env = FullyObsWrapper(env)
     env.reset(seed=args["seed"])
     full_observation = fully_obs_env.observation({})
-    partial_observation = env.observation({})
     rgb_observation = rgb_env.observation({})
     agent_position = env.agent_pos
 
     # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(env.spec_stack)
 
+    # replay_buffer = {
+    #     "symbolic_observation": np.array([]),
+    #     "goal_position": np.array([]),
+    #     "agent_position": np.array([]),
+    #     "direction_observation": np.array([]),
+    #     "episode": np.array([]),
+    #     "observation": np.array([]),
+    #     "action": np.array([]),
+    #     "reward": np.array([]),
+    #     "terminated": np.array([]),
+    #     "truncated": np.array([]),
+    # }
+
     # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
     # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
-        "episode": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
-        ),
         "symbolic_observation": np.array(
-            [np.zeros_like(full_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
+            [np.zeros_like(full_observation["image"])] * env.max_steps * args["num_episodes"],
             dtype=np.uint8,
-        ),
-        "partial_observation": np.array(
-            [np.zeros_like(partial_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "rgb_observation": np.array(
-            [np.zeros_like(rgb_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "direction_observation": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
         "goal_position": np.array(
             [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
@@ -95,15 +87,17 @@ def generate_new_dataset(args):
             [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
             dtype=np.uint8,
         ),
-        "action": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+        "direction_observation": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
-        "reward": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
-        ),
-        "terminated": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
-        ),
+        "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
+        # "observation": np.array(
+        #     [np.zeros_like(rgb_observation["image"])] * env.max_steps * args["num_episodes"],
+        #     dtype=np.uint8,
+        # ),
+        "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
+        "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
         "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
     }
 
@@ -113,14 +107,12 @@ def generate_new_dataset(args):
     for episode in tqdm(range(args["num_episodes"])):
         episode_step, terminated, truncated = 0, False, False
         observation, _ = env.reset(seed=args["seed"])
-        fully_obs_env = FullyObsWrapper(env)
         rgb_env = RGBImgPartialObsWrapper(env)
+        fully_obs_env = FullyObsWrapper(env)
         goal_position_list = [
             x
             for x, y in enumerate(fully_obs_env.grid.grid)
-            if y
-            and y.type in observation["mission"]
-            and y.color in observation["mission"]
+            if y and y.type in observation["mission"] and y.color in observation["mission"]
         ]
 
         # For cases with multiple goals, we want to return a random goal's position
@@ -137,21 +129,16 @@ def generate_new_dataset(args):
             rgb_observation = rgb_env.observation({})
             full_observation = fully_obs_env.observation({})
 
-            replay_buffer["episode"][total_steps] = np.array(episode)
             replay_buffer["symbolic_observation"][total_steps] = np.array(
                 full_observation["image"]
             )
-            replay_buffer["partial_observation"][total_steps] = np.array(
-                observation["image"]
-            )
-            replay_buffer["rgb_observation"][total_steps] = np.array(
-                rgb_observation["image"]
-            )
+            replay_buffer["goal_position"][total_steps] = np.array(goal_position)
+            replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
             replay_buffer["direction_observation"][total_steps] = np.array(
                 observation["direction"]
             )
-            replay_buffer["goal_position"][total_steps] = np.array(goal_position)
-            replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
+            replay_buffer["episode"][total_steps] = np.array(episode)
+            # replay_buffer["observation"][total_steps] = np.array(rgb_observation["image"])
             replay_buffer["action"][total_steps] = np.array(action)
             replay_buffer["reward"][total_steps] = np.array(reward)
             replay_buffer["terminated"][total_steps] = np.array(terminated)

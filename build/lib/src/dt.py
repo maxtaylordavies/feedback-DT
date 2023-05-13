@@ -96,9 +96,7 @@ class FeedbackDT(DecisionTransformerModel):
             if output_hidden_states is not None
             else self.config.output_hidden_states
         )
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         batch_size, seq_length = states.shape[0], states.shape[1]
 
@@ -152,9 +150,7 @@ class FeedbackDT(DecisionTransformerModel):
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
             position_ids=torch.zeros(
-                stacked_attention_mask.shape,
-                device=stacked_inputs.device,
-                dtype=torch.long,
+                stacked_attention_mask.shape, device=stacked_inputs.device, dtype=torch.long
             ),
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -200,9 +196,7 @@ class FeedbackDT(DecisionTransformerModel):
         attention_mask = kwargs["attention_mask"]
         act_dim = action_preds.shape[2]
         action_preds = action_preds.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_targets = action_targets.reshape(-1, act_dim)[
-            attention_mask.reshape(-1) > 0
-        ]
+        action_targets = action_targets.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
 
         return {"loss": torch.mean((action_preds - action_targets) ** 2)}
 
@@ -235,10 +229,7 @@ class FeedbackDT(DecisionTransformerModel):
         # pad all tokens to sequence length
         padding = context - states.shape[1]
         attention_mask = torch.cat(
-            [
-                torch.zeros(padding, device=device),
-                torch.ones(states.shape[1], device=device),
-            ]
+            [torch.zeros(padding, device=device), torch.ones(states.shape[1], device=device)]
         )
         attention_mask = attention_mask.to(dtype=torch.long).reshape(1, -1)
 

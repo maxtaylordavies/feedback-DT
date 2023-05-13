@@ -15,6 +15,9 @@ datasets = "*"
 black = "*"
 torch = "*"
 scipy = "*"
+tqdm = "*"
+transformers = "*"
+jsonc-parser = "*"
 
 [dev-packages]
 
