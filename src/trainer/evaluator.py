@@ -25,7 +25,7 @@ class Evaluator(TrainerCallback):
         collator,
         sample_interval=100,
         target_return=1000,
-        num_repeats=1,
+        num_repeats=10,
         gamma=1.0,
     ) -> None:
         super().__init__()
@@ -108,7 +108,7 @@ class Evaluator(TrainerCallback):
         df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
     def _run_agent_on_environment(self, agent: Agent, env: gym.Env):
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 10
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 100
 
         state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
             device=self.device

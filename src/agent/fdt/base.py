@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-import numpy as np
 import torch
+from torch import nn
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
@@ -48,30 +48,26 @@ class FDTAgent(Agent, DecisionTransformerModel):
     def __init__(self, config, use_feedback=True):
         super().__init__(config)
 
+        self.create_state_embedding_model()
+
         self.use_feedback = use_feedback
-
-        # embed image states using very simple conv net
-        self.state_embedding_model = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 32, 4, stride=1, padding=0),
-            torch.nn.ReLU(),
-            torch.nn.Flatten(),
-            torch.nn.Linear(800, config.hidden_size),
-            torch.nn.Tanh(),
-        )
-
         x = 1 + int(self.use_feedback)
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
-        self.predict_state = torch.nn.Linear(x * config.hidden_size, config.state_dim)
-        self.predict_action = torch.nn.Sequential(
+        self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
+        self.predict_action = nn.Sequential(
             *(
-                [torch.nn.Linear(x * config.hidden_size, config.act_dim)]
-                + ([torch.nn.Tanh()] if config.action_tanh else [])
+                [nn.Linear(x * self.hidden_size, config.act_dim)]
+                + ([nn.Tanh()] if config.action_tanh else [])
             )
         )
-        self.predict_return = torch.nn.Linear(x * config.hidden_size, 1)
+        self.predict_return = nn.Linear(x * self.hidden_size, 1)
 
-    def embed_state_convolutional(self, states):
+    def create_state_embedding_model(self):
+        # default to a linear state embedding - override this in child classes
+        self.state_embedding_model = nn.Linear(self.config.state_dim, self.hidden_size)
+
+    def _embed_state(self, states):
         return self.state_embedding_model(states)
 
     def _forward(self, input: AgentInput):
@@ -84,7 +80,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
         state_embeddings = (
-            self.embed_state_convolutional(
+            self._embed_state(
                 input.states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
             ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
@@ -178,13 +174,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
         context=64,
         one_hot=False,
     ):
-        # This implementation does not condition on past rewards
         device = input.states.device
 
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.config.hidden_size)
+        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 
         input.states = input.states[:, -context:]
