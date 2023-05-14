@@ -1,22 +1,22 @@
 import json
-from jsonc_parser.parser import JsoncParser
 import os
-import sys
 
 import gymnasium as gym
 import numpy as np
+from custom_dataset import CustomDataset
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
-from minari.storage import get_file_path
-from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper, RGBImgObsWrapper
-from tqdm import tqdm
-
+from jsonc_parser.parser import JsoncParser
+from minari_storage import get_file_path
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from src.argparsing import get_args
-from src.custom_dataset import CustomDataset
 from src.utils import log
+from tqdm import tqdm
 
 
 def get_dataset(args):
     dataset_name = name_dataset(args)
+    print(args)
+    print(f"Creating dataset {dataset_name}")
 
     # optionally check if dataset already exists locally and load it
     if args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
@@ -88,14 +88,14 @@ def pi(observation):
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
-    env.reset(seed=args["seed"])
+    observation, _ = env.reset(seed=args["seed"])
     print(f"Max steps used for array size: {env.max_steps}")
 
     fully_obs_env = FullyObsWrapper(env)
     rgb_env = RGBImgPartialObsWrapper(env)
     rgb_fully_obs_env = RGBImgObsWrapper(env)
 
-    partial_observation = env.observation({})
+    partial_observation = observation
     full_observation = fully_obs_env.observation({})
     rgb_partial_observation = rgb_env.observation({})
     rgb_full_observation = rgb_fully_obs_env.observation({})
