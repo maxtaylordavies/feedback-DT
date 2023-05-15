@@ -285,7 +285,8 @@
                 "used_action_space": [
                     0,
                     1,
-                    2
+                    2,
+                    5
                 ],
                 "original_task": true,
                 "registered_configs": {
@@ -456,7 +457,7 @@
                     }
                 }
             },
-            "GoToObjectDoor": {
+            "GoToObjDoor": {
                 "description": "Go to an object or door (of a given type and color, in the current room). {color} is the color of the object. Can be 'red', 'green', 'blue', 'purple', 'yellow' or 'grey'. {type} is the type of the object. Can be 'ball', 'box' or 'key'.",
                 "mission_space": {
                     "action_mission_space": [
@@ -485,7 +486,7 @@
                 ],
                 "original_task": false,
                 "registered_configs": {
-                    "BabyAI-GoToObjectDoor-v0": {
+                    "BabyAI-GoToObjDoor-v0": {
                         "num_dists": 8
                     }
                 }
