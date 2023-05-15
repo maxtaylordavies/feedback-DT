@@ -15,3 +15,5 @@ src/old_*
 scripts/baseline_ids.json
 *.json
 scripts/test.py
+build/
+test.py

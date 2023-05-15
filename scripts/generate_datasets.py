@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils import log
+from src.utils.utils import log
 from src.utils.argparsing import get_args
 
 
