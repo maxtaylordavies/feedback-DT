@@ -17,6 +17,7 @@ scipy = "*"
 tqdm = "*"
 transformers = "*"
 jsonc-parser = "*"
+h5py = "*"
 
 [dev-packages]
 

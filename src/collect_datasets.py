@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import gymnasium as gym
 import numpy as np
@@ -8,14 +9,13 @@ from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from jsonc_parser.parser import JsoncParser
 from minari_storage import get_file_path
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
-from src.argparsing import get_args
-from src.utils import log
+from argparsing import get_args
+from utils import log
 from tqdm import tqdm
 
 
 def get_dataset(args):
     dataset_name = name_dataset(args)
-    print(args)
     print(f"Creating dataset {dataset_name}")
 
     # optionally check if dataset already exists locally and load it
@@ -41,11 +41,11 @@ def list_local_datasets():
 
 
 def name_dataset(args):
-    return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
+    return f"{args['env_name']}_{args['num_episodes']}-eps_{args['policy'].replace('_', '-')}_{'incl' if args['include_timeout'] else 'excl'}-timeout"
 
 
-def get_level(env_name):
-    return env_name.split("-")[1]
+def get_level(args):
+    return re.sub(r"([SRN]\d).*", r"", args["env_name"].split("-")[1])
 
 
 def get_category(level):
@@ -68,7 +68,7 @@ def get_category(level):
 def get_used_action_space(args):
     file_path = "env_metadata.jsonc"
     metadata = JsoncParser.parse_file(file_path)
-    level = get_level(args["env_name"])
+    level = get_level(args)
     category = get_category(level)
     return metadata["levels"][category][level]["used_action_space"]
 
@@ -77,13 +77,14 @@ def ppo(observation):
     raise Exception("This policy has not been implemented yet")
 
 
-def pi(observation):
+def policy(args, observation):
     if args["policy"] == "random_used_action_space_only":
         return np.random.choice(get_used_action_space(args))
     elif args["policy"] == "online_ppo":
-        return ppo(observation)
+        return ppo(observation["image"])
     else:
         return np.random.randint(0, 6)
+    # return np.random.randint(0, 6)
 
 
 def generate_new_dataset(args):
@@ -116,7 +117,7 @@ def generate_new_dataset(args):
     environment_stack = serialise_spec_stack(env.spec_stack)
 
     replay_buffer = {
-        "mission": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=str),
+        "mission": [],
         "direction_observation": np.array(
             [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
@@ -156,7 +157,6 @@ def generate_new_dataset(args):
     for episode in tqdm(range(args["num_episodes"])):
         terminated, truncated = False, False
         partial_observation, _ = env.reset(seed=args["seed"])
-        print(f"Max steps for episode {episode}: {env.max_steps}")
         fully_obs_env = FullyObsWrapper(env)
         goal_position_list = [
             x
@@ -174,9 +174,7 @@ def generate_new_dataset(args):
         )
 
         while not (terminated or truncated):
-            replay_buffer["mission"][total_steps] = np.array(
-                partial_observation["mission"]
-            )
+            replay_buffer["mission"].append(partial_observation["mission"])
             replay_buffer["direction_observation"][total_steps] = np.array(
                 partial_observation["direction"]
             )
@@ -209,7 +207,7 @@ def generate_new_dataset(args):
 
             replay_buffer["observation"][total_steps] = np.array(observation["image"])
 
-            action = pi(observation["image"])
+            action = policy(args, observation)
             partial_observation, reward, terminated, truncated, _ = env.step(action)
             replay_buffer["action"][total_steps] = np.array(action)
             replay_buffer["reward"][total_steps] = np.array(reward)
@@ -230,8 +228,8 @@ def generate_new_dataset(args):
     )
 
     return CustomDataset(
-        level_group=get_category(get_level(args["env_name"])),
-        level_name=get_level(args["env_name"]),
+        level_group=get_category(get_level(args)),
+        level_name=get_level(args),
         mission=replay_buffer["mission"],
         direction_observations=replay_buffer["direction_observation"],
         goal_positions=replay_buffer["goal_position"],
