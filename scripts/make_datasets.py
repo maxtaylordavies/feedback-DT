@@ -1,7 +1,7 @@
 import numpy as np
 
-from src.argparsing import get_args
-from src._datasets import get_dataset
+from src.utils.argparsing import get_args
+from scripts.generate_datasets import get_dataset
 
 args = get_args()
 
