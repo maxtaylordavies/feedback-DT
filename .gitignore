@@ -15,3 +15,6 @@ src/old_*
 scripts/baseline_ids.json
 *.json
 .DS_Store
+scripts/test.py
+build/
+test.py

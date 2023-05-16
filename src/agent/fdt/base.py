@@ -73,9 +73,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
     def _forward(self, input: AgentInput):
         batch_size, seq_length = input.states.shape[0], input.states.shape[1]
 
-        if attention_mask is None:
+        if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            input.attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
@@ -112,7 +112,13 @@ class FDTAgent(Agent, DecisionTransformerModel):
         # to make the attention mask fit the stacked inputs, have to stack it as well
         stacked_attention_mask = (
             torch.stack(
-                (attention_mask, attention_mask, attention_mask, attention_mask), dim=1
+                (
+                    input.attention_mask,
+                    input.attention_mask,
+                    input.attention_mask,
+                    input.attention_mask,
+                ),
+                dim=1,
             )
             .permute(0, 2, 1)
             .reshape(batch_size, 4 * seq_length)
@@ -123,7 +129,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
             position_ids=torch.zeros(
-                stacked_attention_mask.shape, device=stacked_inputs.device, dtype=torch.long
+                stacked_attention_mask.shape,
+                device=stacked_inputs.device,
+                dtype=torch.long,
             ),
             output_attentions=self.config.output_attentions,
             output_hidden_states=self.config.output_hidden_states,

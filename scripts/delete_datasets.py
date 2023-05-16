@@ -1,14 +1,8 @@
 import os
 import sys
 
-import minari
-
-from .generate_datasets import list_local_datasets, name_dataset
+from src.dataset.minari_storage import list_local_datasets, name_dataset, delete_dataset
 from src.utils.argparsing import get_args
-
-basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
-if not basepath in sys.path:
-    sys.path.append(basepath)
 
 
 def delete_datasets(args):
@@ -16,8 +10,7 @@ def delete_datasets(args):
         local_datasets = list_local_datasets()
         if local_datasets != []:
             for d in local_datasets:
-                minari.delete_dataset(d)
-                print(f"Sucess! Deleted {d}")
+                delete_dataset(d)
             print(f"Sucess! Deleted all {len(local_datasets)} local datasets")
         else:
             print("No datasets to delete")
@@ -38,8 +31,7 @@ def delete_datasets(args):
         ), "Specify the corresponding include_timeout parameter value to delete a specific dataset or pass True for del_all to delete all local datasets"
 
         dataset_name = name_dataset(args)
-        minari.delete_dataset(dataset_name)
-        print(f"Sucess! Deleted {dataset_name}")
+        delete_dataset(dataset_name)
 
 
 if __name__ == "__main__":

@@ -211,7 +211,7 @@
             ]
         },
         "positive": {
-            "simple": "This was an appropriate action given the task.",
+            "simple": "This was not an appropriate action given the task.",
             "verbose": [
                 "It seems like your action was useful for completing the task. Keep up the momentum!",
                 "That action you took was useful towards achieving the task. Great job!",
