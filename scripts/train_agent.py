@@ -1,83 +1,51 @@
-from datetime import datetime
 import os
 
 from transformers import DecisionTransformerConfig
-import numpy as np
-import wandb
 
-from src.utils.argparsing import get_args
-from src.collator import FeedbackDecisionTransformerDataCollator
-from src.utils.utils import log, setup_devices, is_network_connection
-from src.agent.fdt import FDTAgent
+from src.dataset.custom_dataset import CustomDataset
+from src.collator import Collator
+from src.agent.fdt import AtariFDTAgent
 from src.trainer import AgentTrainer
+from src.utils.utils import setup_devices
 
-from .generate_datasets import get_dataset
-from .generate_feedback import get_feedback
+os.environ["WANDB_DISABLED"] = "true"
 
+DATA_DIR = "/home/s2227283/projects/feedback-DT/data/dqn_replay"
+GAME = "Breakout"
+NUM_SAMPLES = 1000
+CONTEXT_LENGTH = 30
+BATCH_SIZE = 32
+EPOCHS = 10
+SEED = 42
 
-def main(args):
-    # set some variables
-    if not args["run_name"]:
-        args["run_name"] = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log(f"run_name not specified, using {args['run_name']}")
+device = setup_devices(SEED, useGpu=True)
 
-    if args["wandb_mode"] != "disabled":
-        os.environ["WANDB_PROJECT"] = "feedback-DT"
-        os.environ["WANDB_LOG_MODEL"] = "false"
-        os.environ["WANDB_WATCH"] = "false"
-        os.environ["WANDB__SERVICE_WAIT"] = "300"
-
-        if args["wandb_mode"] == "offline" or not is_network_connection():
-            log("using wandb in offline mode")
-            os.environ["WANDB_MODE"] = "dryrun"
-
-    if args["seed"] == None:
-        args["seed"] = np.random.randint(0, 2**32 - 1)
-        log(f"seed not specified, using {args['seed']}")
-
-    if args["policy"] == None:
-        args["policy"] = lambda: np.random.randint(3)
-
-    # setup compute devices
-    device = setup_devices(args["seed"], not args["no_gpu"])
-
-    # create or load training dataset
-    dataset = get_dataset(args)
-    print("np.max(dataset.actions):", np.max(dataset.actions))
-
-    # create or load feedback if using feedback
-    feedback = get_feedback(args, dataset) if args["use_feedback"] else None
-
-    # create the data collator and model
-    collator = FeedbackDecisionTransformerDataCollator(
-        dataset,
-        feedback=feedback,
-        context_length=args["context_length"],
-        randomise_starts=args["randomise_starts"],
+dataset = CustomDataset.from_dqn_replay(DATA_DIR, GAME, NUM_SAMPLES)
+collator = Collator(custom_dataset=dataset, feedback=None, context_length=CONTEXT_LENGTH)
+agent = AtariFDTAgent(
+    config=DecisionTransformerConfig(
+        state_dim=collator.state_dim,
+        act_dim=collator.act_dim,
+        max_length=CONTEXT_LENGTH,
     )
-
-    # create the model
-    config = DecisionTransformerConfig(
-        state_dim=collator.state_dim, act_dim=collator.act_dim, max_length=64
-    )
-    agent = FDTAgent(config, use_feedback=args["use_feedback"])
-
-    # train the model
-    trainer = AgentTrainer(
-        args=args,
-        agent=agent,
-        collator=collator,
-        dataset=dataset,
-    )
-    trainer.train()
-
-    # if using wandb, save args and finish run
-    if args["wandb_mode"] != "disabled":
-        wandb.config.update(args, allow_val_change=True)
-        wandb.finish()
-
-
-if __name__ == "__main__":
-    args = get_args()
-    log(f"parsed args: {args}")
-    main(args)
+)
+trainer = AgentTrainer(
+    agent=agent,
+    collator=collator,
+    dataset=dataset,
+    args={
+        "run_name": "breakout-test-1",
+        "env_name": "ALE/Breakout-v5",
+        "seed": SEED,
+        "output": ".",
+        "wandb_mode": "disabled",
+        "log_interval": 10,
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "lr": 1e-4,
+        "context_length": CONTEXT_LENGTH,
+        "plot_on_train_end": True,
+        "record_video": False,
+    },
+)
+trainer.train()
