@@ -2,6 +2,7 @@ import os
 
 import h5py
 import numpy as np
+from dopamine.replay_memory import circular_replay_buffer
 
 from src.dataset.minari_dataset import MinariDataset
 
@@ -64,6 +65,30 @@ class CustomDataset(MinariDataset):
             f.create_dataset("discrete_action", data=self.discrete_action)
             f.create_dataset("version", data="1.0")
             f.flush()
+
+    @property
+    def level_group(self):
+        return self._level_group
+
+    @property
+    def level_name(self):
+        return self._level_name
+
+    @property
+    def missions(self):
+        return self._missions
+
+    @property
+    def direction_observations(self):
+        return self._direction_observations
+
+    @property
+    def agent_positions(self):
+        return self._agent_positions
+
+    @property
+    def oracle_views(self):
+        return self._oracle_views
 
     @classmethod
     def load(cls, dataset_name):
@@ -178,26 +203,70 @@ class CustomDataset(MinariDataset):
             discrete_action=True,
         )
 
-    @property
-    def level_group(self):
-        return self._level_group
+    @classmethod
+    def from_dqn_replay(cls, data_dir, game, num_samples):
+        obs, acts, rewards, dones = [], [], [], []
 
-    @property
-    def level_name(self):
-        return self._level_name
+        buffer_idx, depleted = -1, True
+        while len(obs) < num_samples:
+            if depleted:
+                buffer_idx, depleted = buffer_idx + 1, False
+                buffer, i = load_dopamine_buffer(data_dir, game, buffer_idx), 0
 
-    @property
-    def missions(self):
-        return self._missions
+            (
+                s,
+                a,
+                r,
+                _,
+                _,
+                _,
+                terminal,
+                _,
+            ) = buffer.sample_transition_batch(batch_size=1, indices=[i])
 
-    @property
-    def direction_observations(self):
-        return self._direction_observations
+            obs.append(s[0])
+            acts.append(a[0])
+            rewards.append(r[0])
+            dones.append(terminal[0])
 
-    @property
-    def agent_positions(self):
-        return self._agent_positions
+            i += 1
+            depleted = i == buffer._replay_capacity
 
-    @property
-    def oracle_views(self):
-        return self._oracle_views
+        return cls(
+            level_group="",
+            level_name="",
+            missions=np.array([]),
+            direction_observations=np.array([]),
+            agent_positions=np.array([]),
+            oracle_views=np.array([]),
+            dataset_name="",
+            algorithm_name="",
+            environment_name="",
+            environment_stack="",
+            seed_used=0,
+            code_permalink="",
+            author="",
+            author_email="",
+            observations=np.array(obs),
+            actions=np.array(acts),
+            rewards=np.array(rewards),
+            terminations=np.array(dones),
+            truncations=np.zeros_like(dones),
+            episode_terminals=None,
+            discrete_action=True,
+        )
+
+
+# helper func to load a dopamine buffer from dqn replay logs
+def load_dopamine_buffer(data_dir, game, buffer_idx):
+    replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
+        observation_shape=(84, 84),
+        stack_size=4,
+        update_horizon=1,
+        gamma=0.99,
+        observation_dtype=np.uint8,
+        batch_size=32,
+        replay_capacity=100000,
+    )
+    replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
+    return replay_buffer
