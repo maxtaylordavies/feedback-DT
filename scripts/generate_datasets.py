@@ -1,25 +1,23 @@
 import json
 import os
-import sys
+import re
 
-import gymnasium as gym
 import numpy as np
+import gymnasium as gym
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
-from minari.storage.datasets_root_dir import get_file_path
-from minigrid.wrappers import RGBImgPartialObsWrapper, FullyObsWrapper
+from jsonc_parser.parser import JsoncParser
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
 
-from src.utils.argparsing import get_args
 from src.dataset.custom_dataset import CustomDataset
-from src.utils.utils import log, name_dataset
-
-basepath = os.path.dirname(os.path.dirname(os.path.abspath("")))
-if not basepath in sys.path:
-    sys.path.append(basepath)
+from src.dataset.minari_storage import list_local_datasets, name_dataset
+from src.utils.utils import log
+from src.utils.argparsing import get_args
 
 
 def get_dataset(args):
     dataset_name = name_dataset(args)
+    print(f"Creating dataset {dataset_name}")
 
     # optionally check if dataset already exists locally and load it
     if args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
@@ -34,113 +32,182 @@ def get_dataset(args):
         return dataset
 
 
-def list_local_datasets():
-    datasets_path = get_file_path("").parent
-    return [
-        f[:-5]
-        for f in os.listdir(datasets_path)
-        if os.path.isfile(os.path.join(datasets_path, f))
-    ]
+def get_level(args):
+    temp_level = re.sub(r"([SRN]\d).*", r"", args["env_name"].split("-")[1])
+    if temp_level.startswith("GoTo"):
+        level = re.sub(r"(Open|ObjMaze|ObjMazeOpen)", r"", temp_level)
+    elif temp_level.startswith("Open"):
+        if "RedBlue" in temp_level:
+            level = re.sub(r"(RedBlue)", r"Two", temp_level)
+        else:
+            level = re.sub(r"(Color|Loc)", r"", temp_level)
+    elif temp_level.startswith("Unlock"):
+        level = re.sub(r"(Dist)", r"", temp_level)
+    elif temp_level.startswith("Pickup"):
+        level = re.sub(r"(Dist)", r"", temp_level)
+    else:
+        level = temp_level
+    return level
+
+
+def get_category(level):
+    if level.startswith("GoTo"):
+        return "GoTo"
+    elif level.startswith("Open"):
+        return "Open"
+    elif level.startswith("Pickup") or level.startswith("UnblockPickup"):
+        return "Pickup"
+    elif level.startswith("PutNext"):
+        return "PutNext"
+    elif (
+        level.startswith("Unlock")
+        or level.startswith("KeyInBox")
+        or level.startswith("BlockedUnlockPickup")
+    ):
+        return "Unlock"
+    elif level.startswith("Synth") or "Boss" in level:
+        return "Synth"
+    else:
+        return "Other"
+
+
+def get_used_action_space(args):
+    file_path = "env_metadata.jsonc"
+    metadata = JsoncParser.parse_file(file_path)
+    level = get_level(args)
+    category = get_category(level)
+    return metadata["levels"][category][level]["used_action_space"]
+
+
+def ppo(observation):
+    raise Exception("This policy has not been implemented yet")
+
+
+def policy(args, observation):
+    if args["policy"] == "random_used_action_space_only":
+        return np.random.choice(get_used_action_space(args))
+    elif args["policy"] == "online_ppo":
+        return ppo(observation["image"])
+    else:
+        return np.random.randint(0, 6)
+    # return np.random.randint(0, 6)
 
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
-    rgb_env = RGBImgPartialObsWrapper(env)
+    observation, _ = env.reset(seed=args["seed"])
+    print(f"Max steps used for array size: {env.max_steps}")
+
     fully_obs_env = FullyObsWrapper(env)
-    env.reset(seed=args["seed"])
+    rgb_env = RGBImgPartialObsWrapper(env)
+    rgb_fully_obs_env = RGBImgObsWrapper(env)
+
+    partial_observation = observation
     full_observation = fully_obs_env.observation({})
-    rgb_observation = rgb_env.observation({})
+    rgb_partial_observation = rgb_env.observation({})
+    rgb_full_observation = rgb_fully_obs_env.observation({})
+
+    if args["fully_obs"]:
+        if args["rgb_obs"]:
+            observation = rgb_full_observation
+        else:
+            observation = full_observation
+    else:
+        if args["rgb_obs"]:
+            observation = rgb_partial_observation
+        else:
+            observation = partial_observation
+
     agent_position = env.agent_pos
 
-    # Get the environment specification stack for reproducibility
     environment_stack = serialise_spec_stack(env.spec_stack)
 
-    # replay_buffer = {
-    #     "symbolic_observation": np.array([]),
-    #     "goal_position": np.array([]),
-    #     "agent_position": np.array([]),
-    #     "direction_observation": np.array([]),
-    #     "episode": np.array([]),
-    #     "observation": np.array([]),
-    #     "action": np.array([]),
-    #     "reward": np.array([]),
-    #     "terminated": np.array([]),
-    #     "truncated": np.array([]),
-    # }
-
-    # Using env.max_steps instead of env.spec.max_episode_steps, as the latter was not defined
-    # upon registering BabyAI envs as Gymnasium envs (so that env.spec.mex_episode_steps = None)
     replay_buffer = {
-        "symbolic_observation": np.array(
-            [np.zeros_like(full_observation["image"])] * env.max_steps * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "goal_position": np.array(
-            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "agent_position": np.array(
-            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "direction_observation": np.array(
+        "missions": [],
+        "direction_observations": np.array(
             [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
         ),
-        "episode": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.int32),
-        # "observation": np.array(
-        #     [np.zeros_like(rgb_observation["image"])] * env.max_steps * args["num_episodes"],
-        #     dtype=np.uint8,
-        # ),
-        "action": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
-        "reward": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=np.float32),
-        "terminated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
-        "truncated": np.array([[0]] * env.max_steps * args["num_episodes"], dtype=bool),
+        "agent_positions": np.array(
+            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
+            dtype=np.uint8,
+        ),
+        "oracle_views": np.array(
+            [np.zeros_like(full_observation["image"])]
+            * env.max_steps
+            * args["num_episodes"],
+            dtype=np.uint8,
+        ),
+        "observations": np.array(
+            [np.zeros_like(observation["image"])]
+            * env.max_steps
+            * args["num_episodes"],
+            dtype=np.uint8,
+        ),
+        "actions": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+        ),
+        "rewards": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+        ),
+        "terminations": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
+        ),
+        "truncations": np.array(
+            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
+        ),
     }
-
-    pi = args["policy"] or env.action_space.sample
 
     total_steps = 0
     for episode in tqdm(range(args["num_episodes"])):
-        episode_step, terminated, truncated = 0, False, False
-        observation, _ = env.reset(seed=args["seed"])
-        rgb_env = RGBImgPartialObsWrapper(env)
+        episode_steps, terminated, truncated = 0, False, False
+        partial_observation, _ = env.reset(seed=args["seed"])
         fully_obs_env = FullyObsWrapper(env)
-        goal_position_list = [
-            x
-            for x, y in enumerate(fully_obs_env.grid.grid)
-            if y and y.type in observation["mission"] and y.color in observation["mission"]
-        ]
-
-        # For cases with multiple goals, we want to return a random goal's position
-        np.random.shuffle(goal_position_list)
-        goal_position = (
-            goal_position_list[0] % env.width,
-            int(goal_position_list[0] / env.height),
-        )
 
         while not (terminated or truncated):
-            action = pi()
-            observation, reward, terminated, truncated, _ = env.step(action)
+            if episode_steps == 0:
+                replay_buffer["missions"].append(partial_observation["mission"])
+            else:
+                replay_buffer["missions"].append("")
+            replay_buffer["direction_observations"][total_steps] = np.array(
+                partial_observation["direction"]
+            )
+            replay_buffer["agent_positions"][total_steps] = np.array(env.agent_pos)
 
-            rgb_observation = rgb_env.observation({})
+            fully_obs_env = FullyObsWrapper(env)
             full_observation = fully_obs_env.observation({})
 
-            replay_buffer["symbolic_observation"][total_steps] = np.array(
+            rgb_env = RGBImgPartialObsWrapper(env)
+            rgb_partial_observation = rgb_env.observation({})
+
+            rgb_fully_obs_env = RGBImgObsWrapper(env)
+            rgb_full_observation = rgb_fully_obs_env.observation({})
+
+            replay_buffer["oracle_views"][total_steps] = np.array(
                 full_observation["image"]
             )
-            replay_buffer["goal_position"][total_steps] = np.array(goal_position)
-            replay_buffer["agent_position"][total_steps] = np.array(env.agent_pos)
-            replay_buffer["direction_observation"][total_steps] = np.array(
-                observation["direction"]
-            )
-            replay_buffer["episode"][total_steps] = np.array(episode)
-            # replay_buffer["observation"][total_steps] = np.array(rgb_observation["image"])
-            replay_buffer["action"][total_steps] = np.array(action)
-            replay_buffer["reward"][total_steps] = np.array(reward)
-            replay_buffer["terminated"][total_steps] = np.array(terminated)
-            replay_buffer["truncated"][total_steps] = np.array(truncated)
 
-            episode_step, total_steps = episode_step + 1, total_steps + 1
+            if args["fully_obs"]:
+                if args["rgb_obs"]:
+                    observation = rgb_full_observation
+                else:
+                    observation = full_observation
+            else:
+                if args["rgb_obs"]:
+                    observation = rgb_partial_observation
+                else:
+                    observation = partial_observation
+
+            replay_buffer["observations"][total_steps] = np.array(observation["image"])
+
+            action = policy(args, observation)
+            partial_observation, reward, terminated, truncated, _ = env.step(action)
+            replay_buffer["actions"][total_steps] = np.array(action)
+            replay_buffer["rewards"][total_steps] = np.array(reward)
+            replay_buffer["terminations"][total_steps] = np.array(terminated)
+            replay_buffer["truncations"][total_steps] = np.array(truncated)
+
+            total_steps += 1
+            episode_steps += 1
 
     env.close()
 
@@ -148,29 +215,31 @@ def generate_new_dataset(args):
         replay_buffer[key] = replay_buffer[key][:total_steps]
 
     episode_terminals = (
-        replay_buffer["terminated"] + replay_buffer["truncated"]
+        replay_buffer["terminations"] + replay_buffer["truncations"]
         if args["include_timeout"]
         else None
     )
 
     return CustomDataset(
-        symbolic_observations=replay_buffer["symbolic_observation"],
-        goal_positions=replay_buffer["goal_position"],
-        agent_positions=replay_buffer["agent_position"],
-        direction_observations=replay_buffer["direction_observation"],
+        level_group=get_category(get_level(args)),
+        level_name=get_level(args),
+        missions=replay_buffer["missions"],
+        direction_observations=replay_buffer["direction_observations"],
+        agent_positions=replay_buffer["agent_positions"],
+        oracle_views=replay_buffer["oracle_views"],
         dataset_name=name_dataset(args),
-        algorithm_name="random_policy",
+        algorithm_name=args["policy"],
         environment_name=args["env_name"],
         environment_stack=json.dumps(environment_stack),
         seed_used=args["seed"],
         code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
         author="Sabrina McCallum",
         author_email="s2431177@ed.ac.uk",
-        observations=replay_buffer["symbolic_observation"],
-        actions=replay_buffer["action"],
-        rewards=replay_buffer["reward"],
-        terminations=replay_buffer["terminated"],
-        truncations=replay_buffer["truncated"],
+        observations=replay_buffer["observations"],
+        actions=replay_buffer["actions"],
+        rewards=replay_buffer["rewards"],
+        terminations=replay_buffer["terminations"],
+        truncations=replay_buffer["truncations"],
         episode_terminals=episode_terminals,
     )
 
