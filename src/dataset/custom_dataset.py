@@ -44,9 +44,7 @@ class CustomDataset(MinariDataset):
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("missions", data=self._missions)
-            f.create_dataset(
-                "direction_observations", data=self._direction_observations
-            )
+            f.create_dataset("direction_observations", data=self._direction_observations)
             f.create_dataset("agent_positions", data=self._agent_positions)
             f.create_dataset("oracle_views", data=self._oracle_views)
             f.create_dataset("dataset_name", data=self._dataset_name)
@@ -144,6 +142,41 @@ class CustomDataset(MinariDataset):
         )
 
         return dataset
+
+    @classmethod
+    def random(cls, num_eps, ep_length, state_dim, act_dim):
+        states = np.random.rand(num_eps * ep_length, state_dim)
+        actions = np.random.randint(0, act_dim, size=(num_eps * ep_length))
+        rewards = np.random.rand(num_eps * ep_length)
+
+        terminations = np.zeros((num_eps, ep_length))
+        terminations[:, -1] = 1
+        terminations = terminations.reshape((num_eps * ep_length))
+        truncations = np.zeros_like(terminations)
+
+        return cls(
+            level_group="",
+            level_name="",
+            missions=np.array([]),
+            direction_observations=np.array([]),
+            agent_positions=np.array([]),
+            oracle_views=np.array([]),
+            dataset_name="",
+            algorithm_name="",
+            environment_name="",
+            environment_stack="",
+            seed_used=0,
+            code_permalink="",
+            author="",
+            author_email="",
+            observations=states,
+            actions=actions,
+            rewards=rewards,
+            terminations=terminations,
+            truncations=truncations,
+            episode_terminals=None,
+            discrete_action=True,
+        )
 
     @property
     def level_group(self):

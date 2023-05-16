@@ -1,7 +1,6 @@
 import os
-import pathlib
 import warnings
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
+from typing import Iterator, List, Optional, Sequence, Union
 
 import h5py
 import numpy as np
@@ -347,9 +346,7 @@ class MinariDataset:
         # validation
         assert isinstance(observations, np.ndarray), "Observations must be numpy array."
         if len(observations.shape) == 4:
-            assert (
-                observations.dtype == np.uint8
-            ), "Image observation must be uint8 array."
+            assert observations.dtype == np.uint8, "Image observation must be uint8 array."
         else:
             if observations.dtype != np.float32:
                 observations = np.asarray(observations, dtype=np.float32)
@@ -370,9 +367,9 @@ class MinariDataset:
             # if None, episode terminals match the environment terminals
             self._episode_terminals = self._terminations
         else:
-            self._episode_terminals = np.asarray(
-                episode_terminals, dtype=np.float32
-            ).reshape(-1)
+            self._episode_terminals = np.asarray(episode_terminals, dtype=np.float32).reshape(
+                -1
+            )
 
         # automatic action type detection
         if discrete_action is None:
@@ -644,9 +641,7 @@ class MinariDataset:
             ), f"Observation shape must be {self.get_observation_shape()}."
             if self.discrete_action:
                 if int(action) >= self.get_action_size():
-                    message = (
-                        f"New action size is higher than" f" {self.get_action_size()}."
-                    )
+                    message = f"New action size is higher than" f" {self.get_action_size()}."
                     warnings.warn(message)
             else:
                 assert action.shape == (
@@ -669,9 +664,7 @@ class MinariDataset:
             episode_terminals = (
                 terminations or truncations
             )  # todo: check this (not sure it's refactored correctly)
-        self._episode_terminals = np.hstack(
-            [self._episode_terminals, episode_terminals]
-        )
+        self._episode_terminals = np.hstack([self._episode_terminals, episode_terminals])
 
         # convert new data to list of episodes
         episodes = _to_episodes(
@@ -887,9 +880,7 @@ class Episode:
         # validation
         assert isinstance(observations, np.ndarray), "Observation must be numpy array."
         if len(observation_shape) == 3:
-            assert (
-                observations.dtype == np.uint8
-            ), "Image observation must be uint8 array."
+            assert observations.dtype == np.uint8, "Image observation must be uint8 array."
         else:
             if observations.dtype != np.float32:
                 observations = np.asarray(observations, dtype=np.float32)
