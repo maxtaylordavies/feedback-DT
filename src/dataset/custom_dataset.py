@@ -12,9 +12,7 @@ class CustomDataset(MinariDataset):
         level_group,
         level_name,
         missions,
-        direction_observations,
-        agent_positions,
-        oracle_views,
+        feedback
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -22,11 +20,7 @@ class CustomDataset(MinariDataset):
         self._level_group = level_group
         self._level_name = level_name
         self._missions = np.asarray(missions, dtype="S")
-        self._direction_observations = np.asarray(
-            direction_observations, dtype=np.int32
-        ).reshape(-1)
-        self._agent_positions = agent_positions
-        self._oracle_views = oracle_views
+        self._feedback = np.asarray(feedback, dtype="S")
 
     def save(self):
         """Saves dataset as HDF5.
@@ -44,11 +38,7 @@ class CustomDataset(MinariDataset):
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("missions", data=self._missions)
-            f.create_dataset(
-                "direction_observations", data=self._direction_observations
-            )
-            f.create_dataset("agent_positions", data=self._agent_positions)
-            f.create_dataset("oracle_views", data=self._oracle_views)
+            f.create_dataset("missions", data=self._feedback)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
@@ -95,9 +85,7 @@ class CustomDataset(MinariDataset):
             level_group = f["level_group"][()]
             level_name = f["level_name"][()]
             missions = f["missions"][()]
-            direction_observations = f["direction_observations"][()]
-            agent_positions = f["agent_positions"][()]
-            oracle_views = f["oracle_views"][()]
+            feedback = f["feedback"][()]
             dataset_name = f["dataset_name"][()]
             algorithm_name = f["algorithm_name"][()]
             environment_name = f["environment_name"][()]
@@ -123,9 +111,7 @@ class CustomDataset(MinariDataset):
             level_group=level_group,
             level_name=level_name,
             missions=missions,
-            direction_observations=direction_observations,
-            agent_positions=agent_positions,
-            oracle_views=oracle_views,
+            feedback=feedback,
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
@@ -158,13 +144,5 @@ class CustomDataset(MinariDataset):
         return self._missions
 
     @property
-    def direction_observations(self):
-        return self._direction_observations
-
-    @property
-    def agent_positions(self):
-        return self._agent_positions
-
-    @property
-    def oracle_views(self):
-        return self._oracle_views
+    def missions(self):
+        return self._missions
