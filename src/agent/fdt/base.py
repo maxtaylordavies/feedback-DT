@@ -74,43 +74,14 @@ class FDTAgent(Agent, DecisionTransformerModel):
     def embed_state_convolutional(self, states):
         return self.state_embedding_model(states)
 
-<<<<<<< HEAD:src/dt.py
-    def _forward(
-        self,
-        states=None,
-        actions=None,
-        rewards=None,
-        returns_to_go=None,
-        timesteps=None,
-        feedback_embeddings=None,
-        attention_mask=None,
-        output_hidden_states=None,
-        output_attentions=None,
-        return_dict=None,
-    ):
-        output_attentions = (
-            output_attentions
-            if output_attentions is not None
-            else self.config.output_attentions
-        )
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
-        )
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
-
-        batch_size, seq_length = states.shape[0], states.shape[1]
-=======
     def _forward(self, input: AgentInput):
         batch_size, seq_length = input.states.shape[0], input.states.shape[1]
->>>>>>> 4d3021ffad849ba741728a4567120b887c302362:src/agent/fdt/base.py
 
-        if attention_mask is None:
+        if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            input.attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long
+            )
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
@@ -147,7 +118,13 @@ class FDTAgent(Agent, DecisionTransformerModel):
         # to make the attention mask fit the stacked inputs, have to stack it as well
         stacked_attention_mask = (
             torch.stack(
-                (attention_mask, attention_mask, attention_mask, attention_mask), dim=1
+                (
+                    input.attention_mask,
+                    input.attention_mask,
+                    input.attention_mask,
+                    input.attention_mask,
+                ),
+                dim=1,
             )
             .permute(0, 2, 1)
             .reshape(batch_size, 4 * seq_length)
@@ -193,7 +170,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
+    def _compute_loss(
+        self, input: AgentInput, output: DecisionTransformerOutput, **kwargs
+    ):
         act_dim = output.action_preds.shape[2]
         action_preds = output.action_preds.reshape(-1, act_dim)[
             input.attention_mask.reshape(-1) > 0
@@ -204,20 +183,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         return torch.mean((action_preds - action_targets) ** 2)
 
-<<<<<<< HEAD:src/dt.py
-        attention_mask = kwargs["attention_mask"]
-        act_dim = action_preds.shape[2]
-        action_preds = action_preds.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_targets = action_targets.reshape(-1, act_dim)[
-            attention_mask.reshape(-1) > 0
-        ]
-
-        return {"loss": torch.mean((action_preds - action_targets) ** 2)}
-
-    # function that gets an action from the model using autoregressive prediction with a window of the previous 20 timesteps.
-=======
     # function that gets an action from the model using autoregressive prediction
->>>>>>> 4d3021ffad849ba741728a4567120b887c302362:src/agent/fdt/base.py
     def get_action(
         self,
         input: AgentInput,
@@ -239,14 +205,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.timesteps = input.timesteps[:, -context:]
 
         # pad all tokens to sequence length
-<<<<<<< HEAD:src/dt.py
-        padding = context - states.shape[1]
-        attention_mask = torch.cat(
-            [
-                torch.zeros(padding, device=device),
-                torch.ones(states.shape[1], device=device),
-            ]
-=======
         padding = context - input.states.shape[1]
         input.attention_mask = (
             torch.cat(
@@ -257,22 +215,30 @@ class FDTAgent(Agent, DecisionTransformerModel):
             )
             .to(dtype=torch.long)
             .reshape(1, -1)
->>>>>>> 4d3021ffad849ba741728a4567120b887c302362:src/agent/fdt/base.py
         )
 
         input.states = torch.cat(
-            [torch.zeros((1, padding, self.config.state_dim), device=device), input.states],
+            [
+                torch.zeros((1, padding, self.config.state_dim), device=device),
+                input.states,
+            ],
             dim=1,
         ).float()
         input.actions = torch.cat(
-            [torch.zeros((1, padding, self.config.act_dim), device=device), input.actions],
+            [
+                torch.zeros((1, padding, self.config.act_dim), device=device),
+                input.actions,
+            ],
             dim=1,
         ).float()
         input.returns_to_go = torch.cat(
             [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
         ).float()
         input.timesteps = torch.cat(
-            [torch.zeros((1, padding), dtype=torch.long, device=device), input.timesteps],
+            [
+                torch.zeros((1, padding), dtype=torch.long, device=device),
+                input.timesteps,
+            ],
             dim=1,
         )
 
