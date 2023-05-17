@@ -73,7 +73,7 @@ def get_category(level):
         return "Other"
 
 
-def get_observation(partial_observation, env):
+def get_observation(args, partial_observation, env):
     fully_obs_env = FullyObsWrapper(env)
     rgb_env = RGBImgPartialObsWrapper(env)
     rgb_fully_obs_env = RGBImgObsWrapper(env)
@@ -123,12 +123,13 @@ def generate_new_dataset(args):
     env = gym.make(args["env_name"])
     partial_observation, _ = env.reset(seed=args["seed"])
 
-    observation = get_observation(partial_observation, env)
+    observation = get_observation(args, partial_observation, env)
 
     environment_stack = serialise_spec_stack(env.spec_stack)
 
     replay_buffer = {
         "missions": [""] * (env.max_steps * args["num_episodes"] + 1),
+        "feedback": [""] * (env.max_steps * args["num_episodes"] + 1),
         "observations": np.array(
             [np.zeros_like(observation["image"])]
             * (env.max_steps * args["num_episodes"] + 1),
@@ -146,7 +147,6 @@ def generate_new_dataset(args):
         "truncations": np.array(
             [[0]] * (env.max_steps * args["num_episodes"] + 1), dtype=bool
         ),
-        "feedback": [""] * (env.max_steps * args["num_episodes"] + 1),
     }
 
     total_steps = 0
@@ -158,7 +158,7 @@ def generate_new_dataset(args):
         # Storing mission for initial episode timestep t=0 (m_0)
         replay_buffer["missions"][total_steps] = mission
         # Storing observation at initial episode timestep t=0 (o_0)
-        observation = get_observation(partial_observation, env)
+        observation = get_observation(args, partial_observation, env)
         replay_buffer["observations"][total_steps] = observation["image"]
         # Storing initial values for rewards, terminations, truncations and feedback
         replay_buffer["rewards"][total_steps] = np.array(0)
@@ -175,7 +175,7 @@ def generate_new_dataset(args):
 
             # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
             # resulting from taking a_t at o_t
-            observation = get_observation(partial_observation, env)
+            observation = get_observation(args, partial_observation, env)
             if not (terminated or truncated):
                 replay_buffer["observations"][total_steps + 1] = observation["image"]
                 replay_buffer["missions"][total_steps + 1] = mission
@@ -205,9 +205,7 @@ def generate_new_dataset(args):
         level_group=get_category(get_level(args)),
         level_name=get_level(args),
         missions=replay_buffer["missions"],
-        direction_observations=replay_buffer["direction_observations"],
-        agent_positions=replay_buffer["agent_positions"],
-        oracle_views=replay_buffer["oracle_views"],
+        feedback=replay_buffer["feedback"],
         dataset_name=name_dataset(args),
         algorithm_name=args["policy"],
         environment_name=args["env_name"],

@@ -12,7 +12,7 @@ class CustomDataset(MinariDataset):
         level_group,
         level_name,
         missions,
-        feedback
+        feedback,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -38,7 +38,7 @@ class CustomDataset(MinariDataset):
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("missions", data=self._missions)
-            f.create_dataset("missions", data=self._feedback)
+            f.create_dataset("feedback", data=self._feedback)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
