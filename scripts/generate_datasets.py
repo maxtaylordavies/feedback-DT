@@ -7,11 +7,13 @@ import gymnasium as gym
 from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
+from minigrid.envs.babyai.core.verifier import AfterInstr, BeforeInstr, AndInstr
 from tqdm import tqdm
 
 from src.dataset.custom_dataset import CustomDataset
+from src.dataset.custom_feedback_verifier import Feedback
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils import log
+from src.utils.utils import log
 from src.utils.argparsing import get_args
 
 
@@ -71,6 +73,29 @@ def get_category(level):
         return "Other"
 
 
+def get_observation(partial_observation, env):
+    fully_obs_env = FullyObsWrapper(env)
+    rgb_env = RGBImgPartialObsWrapper(env)
+    rgb_fully_obs_env = RGBImgObsWrapper(env)
+
+    full_observation = fully_obs_env.observation({})
+    rgb_partial_observation = rgb_env.observation({})
+    rgb_full_observation = rgb_fully_obs_env.observation({})
+
+    if args["fully_obs"]:
+        if args["rgb_obs"]:
+            observation = rgb_full_observation
+        else:
+            observation = full_observation
+    else:
+        if args["rgb_obs"]:
+            observation = rgb_partial_observation
+        else:
+            observation = partial_observation
+
+    return observation
+
+
 def get_used_action_space(args):
     file_path = "env_metadata.jsonc"
     metadata = JsoncParser.parse_file(file_path)
@@ -89,125 +114,81 @@ def policy(args, observation):
     elif args["policy"] == "online_ppo":
         return ppo(observation["image"])
     else:
+        # Excluding the 'done' action (integer representation: 6), as by default, this is not used
+        # to evaluate success for any of the tasks
         return np.random.randint(0, 6)
-    # return np.random.randint(0, 6)
 
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
-    observation, _ = env.reset(seed=args["seed"])
-    print(f"Max steps used for array size: {env.max_steps}")
+    partial_observation, _ = env.reset(seed=args["seed"])
 
-    fully_obs_env = FullyObsWrapper(env)
-    rgb_env = RGBImgPartialObsWrapper(env)
-    rgb_fully_obs_env = RGBImgObsWrapper(env)
-
-    partial_observation = observation
-    full_observation = fully_obs_env.observation({})
-    rgb_partial_observation = rgb_env.observation({})
-    rgb_full_observation = rgb_fully_obs_env.observation({})
-
-    if args["fully_obs"]:
-        if args["rgb_obs"]:
-            observation = rgb_full_observation
-        else:
-            observation = full_observation
-    else:
-        if args["rgb_obs"]:
-            observation = rgb_partial_observation
-        else:
-            observation = partial_observation
-
-    agent_position = env.agent_pos
+    observation = get_observation(partial_observation, env)
 
     environment_stack = serialise_spec_stack(env.spec_stack)
 
     replay_buffer = {
-        "missions": [],
-        "direction_observations": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.int32
-        ),
-        "agent_positions": np.array(
-            [np.zeros_like(agent_position)] * env.max_steps * args["num_episodes"],
-            dtype=np.uint8,
-        ),
-        "oracle_views": np.array(
-            [np.zeros_like(full_observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
-            dtype=np.uint8,
-        ),
+        "missions": [""] * (env.max_steps * args["num_episodes"] + 1),
         "observations": np.array(
             [np.zeros_like(observation["image"])]
-            * env.max_steps
-            * args["num_episodes"],
+            * (env.max_steps * args["num_episodes"] + 1),
             dtype=np.uint8,
         ),
         "actions": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+            [[0]] * (env.max_steps * args["num_episodes"] + 1), dtype=np.float32
         ),
         "rewards": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=np.float32
+            [[0]] * (env.max_steps * args["num_episodes"] + 1), dtype=np.float32
         ),
         "terminations": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
+            [[0]] * (env.max_steps * args["num_episodes"] + 1), dtype=bool
         ),
         "truncations": np.array(
-            [[0]] * env.max_steps * args["num_episodes"], dtype=bool
+            [[0]] * (env.max_steps * args["num_episodes"] + 1), dtype=bool
         ),
+        "feedback": [""] * (env.max_steps * args["num_episodes"] + 1),
     }
 
     total_steps = 0
     for episode in tqdm(range(args["num_episodes"])):
-        episode_steps, terminated, truncated = 0, False, False
+        terminated, truncated = False, False
         partial_observation, _ = env.reset(seed=args["seed"])
-        fully_obs_env = FullyObsWrapper(env)
+        # Mission is the same for the whole episode
+        mission = partial_observation["mission"]
+        # Storing mission for initial episode timestep t=0 (m_0)
+        replay_buffer["missions"][total_steps] = mission
+        # Storing observation at initial episode timestep t=0 (o_0)
+        observation = get_observation(partial_observation, env)
+        replay_buffer["observations"][total_steps] = observation["image"]
+        # Storing initial values for rewards, terminations, truncations and feedback
+        replay_buffer["rewards"][total_steps] = np.array(0)
+        replay_buffer["terminations"][total_steps] = np.array(terminated)
+        replay_buffer["truncations"][total_steps] = np.array(truncated)
+        replay_buffer["feedback"][total_steps] = ""
 
         while not (terminated or truncated):
-            if episode_steps == 0:
-                replay_buffer["missions"].append(partial_observation["mission"])
-            else:
-                replay_buffer["missions"].append("")
-            replay_buffer["direction_observations"][total_steps] = np.array(
-                partial_observation["direction"]
-            )
-            replay_buffer["agent_positions"][total_steps] = np.array(env.agent_pos)
-
-            fully_obs_env = FullyObsWrapper(env)
-            full_observation = fully_obs_env.observation({})
-
-            rgb_env = RGBImgPartialObsWrapper(env)
-            rgb_partial_observation = rgb_env.observation({})
-
-            rgb_fully_obs_env = RGBImgObsWrapper(env)
-            rgb_full_observation = rgb_fully_obs_env.observation({})
-
-            replay_buffer["oracle_views"][total_steps] = np.array(
-                full_observation["image"]
-            )
-
-            if args["fully_obs"]:
-                if args["rgb_obs"]:
-                    observation = rgb_full_observation
-                else:
-                    observation = full_observation
-            else:
-                if args["rgb_obs"]:
-                    observation = rgb_partial_observation
-                else:
-                    observation = partial_observation
-
-            replay_buffer["observations"][total_steps] = np.array(observation["image"])
-
             action = policy(args, observation)
             partial_observation, reward, terminated, truncated, _ = env.step(action)
+
+            # Storing action a_t taken after observing o_t
             replay_buffer["actions"][total_steps] = np.array(action)
-            replay_buffer["rewards"][total_steps] = np.array(reward)
-            replay_buffer["terminations"][total_steps] = np.array(terminated)
-            replay_buffer["truncations"][total_steps] = np.array(truncated)
+
+            # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
+            # resulting from taking a_t at o_t
+            observation = get_observation(partial_observation, env)
+            if not (terminated or truncated):
+                replay_buffer["observations"][total_steps + 1] = observation["image"]
+                replay_buffer["missions"][total_steps + 1] = mission
+                replay_buffer["rewards"][total_steps + 1] = np.array(reward)
+                replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
+                replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
+
+                # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
+                feedback_verifier = Feedback(env, action)
+                feedback = feedback_verifier.verify_feedback()
+                replay_buffer["feedback"][total_steps + 1] = feedback
 
             total_steps += 1
-            episode_steps += 1
 
     env.close()
 
