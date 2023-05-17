@@ -184,8 +184,9 @@ def generate_new_dataset(args):
                 replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
 
                 # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
-                feedback_verifier = Feedback(env, action)
-                feedback = feedback_verifier.verify_feedback()
+                # feedback_verifier = Feedback(env, action)
+                # feedback = feedback_verifier.verify_feedback()
+                feedback = ""
                 replay_buffer["feedback"][total_steps + 1] = feedback
 
             total_steps += 1
