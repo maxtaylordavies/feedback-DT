@@ -4,14 +4,14 @@ import re
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.utils.serialize_spec_stack import serialise_spec_stack
+
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from minigrid.envs.babyai.core.verifier import AfterInstr, BeforeInstr, AndInstr
 from tqdm import tqdm
 
 from src.dataset.custom_dataset import CustomDataset
-from src.dataset.custom_feedback_verifier import Feedback
+from src.dataset.custom_feedback_verifier import RuleFeedback
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import log
 from src.utils.argparsing import get_args
@@ -125,8 +125,6 @@ def generate_new_dataset(args):
 
     observation = get_observation(args, partial_observation, env)
 
-    environment_stack = serialise_spec_stack(env.spec_stack)
-
     replay_buffer = {
         "missions": [""] * (env.max_steps * args["num_episodes"] + 1),
         "feedback": [""] * (env.max_steps * args["num_episodes"] + 1),
@@ -173,6 +171,11 @@ def generate_new_dataset(args):
             # Storing action a_t taken after observing o_t
             replay_buffer["actions"][total_steps] = np.array(action)
 
+            # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
+            # feedback_verifier = RuleFeedback(env, action)
+            # feedback = feedback_verifier.verify_feedback()
+            feedback = ""
+
             # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
             # resulting from taking a_t at o_t
             observation = get_observation(args, partial_observation, env)
@@ -182,11 +185,6 @@ def generate_new_dataset(args):
                 replay_buffer["rewards"][total_steps + 1] = np.array(reward)
                 replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
                 replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
-
-                # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
-                # feedback_verifier = Feedback(env, action)
-                # feedback = feedback_verifier.verify_feedback()
-                feedback = ""
                 replay_buffer["feedback"][total_steps + 1] = feedback
 
             total_steps += 1
@@ -210,7 +208,6 @@ def generate_new_dataset(args):
         dataset_name=name_dataset(args),
         algorithm_name=args["policy"],
         environment_name=args["env_name"],
-        environment_stack=json.dumps(environment_stack),
         seed_used=args["seed"],
         code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
         author="Sabrina McCallum",

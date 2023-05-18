@@ -42,7 +42,6 @@ class CustomDataset(MinariDataset):
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
-            f.create_dataset("environment_stack", data=str(self._environment_stack))
             f.create_dataset("seed_used", data=self._seed_used)
             f.create_dataset("code_permalink", data=str(self._code_permalink))
             f.create_dataset("author", data=str(self._author))
@@ -89,7 +88,6 @@ class CustomDataset(MinariDataset):
             dataset_name = f["dataset_name"][()]
             algorithm_name = f["algorithm_name"][()]
             environment_name = f["environment_name"][()]
-            environment_stack = f["environment_stack"][()]
             seed_used = f["seed_used"][()]
             code_permalink = f["code_permalink"][()]
             author = f["author"][()]
@@ -115,7 +113,6 @@ class CustomDataset(MinariDataset):
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
-            environment_stack=environment_stack,
             seed_used=seed_used,
             code_permalink=code_permalink,
             author=author,
@@ -138,10 +135,6 @@ class CustomDataset(MinariDataset):
     @property
     def level_name(self):
         return self._level_name
-
-    @property
-    def missions(self):
-        return self._missions
 
     @property
     def missions(self):

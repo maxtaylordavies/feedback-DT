@@ -7,7 +7,6 @@ name = "pypi"
 minigrid = "*"
 numpy = "*"
 cython = "*"
-gymnasium = {ref = "spec_stack", git = "https://github.com/WillDudley/Gymnasium.git"}
 gymnasium-robotics = "*"
 huggingface = "*"
 datasets = "*"
@@ -18,6 +17,9 @@ tqdm = "*"
 transformers = "*"
 jsonc-parser = "*"
 h5py = "*"
+gymnasium = "*"
+feedback-dt = {path = "."}
+matplotlib = "*"
 
 [dev-packages]
 

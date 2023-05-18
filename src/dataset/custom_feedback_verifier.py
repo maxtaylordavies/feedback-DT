@@ -1,7 +1,7 @@
 from minigrid.core.world_object import Door, Key, Wall
 
 
-class Feedback:
+class RuleFeedback:
     """
     Class for generating feedback for actions on MiniGrid environments.
     """
@@ -95,7 +95,10 @@ class Feedback:
         bool
             True if the agent is positioned in front of an cloed door, False otherwise.
         """
-        return self._is_door() and not self.front_cell.is_open
+        if self._is_door():
+            if not self.front_cell.is_open:
+                return True
+        return False
 
     def _is_locked_door(self):
         """
@@ -106,7 +109,10 @@ class Feedback:
         bool
             True if the agent is positioned in front of a locked door, False otherwise.
         """
-        return self._is_door and self.front_cell.is_locked
+        if self._is_door():
+            if self.front_cell.is_locked:
+                return True
+        return False
 
     def _is_wall(self):
         """
@@ -128,7 +134,11 @@ class Feedback:
         bool
             True if the agent can move forward, False otherwise.
         """
-        return not self.front_cell.can_overlap()
+        if not self.front_cell.can_overlap() and not (
+            self._is_closed_door() or self._is_locked_door() or self._is_wall()
+        ):
+            return True
+        return False
 
     def _is_carrying(self):
         """
@@ -183,7 +193,7 @@ class Feedback:
             return "You can't move forward while you're facing the wall."
         if self._is_obstacle():
             return (
-                "You can't move forward here."
+                "You can't move forward here. "
                 + f"There is an obstacle in the form of a {self.front_cell.type} blocking the way."
             )
 
@@ -211,8 +221,11 @@ class Feedback:
         if self._is_open_door():
             return "You can't toggle an already open door."
         if self._is_locked_door() and not self._is_carrying_correct_key():
-            return "You can't toggle a locked door without the correct key"
-        return f"You can't toggle {self.front_cell.type}'s"
+            return "You can't toggle a locked door without the correct key."
+        if self._is_wall():
+            return "You can't toggle the wall."
+        if self._is_obstacle():
+            return f"You can't toggle {self.front_cell.type}s"
 
     def _is_valid_pickup(self):
         """
@@ -236,10 +249,10 @@ class Feedback:
         """
         if self._is_empty_cell():
             return "There is nothing to pick up in front of you."
-        if self._is_open_door():
-            return "You can't pick up an open door."
         if self._is_door():
             return "You can't pick up a door."
+        if self._is_wall():
+            return "You can't pick up the wall."
         if self._is_carrying():
             return "You can't pick up another object while you're already carrying one."
 
@@ -265,12 +278,15 @@ class Feedback:
         """
         if not self._is_carrying():
             return "You can't drop an object while you're not carrying anything."
-        if self._is_wall() or self._is_door():
-            return f"You can't drop an object while you're facing a {self.front_cell.type}."
-        return (
-            "You can't drop an object in front of you."
-            + f"There is already a {self.front_cell.type} there."
-        )
+        if self._is_wall():
+            return "You can't drop an object while you're facing the wall."
+        if self._is_door():
+            return "You can't drop an object while you're facing a door."
+        if self._is_obstacle():
+            return (
+                "You can't drop an object in front of you. "
+                + f"There is already a {self.front_cell.type} there."
+            )
 
     def _get_rule_feedback(self):
         """
@@ -292,5 +308,4 @@ class Feedback:
             return self._get_pickup_feedback()
         if self.action == self.env.actions.drop and not self._is_valid_drop():
             return self._get_drop_feedback()
-
-    # TO-DO: Implement task feedback
+        return ""

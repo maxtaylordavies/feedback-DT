@@ -300,7 +300,6 @@ class MinariDataset:
         dataset_name,
         algorithm_name,
         environment_name,
-        environment_stack,
         seed_used,
         code_permalink,
         author,
@@ -316,7 +315,6 @@ class MinariDataset:
         self._dataset_name = dataset_name
         self._algorithm_name = algorithm_name
         self._environment_name = environment_name
-        self._environment_stack = environment_stack
         self._seed_used = seed_used
         self._code_permalink = code_permalink
         self._author = author
@@ -336,11 +334,6 @@ class MinariDataset:
         if author_email is None:
             warnings.warn(
                 "`author_email` is set to None. For longevity purposes it is highly recommended to provide an author email, or some other obvious contact information.",
-                UserWarning,
-            )
-        if environment_stack is None:
-            warnings.warn(
-                "`environment_stack` is set to None. For reproducibility purposes it is highly recommended to provide the environment stack.",
                 UserWarning,
             )
 
@@ -397,10 +390,6 @@ class MinariDataset:
     @property
     def environment_name(self):
         return self._environment_name
-
-    @property
-    def environment_stack(self):
-        return self._environment_stack
 
     @property
     def seed_used(self):
@@ -730,7 +719,6 @@ class MinariDataset:
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
-            f.create_dataset("environment_stack", data=str(self._environment_stack))
             f.create_dataset("seed_used", data=self._seed_used)
             f.create_dataset(
                 "code_permalink", data=str(self._code_permalink)
@@ -775,7 +763,6 @@ class MinariDataset:
             dataset_name = f["dataset_name"][()]
             algorithm_name = f["algorithm_name"][()]
             environment_name = f["environment_name"][()]
-            environment_stack = f["environment_stack"][()]
             seed_used = f["seed_used"][()]
             code_permalink = f["code_permalink"][()]
             author = f["author"][()]
@@ -797,7 +784,6 @@ class MinariDataset:
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
-            environment_stack=environment_stack,
             seed_used=seed_used,
             code_permalink=code_permalink,
             author=author,
