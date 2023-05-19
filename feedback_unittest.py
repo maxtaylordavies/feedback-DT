@@ -28,7 +28,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         action = 5
         self.env.reset(seed=16)
         feedback_verifier = RuleFeedback(self.env, action)
-        assert feedback_verifier.verify_feedback() == "You can't toggle the wall"
+        assert feedback_verifier.verify_feedback() == "You can't toggle the wall."
 
     def test_invalid_forward_obstacle(self):
         action = 2
@@ -126,14 +126,6 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             == "There is nothing to pick up in front of you."
         )
 
-    def test_invalid_pickup_door(self):
-        action = 3
-        self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 0, 4, 0, 0]:
-            self.env.step(step)
-        feedback_verifier = RuleFeedback(self.env, action)
-        assert feedback_verifier.verify_feedback() == "You can't pick up a door."
-
     def test_invalid_drop_not_carrying(self):
         action = 4
         self.env.reset(seed=16)
@@ -144,6 +136,14 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             feedback_verifier.verify_feedback()
             == "You can't drop an object while you're not carrying anything."
         )
+
+    def test_invalid_pickup_door(self):
+        action = 3
+        self.env.reset(seed=16)
+        for step in [1, 1, 3, 2, 0, 4, 0, 0]:
+            self.env.step(step)
+        feedback_verifier = RuleFeedback(self.env, action)
+        assert feedback_verifier.verify_feedback() == "You can't pick up a door."
 
     def test_invalid_drop_door(self):
         action = 4
@@ -186,7 +186,33 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
     def test_invalid_toggle_locked_door_wrong_key(self):
         action = 5
         self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 1, 5, 2, 3, 1, 1, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2]:
+        for step in [
+            1,
+            1,
+            3,
+            2,
+            0,
+            0,
+            4,
+            0,
+            5,
+            2,
+            3,
+            1,
+            1,
+            2,
+            2,
+            2,
+            1,
+            2,
+            5,
+            2,
+            2,
+            2,
+            1,
+            2,
+            2,
+        ]:
             self.env.step(step)
         feedback_verifier = RuleFeedback(self.env, action)
         assert (
@@ -197,7 +223,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
     def test_invalid_toggle_locked_door_no_key(self):
         action = 5
         self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 0, 0, 4, 1, 1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 2]:
+        for step in [1, 1, 3, 2, 0, 0, 4, 1, 2, 2, 1, 2, 5, 2, 2, 2, 1, 2, 2]:
             self.env.step(step)
         feedback_verifier = RuleFeedback(self.env, action)
         assert (
@@ -208,7 +234,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
     def test_invalid_forward_locked_door(self):
         action = 2
         self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 0, 0, 4, 1, 1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 2]:
+        for step in [1, 1, 3, 2, 0, 0, 4, 1, 2, 2, 1, 2, 5, 2, 2, 2, 1, 2, 2]:
             self.env.step(step)
         feedback_verifier = RuleFeedback(self.env, action)
         assert (
@@ -219,7 +245,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
     def test_valid_toggle_locked_door(self):
         action = 5
         self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 1, 1, 4, 0, 0, 3, 0, 2, 2, 1, 2, 2, 2, 2, 1, 2, 2]:
+        for step in [1, 1, 3, 2, 1, 1, 4, 0, 0, 3, 0, 2, 2, 1, 2, 5, 2, 2, 2, 1, 2, 2]:
             self.env.step(step)
         feedback_verifier = RuleFeedback(self.env, action)
         assert feedback_verifier.verify_feedback() == ""
@@ -227,13 +253,11 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
     def test_valid_toggle_box(self):
         action = 5
         self.env.reset(seed=16)
-        for step in [1, 1, 3, 2, 0, 0, 4, 1, 1, 2, 2, 1, 2, 2, 2, 1, 2]:
+        for step in [1, 1, 3, 2, 0, 0, 4, 1, 2, 2, 1, 2, 5, 2, 2, 1, 2]:
             self.env.step(step)
         feedback_verifier = RuleFeedback(self.env, action)
-        assert (
-            feedback_verifier.verify_feedback()
-            == "You can't toggle an already open door."
-        )
+        print(feedback_verifier.verify_feedback())
+        assert feedback_verifier.verify_feedback() == ""
 
 
 if __name__ == "__main__":

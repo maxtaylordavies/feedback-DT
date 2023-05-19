@@ -185,10 +185,10 @@ class RuleFeedback:
         str
             The feedback for the move forward action with respect to the object in the cell that the agent is facing.
         """
-        if self._is_closed_door():
-            return "You can't move forward here. The door in front of you is closed."
         if self._is_locked_door():
             return "You can't move forward here. The door in front of you is locked."
+        if self._is_closed_door():
+            return "You can't move forward here. The door in front of you is closed."
         if self._is_wall():
             return "You can't move forward while you're facing the wall."
         if self._is_obstacle():
@@ -205,7 +205,10 @@ class RuleFeedback:
         -------
         bool
             True if the agent can toggle the object in front of it, False otherwise."""
-        return self.front_cell.toggle()
+        if self.front_cell:
+            return self.front_cell.toggle(self.env, self.env.agent_pos)
+        else:
+            return False
 
     def _get_toggle_feedback(self):
         """
@@ -225,7 +228,7 @@ class RuleFeedback:
         if self._is_wall():
             return "You can't toggle the wall."
         if self._is_obstacle():
-            return f"You can't toggle {self.front_cell.type}s"
+            return f"You can't toggle {self.front_cell.type}s."
 
     def _is_valid_pickup(self):
         """
@@ -236,7 +239,9 @@ class RuleFeedback:
         bool
             True if the agent can pick up the object in front of it, False otherwise.
         """
-        return self.front_cell.can_pickup()
+        if self.front_cell and not self.carrying:
+            return self.front_cell.can_pickup()
+        return False
 
     def _get_pickup_feedback(self):
         """

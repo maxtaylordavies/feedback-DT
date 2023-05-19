@@ -25,12 +25,11 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 from minigrid.wrappers import RGBImgObsWrapper
 
+actions = [1, 1, 3, 2, 0, 0, 4, 1, 2, 2, 1, 2, 5, 2, 2, 1, 2, 5]
 env = gym.make("BabyAI-MiniBossLevel-v0")
 env.reset(seed=16)
-
-
 rgb_env = RGBImgObsWrapper(env)
-for action in [1, 1, 3, 1, 5]:
-    rgb_obs, _ = rgb_env.step(action)
-    plt.imshow(rgb_obs["image"])
+for action in actions:
+    rgb_env.step(action)
+    plt.imshow(rgb_env.observation({})["image"])
     plt.show()
