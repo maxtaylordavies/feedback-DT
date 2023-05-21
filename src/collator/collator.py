@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from src.dataset import CustomDataset, Feedback
+from src.dataset import CustomDataset, FeedbackArray
 from src.utils.utils import to_one_hot, discounted_cumsum
 
 
@@ -14,7 +14,7 @@ class Collator:
     def __init__(
         self,
         custom_dataset: CustomDataset,
-        feedback: Optional[Feedback] = None,
+        feedback: Optional[FeedbackArray] = None,
         context_length=64,
         scale=1,
         gamma=1.0,
