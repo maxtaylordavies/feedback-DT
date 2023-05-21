@@ -46,7 +46,7 @@ class DecisionTransformerOutput(ModelOutput):
 
 class FDTAgent(Agent, DecisionTransformerModel):
     def __init__(self, config, use_feedback=True):
-        super().__init__(config)
+        DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
 
@@ -81,14 +81,16 @@ class FDTAgent(Agent, DecisionTransformerModel):
         time_embeddings = self.embed_timestep(input.timesteps)
         state_embeddings = (
             self._embed_state(
-                input.states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
+                input.states.reshape((-1,) + self.config.state_shape)
+                .type(torch.float32)
+                .contiguous()
             ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
         action_embeddings = self.embed_action(input.actions) + time_embeddings
         returns_embeddings = self.embed_return(input.returns_to_go) + time_embeddings
         feedback_embeddings = (
-            feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
+            input.feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
 

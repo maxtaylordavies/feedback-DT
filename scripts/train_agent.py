@@ -26,6 +26,7 @@ agent = AtariFDTAgent(
     config=DecisionTransformerConfig(
         state_dim=collator.state_dim,
         act_dim=collator.act_dim,
+        state_shape=(4, 84, 84),
         max_length=CONTEXT_LENGTH,
     )
 )
@@ -39,6 +40,7 @@ trainer = AgentTrainer(
         "seed": SEED,
         "output": ".",
         "wandb_mode": "disabled",
+        "report_to": "none",
         "log_interval": 10,
         "epochs": EPOCHS,
         "batch_size": BATCH_SIZE,
