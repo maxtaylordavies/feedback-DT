@@ -1,5 +1,6 @@
 import os
 
+# import atari_py
 import cv2
 import gymnasium as gym
 import torch
@@ -15,6 +16,8 @@ import seaborn as sns
 from src.agent import Agent, AgentInput
 from src.utils.utils import discounted_cumsum, log
 
+# from .atari_env import AtariEnv
+
 sns.set_theme()
 
 
@@ -24,7 +27,7 @@ class Evaluator(TrainerCallback):
         user_args,
         collator,
         sample_interval=100,
-        target_return=1000,
+        target_returns=[0, 3, 90, 1000],
         num_repeats=10,
         gamma=1.0,
     ) -> None:
@@ -32,7 +35,8 @@ class Evaluator(TrainerCallback):
         self.user_args = user_args
         self.collator = collator
         self.sample_interval = sample_interval
-        self.target_return = target_return
+        self.samples_processed = 0
+        self.target_returns = target_returns
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,7 +47,7 @@ class Evaluator(TrainerCallback):
             os.makedirs(self.output_dir)
 
         # initialise a dataframe to store the results
-        self.results = {"samples": [], "return": []}
+        self.results = {"samples": [], "return": [], "target_return": []}
 
         # create blank feedback embeddings
         self.feedback_embeddings = self.collator._embed_feedback(
@@ -51,17 +55,6 @@ class Evaluator(TrainerCallback):
         ).to(self.device)
 
     def on_train_end(
-        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
-    ):
-        if not self.user_args["plot_on_train_end"]:
-            return
-
-        # convert results to dataframe
-        df = pd.DataFrame(self.results)
-        sns.lineplot(x="samples", y="return", data=df)
-        plt.show()
-
-    def on_step_end(
         self,
         args: TrainingArguments,
         state: TrainerState,
@@ -69,45 +62,66 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        prev = self.results["samples"][-1] if len(self.results["samples"]) else 0
-        if self.collator.samples_processed - prev >= self.sample_interval:
-            log(
-                f"Running evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-                with_tqdm=True,
-            )
-            self._evaluate_agent(model)
+        self._run_eval_and_plot(model, state, final=True)
+
+    def on_step_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        self._run_eval_and_plot(model, state)
+
+    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
+        log(
+            f"Running {'FINAL' if final else ''} evaluation (samples: {self.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            with_tqdm=True,
+        )
+
+        if final:
+            self.samples_processed = self.collator.samples_processed
+
+        self._evaluate_agent(agent)
+        self._make_plots(state)
+
+        if not final:
+            self.samples_processed = self.collator.samples_processed
 
     def _evaluate_agent(self, agent: Agent):
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for rep in range(self.num_repeats):
-            _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
-            env = (
-                Visualiser(
-                    _env, self.output_dir, filename=f"{rep}", seed=self.user_args["seed"]
+            for tr in self.target_returns:
+                _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
+                env = (
+                    Visualiser(
+                        _env, self.output_dir, filename=f"{rep}", seed=self.user_args["seed"]
+                    )
+                    if self.user_args["record_video"]
+                    else _env
                 )
-                if self.user_args["record_video"]
-                else _env
-            )
 
-            self.results["samples"].append(self.collator.samples_processed)
-            self.results["return"].append(self._run_agent_on_environment(agent, env))
+                self.results["samples"].append(self.samples_processed)
+                self.results["return"].append(self._run_agent_on_atari_env(agent, env, tr))
+                self.results["target_return"].append(tr)
 
-            if self.user_args["record_video"]:
-                env.release()
+                if self.user_args["record_video"]:
+                    env.release()
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
 
         # log the average episode return for the current eval
         log(
-            f"Average episode return: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
+            f"Average episode return: {df[df['samples'] == self.samples_processed]['return'].mean()}",
             with_tqdm=True,
         )
 
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
-    def _run_agent_on_environment(self, agent: Agent, env: gym.Env):
+    def _run_agent_on_env(self, agent: Agent, env: gym.Env):
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 100
 
         state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
@@ -182,6 +196,107 @@ class Evaluator(TrainerCallback):
 
         return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
 
+    def _run_agent_on_atari_env(
+        self, agent: Agent, env: gym.Env, target_return: int, stack_size=4
+    ):
+        def get_frame(rgb_obs):
+            return cv2.resize(
+                np.dot(rgb_obs[..., :3], [0.299, 0.587, 0.114]),
+                (84, 84),
+                interpolation=cv2.INTER_LINEAR,
+            )
+
+        def get_state(frames):
+            return (
+                torch.from_numpy(np.stack(frames, axis=0))
+                .reshape(1, self.collator.state_dim)
+                .to(device=self.device, dtype=torch.float32)
+            )
+
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 100
+
+        state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
+            device=self.device
+        )
+        state_std = torch.from_numpy(self.collator.state_std.astype(np.float32)).to(
+            device=self.device
+        )
+
+        obs, _ = env.reset(seed=self.user_args["seed"])
+        # fully_obs_env = FullyObsWrapper(env)
+        # obs = fully_obs_env.observation(tmp[0])
+
+        states = get_state([get_frame(obs)] * stack_size)
+
+        # print(f"states.shape: {states.shape}")
+
+        actions = torch.zeros(
+            (0, self.collator.act_dim), device=self.device, dtype=torch.float32
+        )
+        rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
+        returns_to_go = torch.tensor(
+            target_return, device=self.device, dtype=torch.float32
+        ).reshape(1, 1)
+        timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+
+        for t in range(max_ep_len):
+            actions = torch.cat(
+                [actions, torch.zeros((1, self.collator.act_dim), device=self.device)], dim=0
+            )
+            rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
+
+            actions[-1] = agent.get_action(
+                AgentInput(
+                    states=(states - state_mean) / state_std,
+                    actions=actions,
+                    rewards=rewards,
+                    returns_to_go=returns_to_go,
+                    timesteps=timesteps,
+                    feedback_embeddings=self.feedback_embeddings,
+                    attention_mask=None,
+                ),
+                context=self.user_args["context_length"],
+                one_hot=True,
+            )
+            a = actions[-1].detach().cpu().numpy()
+
+            frames, reward = [], 0
+            for _ in range(stack_size):
+                obs, r, done, _, _ = env.step(np.argmax(a))
+                frames.append(get_frame(obs))
+                reward += r
+
+            cur_state = get_state(frames)
+            states = torch.cat([states, cur_state], dim=0)
+
+            rewards[-1] = reward
+            pred_return = returns_to_go[0, -1] - reward
+            returns_to_go = torch.cat([returns_to_go, pred_return.reshape(1, 1)], dim=1)
+
+            timesteps = torch.cat(
+                [
+                    timesteps,
+                    torch.ones((1, 1), device=self.device, dtype=torch.long) * (t + 1),
+                ],
+                dim=1,
+            )
+
+            if done:
+                break
+
+        return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
+
+    def _make_plots(self, state: TrainerState):
+        # plot loss
+        losses = [x["loss"] for x in state.log_history]
+        sns.lineplot(x=range(len(losses)), y=losses)
+        plt.savefig(os.path.join(self.output_dir, "loss.png"))
+
+        # plot returns
+        df = pd.DataFrame(self.results)
+        sns.lineplot(x="samples", y="return", hue="target_return", data=df)
+        plt.savefig(os.path.join(self.output_dir, "eval.png"))
+
 
 class Visualiser(gym.Wrapper):
     def __init__(
@@ -244,23 +359,3 @@ class Visualiser(gym.Wrapper):
             self.release()
 
         return data
-
-
-def visualise_training_episode(episode, idx, args, output_dir):
-    env = Visualiser(
-        gym.make(args["env_name"], render_mode="rgb_array"),
-        output_dir,
-        idx,
-        seed=args["seed"],
-        fps=30,
-    )
-
-    episode_return, _ = 0, env.reset(seed=args["seed"])
-
-    for t in range(len(episode.actions)):
-        _, reward, done, _, _ = env.step(episode.actions[t])
-        episode_return += reward
-        if done:
-            break
-
-    return episode_return
