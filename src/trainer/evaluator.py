@@ -1,6 +1,5 @@
 import os
 
-# import atari_py
 import cv2
 import gymnasium as gym
 import torch
@@ -13,7 +12,7 @@ from transformers.training_args import TrainingArguments
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src.agent import Agent, AgentInput
+from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import discounted_cumsum, log
 
 # from .atari_env import AtariEnv
@@ -54,6 +53,9 @@ class Evaluator(TrainerCallback):
             np.array([[""] * user_args["context_length"]]).reshape(-1, 1)
         ).to(self.device)
 
+        # create a random agent to evaluate against
+        self.random_agent = RandomAgent(self.collator.act_dim)
+
     def on_train_end(
         self,
         args: TrainingArguments,
@@ -62,6 +64,7 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
+        # self._plot_loss(state)
         self._run_eval_and_plot(model, state, final=True)
 
     def on_step_begin(
@@ -72,7 +75,9 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        self._run_eval_and_plot(model, state)
+        self._plot_loss(state)
+        if len(self.results["return"]) == 0 or state.global_step % 10 == 0:
+            self._run_eval_and_plot(model, state)
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
         log(
@@ -84,27 +89,40 @@ class Evaluator(TrainerCallback):
             self.samples_processed = self.collator.samples_processed
 
         self._evaluate_agent(agent)
-        self._make_plots(state)
+        self._plot_returns()
 
         if not final:
             self.samples_processed = self.collator.samples_processed
 
     def _evaluate_agent(self, agent: Agent):
+        def create_env():
+            _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
+            return (
+                Visualiser(
+                    _env, self.output_dir, filename=f"{rep}", seed=self.user_args["seed"]
+                )
+                if self.user_args["record_video"]
+                else _env
+            )
+
+        def record_return(ret, target):
+            self.results["samples"].append(self.samples_processed)
+            self.results["return"].append(ret)
+            self.results["target_return"].append(target)
+
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for rep in range(self.num_repeats):
-            for tr in self.target_returns:
-                _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
-                env = (
-                    Visualiser(
-                        _env, self.output_dir, filename=f"{rep}", seed=self.user_args["seed"]
-                    )
-                    if self.user_args["record_video"]
-                    else _env
-                )
+            # random baseline
+            env = create_env()
+            random_ret = self._run_agent_on_atari_env(self.random_agent, env, 0)
+            record_return(random_ret, "random")
+            if self.user_args["record_video"]:
+                env.release()
 
-                self.results["samples"].append(self.samples_processed)
-                self.results["return"].append(self._run_agent_on_atari_env(agent, env, tr))
-                self.results["target_return"].append(tr)
+            for tr in self.target_returns:
+                env = create_env()
+                ret = self._run_agent_on_atari_env(agent, env, tr)
+                record_return(ret, tr)
 
                 if self.user_args["record_video"]:
                     env.release()
@@ -122,7 +140,7 @@ class Evaluator(TrainerCallback):
         df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
 
     def _run_agent_on_env(self, agent: Agent, env: gym.Env):
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 100
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
         state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
             device=self.device
@@ -286,16 +304,19 @@ class Evaluator(TrainerCallback):
 
         return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
 
-    def _make_plots(self, state: TrainerState):
-        # plot loss
+    def _plot_loss(self, state: TrainerState):
+        fig, ax = plt.subplots()
         losses = [x["loss"] for x in state.log_history]
-        sns.lineplot(x=range(len(losses)), y=losses)
-        plt.savefig(os.path.join(self.output_dir, "loss.png"))
+        sns.lineplot(x=range(len(losses)), y=losses, ax=ax)
+        fig.savefig(os.path.join(self.output_dir, "loss.png"))
+        plt.close(fig)
 
-        # plot returns
+    def _plot_returns(self):
+        fig, ax = plt.subplots()
         df = pd.DataFrame(self.results)
-        sns.lineplot(x="samples", y="return", hue="target_return", data=df)
-        plt.savefig(os.path.join(self.output_dir, "eval.png"))
+        sns.lineplot(x="samples", y="return", hue="target_return", data=df, ax=ax)
+        fig.savefig(os.path.join(self.output_dir, "returns.png"))
+        plt.close(fig)
 
 
 class Visualiser(gym.Wrapper):
