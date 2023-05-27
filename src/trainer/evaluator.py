@@ -167,7 +167,7 @@ class Evaluator(TrainerCallback):
             self.samples_processed = self.collator.samples_processed
 
         self._evaluate_agent(agent)
-        self._plot_returns()
+        self._plot_results()
 
         if not final:
             self.samples_processed = self.collator.samples_processed
@@ -387,9 +387,14 @@ class Evaluator(TrainerCallback):
         fig.savefig(os.path.join(self.output_dir, "loss.png"))
         plt.close(fig)
 
-    def _plot_returns(self):
+    def _plot_results(self):
         fig, ax = plt.subplots()
         df = pd.DataFrame(self.results)
-        sns.lineplot(x="samples", y="return", hue="target_return", data=df, ax=ax)
+        sns.lineplot(x="samples", y="return", hue="model", data=df, ax=ax)
         fig.savefig(os.path.join(self.output_dir, "returns.png"))
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        sns.lineplot(x="samples", y="ep_length", hue="model", data=df, ax=ax)
+        fig.savefig(os.path.join(self.output_dir, "ep_length.png"))
         plt.close(fig)
