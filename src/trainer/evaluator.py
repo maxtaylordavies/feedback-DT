@@ -175,7 +175,7 @@ class Evaluator(TrainerCallback):
     def _create_env(self, atari=False):
         env_name = self.user_args["env_name"]
         if atari:
-            game = env_name.split("-")[1]
+            game = env_name.split(":")[1]
             _env = AtariEnv(self.device, game, self.user_args["seed"])
             return AtariVisualiser(
                 _env,
