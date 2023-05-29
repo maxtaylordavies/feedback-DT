@@ -6,7 +6,8 @@ import gymnasium as gym
 import torch
 import numpy as np
 import pandas as pd
-from minigrid.wrappers import FullyObsWrapper
+
+# from minigrid.wrappers import FullyObsWrapper
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
@@ -101,9 +102,9 @@ class Evaluator(TrainerCallback):
         self,
         user_args,
         collator,
-        sample_interval=100,
+        sample_interval=1000,
         target_returns=[0, 90, 1000],
-        num_repeats=10,
+        num_repeats=3,
         gamma=0.99,
     ) -> None:
         super().__init__()
@@ -115,8 +116,8 @@ class Evaluator(TrainerCallback):
         self.best_return = -np.inf
         self.num_repeats = num_repeats
         self.gamma = gamma
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = torch.device("cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cpu")
 
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
@@ -142,7 +143,6 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        # self._plot_loss(state)
         self._run_eval_and_plot(model, state, final=True)
 
     def on_step_begin(
@@ -154,13 +154,15 @@ class Evaluator(TrainerCallback):
         **kwargs,
     ):
         self._plot_loss(state)
-        if len(self.results["return"]) == 0 or state.global_step % 10 == 0:
+
+        sample_diff = self.collator.samples_processed - self.samples_processed
+        if len(self.results["return"]) == 0 or sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state)
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
         log(
             f"Running {'FINAL' if final else ''} evaluation (samples: {self.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-            with_tqdm=False,
+            with_tqdm=True,
         )
 
         if final:
@@ -198,7 +200,7 @@ class Evaluator(TrainerCallback):
 
         if ret > self.best_return:
             self.best_return = ret
-            log(f"New best return: {ret}", with_tqdm=False)
+            log(f"New best return: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as_best()
 
@@ -225,7 +227,7 @@ class Evaluator(TrainerCallback):
         # log the average episode return for the current eval
         log(
             f"Average episode return: {df[df['samples'] == self.samples_processed]['return'].mean()}",
-            with_tqdm=False,
+            with_tqdm=True,
         )
 
         # save the results to disk
