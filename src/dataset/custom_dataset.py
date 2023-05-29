@@ -211,7 +211,7 @@ class CustomDataset(MinariDataset):
         while len(obs) < num_samples:
             if depleted:
                 buffer_idx, depleted = buffer_idx + 1, False
-                buffer, i = load_dopamine_buffer(data_dir, game, buffer_idx), 0
+                buffer, i = load_dopamine_buffer(data_dir, game, 50 - buffer_idx), 0
 
             (
                 s,
@@ -239,7 +239,7 @@ class CustomDataset(MinariDataset):
             direction_observations=np.array([]),
             agent_positions=np.array([]),
             oracle_views=np.array([]),
-            dataset_name="",
+            dataset_name=f"dqn_replay-{game}-{num_samples}",
             algorithm_name="",
             environment_name="",
             environment_stack="",
