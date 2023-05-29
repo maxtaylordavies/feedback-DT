@@ -211,18 +211,27 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
 
         input.states = torch.cat(
-            [torch.zeros((1, padding, self.config.state_dim), device=device), input.states],
+            [
+                torch.zeros((1, padding, self.config.state_dim), device=device),
+                input.states,
+            ],
             dim=1,
         ).float()
         input.actions = torch.cat(
-            [torch.zeros((1, padding, self.config.act_dim), device=device), input.actions],
+            [
+                torch.zeros((1, padding, self.config.act_dim), device=device),
+                input.actions,
+            ],
             dim=1,
         ).float()
         input.returns_to_go = torch.cat(
             [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
         ).float()
         input.timesteps = torch.cat(
-            [torch.zeros((1, padding), dtype=torch.long, device=device), input.timesteps],
+            [
+                torch.zeros((1, padding), dtype=torch.long, device=device),
+                input.timesteps,
+            ],
             dim=1,
         )
 
