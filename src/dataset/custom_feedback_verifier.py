@@ -1,48 +1,48 @@
 from minigrid.core.world_object import Door, Key, Wall
+from minigrid.envs.babyai.core.verifier import (
+    ObjDesc,
+    SeqInstr,
+    GoToInstr,
+    PickupInstr,
+    OpenInstr,
+    PutNextInstr,
+    AndInstr,
+    BeforeInstr,
+    AfterInstr,
+    pos_next_to,
+)
+from abc import ABC, abstractmethod
 
 
-class RuleFeedback:
+class Feedback(ABC):
     """
-    Class for generating feedback for actions on MiniGrid environments.
+    Super class for generating feedback for actions on BabyAI environments.
     """
 
-    def __init__(self, env, action):
+    env = None
+    action = None
+    front_pos = None
+    front_cell = None
+    carrying = None
+
+    @abstractmethod
+    def verify_feedback(self, env, action):
         """
-        Initialize the Feedback object.
+        Verify the feedback for the action taken by the agent.
 
         Parameters
         ---------
         env : MiniGridEnv
-            The environment after the agent has taken a given action. MiniGridEnv is a subclass of gym.Env.
+            The environment which to verify an action against. MiniGridEnv is a subclass of gym.Env.
         action : int
-            The action taken by the agent.
-        """
-        # TO-DO: Implement sequence instruction feedback
-        self.instr_type = type(env)
-        self.env = env
-        self.action = action
-        # Get the position in front of the agent
-        self.front_cell = env.grid.get(*env.front_pos)
-        # Get the object carried by the agent (if any)
-        self.carrying = self.env.carrying
-        print(self.instr_type)
-        # access description properties (e.g. desc) and methods (e.g. verify())
-        # in sequence tasks using instrs.instr_a / instrs.instr_b
-        # check if BeforeInstr / AfterInstr sequence tasks include nested AndInstr's
-        # and use instrs.instr_a.instr_a ... if this is the case
+            The action to verify.
 
-        # PutNext instructions don't have an attribute desc - use desc_move and desc_fixed
-
-    def verify_feedback(self):
-        """
-        Return the feedback for the action taken by the agent.
-
-        Returns
+        Raises
         -------
-        str
-            The feedback for the action taken by the agent. This is either the rule violation feedback or the task feedback, or an empty string if no feedback is triggered by the agents action.
+        NotImplementedError
+            Raised when not overriden by a derived class
         """
-        return self._get_rule_feedback()
+        raise NotImplementedError
 
     def _is_empty_cell(self):
         """
@@ -57,6 +57,17 @@ class RuleFeedback:
             return True
         else:
             return False
+
+    def _is_wall(self):
+        """
+        Check if the agent is positioned in front of a wall.
+
+        Returns
+        -------
+        bool
+            True if the agent is positioned in front of a wall, False otherwise.
+        """
+        return isinstance(self.front_cell, Wall)
 
     def _is_door(self):
         """
@@ -114,32 +125,6 @@ class RuleFeedback:
                 return True
         return False
 
-    def _is_wall(self):
-        """
-        Check if the agent is positioned in front of a wall.
-
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of a wall, False otherwise.
-        """
-        return isinstance(self.front_cell, Wall)
-
-    def _is_obstacle(self):
-        """
-        Check if the .
-
-        Returns
-        -------
-        bool
-            True if the agent can move forward, False otherwise.
-        """
-        if not self.front_cell.can_overlap() and not (
-            self._is_closed_door() or self._is_locked_door() or self._is_wall()
-        ):
-            return True
-        return False
-
     def _is_carrying(self):
         """
         Check if the agent is carrying an object.
@@ -164,6 +149,27 @@ class RuleFeedback:
             isinstance(self.carrying, Key)
             and self.carrying.color == self.front_cell.color
         )
+
+
+class RuleFeedback(Feedback):
+    """
+    Sub class for generating rule feedback for actions on BabyAI environments.
+    """
+
+    def _is_obstacle(self):
+        """
+        Check if the .
+
+        Returns
+        -------
+        bool
+            True if the agent can move forward, False otherwise.
+        """
+        if not self.front_cell.can_overlap() and not (
+            self._is_closed_door() or self._is_locked_door() or self._is_wall()
+        ):
+            return True
+        return False
 
     def _is_valid_move_forward(self):
         """
@@ -314,3 +320,223 @@ class RuleFeedback:
         if self.action == self.env.actions.drop and not self._is_valid_drop():
             return self._get_drop_feedback()
         return ""
+
+    def verify_feedback(self, env, action):
+        """
+        Verify the feedback for the action taken by the agent.
+
+        Raises
+        -------
+        NotImplementedError
+            Raised when not overriden by a derived class
+        """
+        self.env = env
+        self.front_pos = self.env.front_pos
+        self.front_cell = self.env.grid.get(*self.front_pos)
+        self.carrying = self.env.carrying
+        self.action = action
+
+        return self._get_rule_feedback()
+
+
+class TaskFeedback(Feedback):
+    def __init__(self, env, test_mode=False):
+        self.env = env
+        self.tasks = self._get_tasks()
+        self.subtasks = self._get_subtasks()
+        self.agent_pos = self.env.agent_pos
+        if test_mode:
+            self.pop_from = -1
+        else:
+            self.pop_from = 0
+
+    # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
+
+    def _task_is_sequence(self):
+        return isinstance(self.env.instrs, SeqInstr)
+
+    # Instructions for AfterInst are sequences linked by inst_a 'after you' inst_b
+    # Note that for some seeds, this is actually not the case (uses ', then' instead of 'after you')
+    def _task_is_after(self):
+        return isinstance(self.env.instrs, AfterInstr)
+
+    # Instructions for BeforeInst are sequences linked by inst_a ', then' inst_b
+    # Note that for some seeds, this is actually not the case (uses 'after you' instead of ', then')
+    def _task_is_before(self):
+        return isinstance(self.env.instrs, BeforeInstr)
+
+    def _task_is_and(self, instrs):
+        return isinstance(instrs, AndInstr)
+
+    def _task_is_goto(self, instrs):
+        return isinstance(instrs, GoToInstr)
+
+    def _task_is_open(self, instrs):
+        return isinstance(instrs, OpenInstr)
+
+    def _task_is_unlock(self, instrs):
+        door_pos = instrs.desc.obj_poss[0]
+        door = self.env.grid.get(*door_pos)
+        return self._task_is_open(instrs) and door.is_locked
+
+    def _task_is_pickup(self, instrs):
+        return isinstance(instrs, PickupInstr)
+
+    def _task_is_putnext(self, instrs):
+        return isinstance(instrs, PutNextInstr)
+
+    # THIS DECIDES THE ORDER IN WHICH FEEDBACK IS PROVIDED, HOWEVER THE ORDER OF
+    # 'AND' SUBTASKS SHOULD BE ALLOWED TO BE ARBITRARY
+    def _decompose_and_instrs(self, instrs):
+        if self._task_is_and(instrs):
+            return instrs.instr_a, instrs.instr_b
+        return instrs
+
+    def _get_tasks(self):
+        if self._task_is_before():
+            return [
+                *self._decompose_and_instrs(self.env.instrs.instr_a),
+                *self._decompose_and_instrs(self.env.instrs.instr_b),
+            ]
+        if self._task_is_after():
+            return [
+                *self._decompose_and_instrs(self.env.instrs.instr_b),
+                *self._decompose_and_instrs(self.env.instrs.instr_a),
+            ]
+        if self._task_is_and(self.env.instrs):
+            return [*self._decompose_and_instrs(self.env.instrs)]
+        return [self.env.instrs]
+
+    def _decompose_open_instrs(self, instrs):
+        return GoToInstr(instrs.desc), instrs
+
+    def _decompose_unlock_instrs(self, instrs):
+        return (
+            GoToInstr(ObjDesc(Key, instrs.desc.color)),
+            PickupInstr(ObjDesc(Key, instrs.desc.color)),
+            GoToInstr(instrs.desc),
+            instrs,
+        )
+
+    def _decompose_pickup_instrs(self, instrs):
+        return GoToInstr(instrs.desc), instrs
+
+    def _decompose_putnext_instrs(self, instrs):
+        return (
+            GoToInstr(instrs.desc_move),
+            PickupInstr(instrs.desc_move),
+            GoToInstr(instrs.desc_fixed),
+            instrs,
+        )
+
+    def _get_subtasks(self):
+        subtasks = []
+        for task in self.tasks:
+            if self._task_is_goto(task):
+                subtasks.append(task)
+            if self._task_is_open(task):
+                if self._task_is_unlock(task):
+                    subtasks.extend(self._decompose_unlock_instrs(task))
+                subtasks.extend(self._decompose_open_instrs(task))
+            if self._task_is_pickup(task):
+                subtasks.extend(self._decompose_pickup_instrs(task))
+            if self._task_is_putnext(task):
+                subtasks.extend(self._decompose_putnext_instrs(task))
+        return subtasks
+
+    # METHODS FOR GENERATING FEEDBACK FOR EACH SUBTASK
+
+    def _has_different_col(self, current_obj, goal_obj):
+        return current_obj.color == goal_obj.color
+
+    def _has_different_type(self, current_obj, goal_obj):
+        return current_obj.type == goal_obj.type
+
+    def _has_different_location(self, current_obj, goal_obj):
+        return not (
+            self._is_goal(current_obj, goal_obj)
+            and self._has_different_col(current_obj, goal_obj)
+            and self._has_different_type(current_obj, goal_obj)
+        )
+
+    def _is_goal(self, current_obj, goal_obj):
+        return current_obj in goal_obj.obj_set
+
+    def _is_next_to_goal(self, goal_poss, current_pos):
+        for pos in goal_poss:
+            if pos_next_to(pos, current_pos):
+                return True
+        return False
+
+    def _has_multiple_goals(self, goal_obj):
+        return len(goal_obj.obj_set) > 1
+
+    def _get_article(self, goal_obj):
+        if self._has_multiple_goals(goal_obj):
+            return "a"
+        return "the"
+
+    def _get_goto_type(self, goal_obj):
+        if goal_obj.type == "door":
+            return "door"
+        return "object"
+
+    def _get_goto_feedback(self, instrs):
+        goal_obj = instrs.desc
+        if not (self._is_wall() or self._is_empty_cell()):
+            if self._is_goal(self.front_cell, goal_obj):
+                self.subtasks.pop(self.pop_from)
+                return f"You've gone to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
+        return ""
+
+    def _get_open_feedback(self, instrs):
+        goal_obj = instrs.desc
+        if not (self._is_wall() or self._is_empty_cell()):
+            if self._is_goal(self.front_cell, goal_obj):
+                if self._is_open_door():
+                    self.subtasks.pop(self.pop_from)
+                    return f"You've opened {self._get_article(goal_obj)} correct door."
+        return ""
+
+    def _get_pickup_feedback(self, instrs):
+        goal_obj = instrs.desc
+        if self._is_goal(self.carrying, goal_obj):
+            self.subtasks.pop(self.pop_from)
+            return f"You've picked up {self._get_article(goal_obj)} correct object."
+        return ""
+
+    def _get_putnext_feedback(self, instrs):
+        goal_obj_1 = instrs.desc_move
+        goal_obj_2 = instrs.desc_fixed
+        if not (self._is_wall() or self._is_empty_cell()):
+            if self._is_goal(self.front_cell, goal_obj_1):
+                if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
+                    self.subtasks.pop(self.pop_from)
+                    return f"You've put {self._get_article(goal_obj_1)} correct object next to {self._get_article(goal_obj_2)} correct {self._get_goto_type(goal_obj_2)}."
+        return ""
+
+    def _get_task_feedback(self):
+        current_subtask = self.subtasks[self.pop_from]
+        if self._task_is_goto(current_subtask):
+            return self._get_goto_feedback(current_subtask)
+        if self.action == self.env.actions.toggle and self._task_is_open(
+            current_subtask
+        ):
+            return self._get_open_feedback(current_subtask)
+        if self.action == self.env.actions.pickup and self._task_is_pickup(
+            current_subtask
+        ):
+            return self._get_pickup_feedback(current_subtask)
+        if self.action == self.env.actions.drop and self._task_is_putnext(
+            current_subtask
+        ):
+            return self._get_putnext_feedback(current_subtask)
+
+    def verify_feedback(self, env, action):
+        self.env = env
+        self.action = action
+        self.front_pos = self.env.front_pos
+        self.front_cell = self.env.grid.get(*self.front_pos)
+        self.carrying = self.env.carrying
+
+        return self._get_task_feedback()

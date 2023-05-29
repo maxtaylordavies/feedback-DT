@@ -121,6 +121,8 @@ def policy(args, observation):
 
 def generate_new_dataset(args):
     env = gym.make(args["env_name"])
+    # DECIDE: SHOULD THIS BE DIFFERENT SEEDS? OTHERWISE THE ENV IS GOING TO BE IDENTICAL
+    # IF SO, SHOULD WE CONTROL FOR SPECIFIC SEEDS FOR EVAL PURPOSES (ALSO SEE ISSUE WITH SEQ INSTRS)?
     partial_observation, _ = env.reset(seed=args["seed"])
 
     observation = get_observation(args, partial_observation, env)
