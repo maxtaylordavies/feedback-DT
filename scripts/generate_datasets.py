@@ -1,5 +1,3 @@
-import json
-import os
 import re
 
 import numpy as np
@@ -7,11 +5,10 @@ import gymnasium as gym
 
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
-from minigrid.envs.babyai.core.verifier import AfterInstr, BeforeInstr, AndInstr
 from tqdm import tqdm
 
 from src.dataset.custom_dataset import CustomDataset
-from src.dataset.custom_feedback_verifier import RuleFeedback
+from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import log
 from src.utils.argparsing import get_args
@@ -165,18 +162,27 @@ def generate_new_dataset(args):
         replay_buffer["terminations"][total_steps] = np.array(terminated)
         replay_buffer["truncations"][total_steps] = np.array(truncated)
         replay_buffer["feedback"][total_steps] = ""
+        rule_feedback_verifier = RuleFeedback()
+        task_feedback_verifier = TaskFeedback(env)
 
         while not (terminated or truncated):
             action = policy(args, observation)
+            rule_feedback = rule_feedback_verifier.verify_feedback(env, action)
             partial_observation, reward, terminated, truncated, _ = env.step(action)
 
             # Storing action a_t taken after observing o_t
             replay_buffer["actions"][total_steps] = np.array(action)
 
             # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
-            # feedback_verifier = RuleFeedback(env, action)
-            # feedback = feedback_verifier.verify_feedback()
-            feedback = ""
+            # If no rule feedback is provided (no rules have been breached), then
+            # we set the feedback to be the task feedback, otherwise we set it to be
+            # the rule feedback
+            # (note that there should always either be rule feedback or task success feedback
+            # as task success and rule violations are mutually exclusive)
+            if rule_feedback == "":
+                feedback = task_feedback_verifier.verify_feedback(env, action)
+            else:
+                feedback = rule_feedback
 
             # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
             # resulting from taking a_t at o_t
