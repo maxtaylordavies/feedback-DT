@@ -69,18 +69,6 @@ class CustomDataset(MinariDataset):
     def missions(self):
         return self._missions
 
-    @property
-    def direction_observations(self):
-        return self._direction_observations
-
-    @property
-    def agent_positions(self):
-        return self._agent_positions
-
-    @property
-    def oracle_views(self):
-        return self._oracle_views
-
     @classmethod
     def load(cls, dataset_name):
         """Loads dataset from HDF5.
