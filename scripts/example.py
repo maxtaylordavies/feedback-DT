@@ -10,7 +10,7 @@ os.environ["WANDB_DISABLED"] = "true"
 NUM_EPS = 100
 EP_LENGTH = 20
 STATE_DIM = 128
-ACT_DIM = 6
+ACT_DIM = 4
 CONTEXT_LENGTH = 1
 
 agent = RandomAgent(act_dim=ACT_DIM)
@@ -24,7 +24,7 @@ trainer = AgentTrainer(
     dataset=dataset,
     args={
         "run_name": "dummy",
-        "env_name": "Pong-ram-v4",
+        "env_name": "ALE/Breakout-ram-v5",
         "seed": 42,
         "output": ".",
         "wandb_mode": "disabled",

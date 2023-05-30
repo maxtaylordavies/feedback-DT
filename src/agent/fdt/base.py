@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-import numpy as np
 import torch
+from torch import nn
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
@@ -46,32 +46,28 @@ class DecisionTransformerOutput(ModelOutput):
 
 class FDTAgent(Agent, DecisionTransformerModel):
     def __init__(self, config, use_feedback=True):
-        super().__init__(config)
+        DecisionTransformerModel.__init__(self, config)
+
+        self.create_state_embedding_model()
 
         self.use_feedback = use_feedback
-
-        # embed image states using very simple conv net
-        self.state_embedding_model = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 32, 4, stride=1, padding=0),
-            torch.nn.ReLU(),
-            torch.nn.Flatten(),
-            torch.nn.Linear(800, config.hidden_size),
-            torch.nn.Tanh(),
-        )
-
         x = 1 + int(self.use_feedback)
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
-        self.predict_state = torch.nn.Linear(x * config.hidden_size, config.state_dim)
-        self.predict_action = torch.nn.Sequential(
+        self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
+        self.predict_action = nn.Sequential(
             *(
-                [torch.nn.Linear(x * config.hidden_size, config.act_dim)]
-                + ([torch.nn.Tanh()] if config.action_tanh else [])
+                [nn.Linear(x * self.hidden_size, config.act_dim)]
+                + ([nn.Tanh()] if config.action_tanh else [])
             )
         )
-        self.predict_return = torch.nn.Linear(x * config.hidden_size, 1)
+        self.predict_return = nn.Linear(x * self.hidden_size, 1)
 
-    def embed_state_convolutional(self, states):
+    def create_state_embedding_model(self):
+        # default to a linear state embedding - override this in child classes
+        self.state_embedding_model = nn.Linear(self.config.state_dim, self.hidden_size)
+
+    def _embed_state(self, states):
         return self.state_embedding_model(states)
 
     def _forward(self, input: AgentInput):
@@ -79,22 +75,22 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            input.attention_mask = torch.ones(
-                (batch_size, seq_length), dtype=torch.long
-            )
+            input.attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
         state_embeddings = (
-            self.embed_state_convolutional(
-                input.states.reshape(-1, 3, 8, 8).type(torch.float32).contiguous()
+            self._embed_state(
+                input.states.reshape((-1,) + self.config.state_shape)
+                .type(torch.float32)
+                .contiguous()
             ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
         action_embeddings = self.embed_action(input.actions) + time_embeddings
         returns_embeddings = self.embed_return(input.returns_to_go) + time_embeddings
         feedback_embeddings = (
-            feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
+            input.feedback_embeddings.reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
 
@@ -170,9 +166,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def _compute_loss(
-        self, input: AgentInput, output: DecisionTransformerOutput, **kwargs
-    ):
+    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
         act_dim = output.action_preds.shape[2]
         action_preds = output.action_preds.reshape(-1, act_dim)[
             input.attention_mask.reshape(-1) > 0
@@ -190,13 +184,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
         context=64,
         one_hot=False,
     ):
-        # This implementation does not condition on past rewards
         device = input.states.device
 
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.config.hidden_size)
+        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 
         input.states = input.states[:, -context:]

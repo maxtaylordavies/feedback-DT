@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import torch
@@ -48,12 +48,12 @@ class Collator:
 
         # set state and action dimensions
         self.state_dim, self.act_dim = (
-            np.prod(custom_dataset.symbolic_observations.shape[1:]),
+            np.prod(custom_dataset.observations.shape[1:]),
             custom_dataset.get_action_size(),
         )
 
         # store observations, actions and rewards
-        self.observations = custom_dataset.symbolic_observations.reshape((-1, self.state_dim))
+        self.observations = custom_dataset.observations.reshape((-1, self.state_dim))
         self.actions = to_one_hot(
             custom_dataset.actions, width=self.act_dim
         )  # convert from index integer representation to one-hot
