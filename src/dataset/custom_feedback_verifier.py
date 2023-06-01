@@ -1,4 +1,4 @@
-from minigrid.core.world_object import Door, Key, Wall
+from minigrid.core.world_object import Door, Key, Wall, Box
 from minigrid.envs.babyai.core.verifier import (
     ObjDesc,
     SeqInstr,
@@ -53,10 +53,7 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of an empty cell, False otherwise.
         """
-        if self.front_cell is None:
-            return True
-        else:
-            return False
+        return self.front_cell is None
 
     def _is_wall(self):
         """
@@ -78,10 +75,7 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of a door, False otherwise.
         """
-        if isinstance(self.front_cell, Door):
-            return True
-        else:
-            return False
+        return isinstance(self.front_cell, Door)
 
     def _is_open_door(self):
         """
@@ -92,10 +86,27 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of an open door, False otherwise.
         """
-        if self._is_door() and self.front_cell.is_open:
-            return True
-        else:
-            return False
+
+        return self._is_door() and self.front_cell.is_open
+
+
+class RuleFeedback(Feedback):
+    """
+    Sub class for generating rule feedback for actions on BabyAI environments.
+    """
+
+    def _is_obstacle(self):
+        """
+        Check if there is an obstacle object in front of the agent.
+
+        Returns
+        -------
+        bool
+            True if the object in front of the agent is an obstacle (other than a closed/locked door or wall), False otherwise.
+        """
+        return not self.front_cell.can_overlap() and not (
+            self._is_closed_door() or self._is_locked_door() or self._is_wall()
+        )
 
     def _is_closed_door(self):
         """
@@ -107,8 +118,7 @@ class Feedback(ABC):
             True if the agent is positioned in front of an cloed door, False otherwise.
         """
         if self._is_door():
-            if not self.front_cell.is_open:
-                return True
+            return not self.front_cell.is_open and not self.front_cell.is_locked
         return False
 
     def _is_locked_door(self):
@@ -121,8 +131,20 @@ class Feedback(ABC):
             True if the agent is positioned in front of a locked door, False otherwise.
         """
         if self._is_door():
-            if self.front_cell.is_locked:
-                return True
+            return self.front_cell.is_locked
+        return False
+
+    def _is_box(self):
+        """
+        Check if there is a box object in front of the agent.
+
+        Returns
+        -------
+        bool
+            True if the object in front of the agent is a box, False otherwise.
+        """
+        if isinstance(self.front_cell, Box):
+            return True
         return False
 
     def _is_carrying(self):
@@ -150,27 +172,6 @@ class Feedback(ABC):
             and self.carrying.color == self.front_cell.color
         )
 
-
-class RuleFeedback(Feedback):
-    """
-    Sub class for generating rule feedback for actions on BabyAI environments.
-    """
-
-    def _is_obstacle(self):
-        """
-        Check if the .
-
-        Returns
-        -------
-        bool
-            True if the agent can move forward, False otherwise.
-        """
-        if not self.front_cell.can_overlap() and not (
-            self._is_closed_door() or self._is_locked_door() or self._is_wall()
-        ):
-            return True
-        return False
-
     def _is_valid_move_forward(self):
         """
         Check if the agent can move forward.
@@ -192,15 +193,15 @@ class RuleFeedback(Feedback):
             The feedback for the move forward action with respect to the object in the cell that the agent is facing.
         """
         if self._is_locked_door():
-            return "You can't move forward here. The door in front of you is locked."
+            return "You can't move forward here as the door in front of you is locked."
         if self._is_closed_door():
-            return "You can't move forward here. The door in front of you is closed."
+            return "You can't move forward here as the door in front of you is closed."
         if self._is_wall():
             return "You can't move forward while you're facing the wall."
         if self._is_obstacle():
             return (
-                "You can't move forward here. "
-                + f"There is an obstacle in the form of a {self.front_cell.type} blocking the way."
+                "You can't move forward here "
+                + f"as there is an obstacle in the form of a {self.front_cell.type} blocking the way."
             )
 
     def _is_valid_toggle(self):
@@ -212,9 +213,19 @@ class RuleFeedback(Feedback):
         bool
             True if the agent can toggle the object in front of it, False otherwise."""
         if self.front_cell:
-            return self.front_cell.toggle(self.env, self.env.agent_pos)
-        else:
-            return False
+            print(f"Locked door: {self._is_locked_door()}")
+            print(f"Carrying correct key: {self._is_carrying_correct_key()}")
+            print(f"Closed door: {self._is_closed_door()}")
+            print(f"Box: {self._is_box()}")
+            print(
+                f"Valid: {(self._is_locked_door() and self._is_carrying_correct_key()) or self._is_closed_door() or self._is_box()}"
+            )
+            return (
+                (self._is_locked_door() and self._is_carrying_correct_key())
+                or self._is_closed_door()
+                or self._is_box()
+            )
+        return False
 
     def _get_toggle_feedback(self):
         """
@@ -226,15 +237,15 @@ class RuleFeedback(Feedback):
             The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "There is nothing to toggle in front of you."
+            return "There is nothing to open in front of you."
         if self._is_open_door():
-            return "You can't toggle an already open door."
+            return "You just closed an already open door."
         if self._is_locked_door() and not self._is_carrying_correct_key():
-            return "You can't toggle a locked door without the correct key."
+            return "You can't open a locked door without the correct key."
         if self._is_wall():
-            return "You can't toggle the wall."
+            return "You can't open the wall."
         if self._is_obstacle():
-            return f"You can't toggle {self.front_cell.type}s."
+            return f"You can't open {self.front_cell.type}s."
 
     def _is_valid_pickup(self):
         """
@@ -261,7 +272,7 @@ class RuleFeedback(Feedback):
         if self._is_empty_cell():
             return "There is nothing to pick up in front of you."
         if self._is_door():
-            return "You can't pick up a door."
+            return "You can't pick up doors."
         if self._is_wall():
             return "You can't pick up the wall."
         if self._is_carrying():
@@ -295,8 +306,8 @@ class RuleFeedback(Feedback):
             return "You can't drop an object while you're facing a door."
         if self._is_obstacle():
             return (
-                "You can't drop an object in front of you. "
-                + f"There is already a {self.front_cell.type} there."
+                "You can't drop an object on top of another object, and "
+                + f"there is already a {self.front_cell.type} in front of you."
             )
 
     def _get_rule_feedback(self):
@@ -314,6 +325,7 @@ class RuleFeedback(Feedback):
         ):
             return self._get_move_forward_feedback()
         if self.action == self.env.actions.toggle and not self._is_valid_toggle():
+            print(f"Valid toggle: {self._get_toggle_feedback()}")
             return self._get_toggle_feedback()
         if self.action == self.env.actions.pickup and not self._is_valid_pickup():
             return self._get_pickup_feedback()
@@ -390,7 +402,7 @@ class TaskFeedback(Feedback):
     def _decompose_and_instrs(self, instrs):
         if self._task_is_and(instrs):
             return instrs.instr_a, instrs.instr_b
-        return instrs
+        return [instrs]
 
     def _get_tasks(self):
         if self._task_is_before():
@@ -412,8 +424,8 @@ class TaskFeedback(Feedback):
 
     def _decompose_unlock_instrs(self, instrs):
         return (
-            GoToInstr(ObjDesc(Key, instrs.desc.color)),
-            PickupInstr(ObjDesc(Key, instrs.desc.color)),
+            GoToInstr(ObjDesc("key", instrs.desc.color)),
+            PickupInstr(ObjDesc("key", instrs.desc.color)),
             GoToInstr(instrs.desc),
             instrs,
         )

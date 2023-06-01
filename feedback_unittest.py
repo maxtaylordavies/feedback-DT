@@ -33,7 +33,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't toggle the wall."
+            == "You can't open the wall."
         )
 
     def test_invalid_forward_obstacle(self):
@@ -43,7 +43,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         self.env.step(1)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't move forward here. There is an obstacle in the form of a ball blocking the way."
+            == "You can't move forward here as there is an obstacle in the form of a ball blocking the way."
         )
 
     def test_invalid_toggle_obstacle(self):
@@ -53,7 +53,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         self.env.step(1)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't toggle balls."
+            == "You can't open balls."
         )
 
     def test_valid_pickup(self):
@@ -80,7 +80,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "There is nothing to toggle in front of you."
+            == "There is nothing to open in front of you."
         )
 
     def test_invalid_drop_wall(self):
@@ -102,7 +102,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't drop an object in front of you. There is already a key there."
+            == "You can't drop an object on top of another object, and there is already a key in front of you."
         )
 
     def test_invalid_pickup_carrying(self):
@@ -154,7 +154,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't pick up a door."
+            == "You can't pick up doors."
         )
 
     def test_invalid_drop_door(self):
@@ -176,7 +176,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't move forward here. The door in front of you is closed."
+            == "You can't move forward here as the door in front of you is closed."
         )
 
     def test_valid_toggle_closed_door(self):
@@ -229,7 +229,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't toggle a locked door without the correct key."
+            == "You can't open a locked door without the correct key."
         )
 
     def test_invalid_toggle_locked_door_no_key(self):
@@ -240,7 +240,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't toggle a locked door without the correct key."
+            == "You can't open a locked door without the correct key."
         )
 
     def test_invalid_forward_locked_door(self):
@@ -251,7 +251,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't move forward here. The door in front of you is locked."
+            == "You can't move forward here as the door in front of you is locked."
         )
 
     def test_valid_toggle_locked_door(self):

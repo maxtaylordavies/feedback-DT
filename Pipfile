@@ -20,6 +20,8 @@ h5py = "*"
 gymnasium = "*"
 feedback-dt = {path = "."}
 matplotlib = "*"
+seaborn-image = "*"
+plotly = "*"
 
 [dev-packages]
 ipykernel = "*"
