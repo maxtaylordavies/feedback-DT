@@ -213,13 +213,6 @@ class RuleFeedback(Feedback):
         bool
             True if the agent can toggle the object in front of it, False otherwise."""
         if self.front_cell:
-            print(f"Locked door: {self._is_locked_door()}")
-            print(f"Carrying correct key: {self._is_carrying_correct_key()}")
-            print(f"Closed door: {self._is_closed_door()}")
-            print(f"Box: {self._is_box()}")
-            print(
-                f"Valid: {(self._is_locked_door() and self._is_carrying_correct_key()) or self._is_closed_door() or self._is_box()}"
-            )
             return (
                 (self._is_locked_door() and self._is_carrying_correct_key())
                 or self._is_closed_door()
@@ -325,7 +318,6 @@ class RuleFeedback(Feedback):
         ):
             return self._get_move_forward_feedback()
         if self.action == self.env.actions.toggle and not self._is_valid_toggle():
-            print(f"Valid toggle: {self._get_toggle_feedback()}")
             return self._get_toggle_feedback()
         if self.action == self.env.actions.pickup and not self._is_valid_pickup():
             return self._get_pickup_feedback()
@@ -361,6 +353,7 @@ class TaskFeedback(Feedback):
             self.pop_from = -1
         else:
             self.pop_from = 0
+        # self.prev_goal_objects = None
 
     # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
 
@@ -458,21 +451,17 @@ class TaskFeedback(Feedback):
 
     # METHODS FOR GENERATING FEEDBACK FOR EACH SUBTASK
 
-    def _has_different_col(self, current_obj, goal_obj):
-        return current_obj.color == goal_obj.color
-
-    def _has_different_type(self, current_obj, goal_obj):
-        return current_obj.type == goal_obj.type
-
-    def _has_different_location(self, current_obj, goal_obj):
-        return not (
-            self._is_goal(current_obj, goal_obj)
-            and self._has_different_col(current_obj, goal_obj)
-            and self._has_different_type(current_obj, goal_obj)
-        )
-
     def _is_goal(self, current_obj, goal_obj):
+        print(f"current obj: {current_obj}")
+        print(f"goal obj: {goal_obj}")
+        print(f"goal objs: {goal_obj.obj_set}")
         return current_obj in goal_obj.obj_set
+
+    # def _is_goal_pickup(self, current_obj, goal_obj):
+    #     print(f"current obj: {current_obj}")
+    #     print(f"goal objs: {goal_obj.obj_set}")
+    #     print(f"prev goal objs: {self.prev_goal_objects}")
+    #     return current_obj in self.prev_goal_objects
 
     def _is_next_to_goal(self, goal_poss, current_pos):
         for pos in goal_poss:
@@ -495,6 +484,7 @@ class TaskFeedback(Feedback):
 
     def _get_goto_feedback(self, instrs):
         goal_obj = instrs.desc
+        print(instrs.desc.obj_poss)
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
@@ -513,6 +503,7 @@ class TaskFeedback(Feedback):
     def _get_pickup_feedback(self, instrs):
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
+            # if self._is_goal_pickup(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
             return f"You've picked up {self._get_article(goal_obj)} correct object."
         return ""
@@ -529,22 +520,35 @@ class TaskFeedback(Feedback):
 
     def _get_task_feedback(self):
         current_subtask = self.subtasks[self.pop_from]
-        if self._task_is_goto(current_subtask):
+        print(f"current subtask: {current_subtask}")
+        if self.action in [
+            self.env.actions.left,
+            self.env.actions.right,
+            self.env.actions.forward,
+        ] and self._task_is_goto(current_subtask):
+            print("Checking for GoTo feedback")
             return self._get_goto_feedback(current_subtask)
         if self.action == self.env.actions.toggle and self._task_is_open(
             current_subtask
         ):
+            print("Checking for Open feedback")
             return self._get_open_feedback(current_subtask)
         if self.action == self.env.actions.pickup and self._task_is_pickup(
             current_subtask
         ):
+            print("Checking for Pickup feedback")
             return self._get_pickup_feedback(current_subtask)
         if self.action == self.env.actions.drop and self._task_is_putnext(
             current_subtask
         ):
+            print("Checking for PutnNext feedback")
             return self._get_putnext_feedback(current_subtask)
 
     def verify_feedback(self, env, action):
+        # try:
+        #     self.prev_goal_objects = self.subtasks[self.pop_from].desc.obj_set
+        # except AttributeError:
+        #     self.prev_goal_objects = self.subtasks[self.pop_from].desc_move.obj_set
         self.env = env
         self.action = action
         self.front_pos = self.env.front_pos
