@@ -229,7 +229,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't open a locked door without the correct key."
+            == "You can't open a locked door without a key of the same color as the door."
         )
 
     def test_invalid_toggle_locked_door_no_key(self):
@@ -240,7 +240,7 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
             self.env.step(step)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You can't open a locked door without the correct key."
+            == "You can't open a locked door without a key of the same color as the door."
         )
 
     def test_invalid_forward_locked_door(self):

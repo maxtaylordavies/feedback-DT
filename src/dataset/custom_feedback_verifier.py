@@ -241,7 +241,7 @@ class RuleFeedback(Feedback):
         if self._is_open_door():
             return "You just closed an already open door."
         if self._is_locked_door() and not self._is_carrying_correct_key():
-            return "You can't open a locked door without the correct key."
+            return "You can't open a locked door without a key of the same color as the door."
         if self._is_wall():
             return "You can't open the wall."
         if self._is_obstacle():
