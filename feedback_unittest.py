@@ -601,17 +601,28 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
             == "You've picked up the correct object."
         )
 
-        # "go to a grey door"
-        for step in [0, 2, 2, 2, 2, 1, 2, 2, 2, 2, 0, 2, 2, 1, 2, 2, 2, 1, 2, 2]:
-            self.env.step(step)
-
-        assert (
-            feedback_verifier.verify_feedback(self.env, 2)
-            == "You've gone to a correct door."
-        )
-
         # "put next to grey door"
         for step in [
+            0,
+            2,
+            2,
+            2,
+            2,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            2,
+            2,
+            1,
+            2,
+            2,
+            2,
+            1,
+            2,
+            2,
             1,
             1,
             2,

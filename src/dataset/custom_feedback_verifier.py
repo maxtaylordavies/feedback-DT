@@ -434,7 +434,6 @@ class TaskFeedback(Feedback):
         return (
             GoToInstr(instrs.desc_move),
             PickupInstr(instrs.desc_move),
-            GoToInstr(instrs.desc_fixed),
             instrs,
         )
 
@@ -446,7 +445,8 @@ class TaskFeedback(Feedback):
             if self._task_is_open(task):
                 if self._task_is_unlock(task):
                     subtasks.extend(self._decompose_unlock_instrs(task))
-                subtasks.extend(self._decompose_open_instrs(task))
+                else:
+                    subtasks.extend(self._decompose_open_instrs(task))
             if self._task_is_pickup(task):
                 subtasks.extend(self._decompose_pickup_instrs(task))
             if self._task_is_putnext(task):
@@ -505,15 +505,17 @@ class TaskFeedback(Feedback):
     def _get_putnext_feedback(self, instrs):
         goal_obj_1 = instrs.desc_move
         goal_obj_2 = instrs.desc_fixed
-        if not (self._is_wall() or self._is_empty_cell()):
-            if self._is_goal(self.front_cell, goal_obj_1):
-                if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
-                    self.subtasks.pop(self.pop_from)
-                    return f"You've put {self._get_article(goal_obj_1)} correct object next to {self._get_article(goal_obj_2)} correct {self._get_goto_type(goal_obj_2)}."
+        if self._is_goal(self.front_cell, goal_obj_1):
+            if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
+                self.subtasks.pop(self.pop_from)
+                return f"You've put {self._get_article(goal_obj_1)} correct object next to {self._get_article(goal_obj_2)} correct {self._get_goto_type(goal_obj_2)}."
         return ""
 
     def _get_task_feedback(self):
-        current_subtask = self.subtasks[self.pop_from]
+        try:
+            current_subtask = self.subtasks[self.pop_from]
+        except IndexError:
+            return ""
         if (
             self.action == self.env.actions.left
             or self.action == self.env.actions.right
@@ -534,10 +536,6 @@ class TaskFeedback(Feedback):
             return self._get_putnext_feedback(current_subtask)
 
     def verify_feedback(self, env, action):
-        # try:
-        #     self.prev_goal_objects = self.subtasks[self.pop_from].desc.obj_set
-        # except AttributeError:
-        #     self.prev_goal_objects = self.subtasks[self.pop_from].desc_move.obj_set
         self.env = env
         self.action = action
         self.front_pos = self.env.front_pos
