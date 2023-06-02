@@ -19,4 +19,6 @@ scripts/test.py
 build/
 test.py
 sandpit.py
+images/
+demos/
 ```

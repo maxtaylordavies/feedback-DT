@@ -18,10 +18,11 @@ transformers = "*"
 jsonc-parser = "*"
 h5py = "*"
 gymnasium = "*"
-feedback-dt = {path = "."}
 matplotlib = "*"
 seaborn-image = "*"
 plotly = "*"
+e = "*"
+feedback-dt = {path = "."}
 
 [dev-packages]
 ipykernel = "*"

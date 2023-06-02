@@ -128,27 +128,15 @@ def get_args():
         help="whether to use feedback during training",
     )
     parser.add_argument(
-        "--feedback_type",
+        "--demo",
         type=str,
-        default="direction",
-        help="the type of feedback to use: 'direction', 'distance', 'adjacency', or 'action'",
+        default="from_default_hard",
+        help="the type of demo to make, either from a predefined action sequence corresponding to an easy or a hard task, or from an action sequence corresponding to an episode of the actual training data for a given environment and seed.'",
     )
     parser.add_argument(
-        "--feedback_mode",
+        "--output_dir",
         type=str,
-        default="simple",
-        help="the feedback mode to use: 'simple' or 'verbose'",
-    )
-    parser.add_argument(
-        "--feedback_freq_steps",
-        type=int,
-        default=1,
-        help="how often to provide feedback (every n-steps)",
-    )
-    parser.add_argument(
-        "--feedback_freq_type",
-        type=str,
-        default="exact",
-        help="'exact' or 'poisson' - whether to provide feedback exactly every n-steps or use a poisson distribution",
+        default="demos",
+        help="the directory to save output - such as demo videos - to.",
     )
     return vars(parser.parse_args())
