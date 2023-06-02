@@ -479,7 +479,7 @@ class TaskFeedback(Feedback):
         return "object"
 
     def _get_completion_level(self):
-        if self.subtasks == []:
+        if not self.subtasks:
             return ""
         return "a part of "
 
