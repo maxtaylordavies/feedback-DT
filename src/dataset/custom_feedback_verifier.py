@@ -482,7 +482,7 @@ class TaskFeedback(Feedback):
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
-                return f"You've gone to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
+                return f"You've completed a part of your task by going to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
         return ""
 
     def _get_open_feedback(self, instrs):
@@ -491,7 +491,7 @@ class TaskFeedback(Feedback):
             if self._is_goal(self.front_cell, goal_obj):
                 if self._is_open_door():
                     self.subtasks.pop(self.pop_from)
-                    return f"You've opened {self._get_article(goal_obj)} correct door."
+                    return f"You've completed a part of your task by opening {self._get_article(goal_obj)} correct door."
         return ""
 
     def _get_pickup_feedback(self, instrs):
@@ -499,7 +499,7 @@ class TaskFeedback(Feedback):
         if self._is_goal(self.carrying, goal_obj):
             # if self._is_goal_pickup(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
-            return f"You've picked up {self._get_article(goal_obj)} correct object."
+            return f"You've completed a part of your task by picking up {self._get_article(goal_obj)} correct object."
         return ""
 
     def _get_putnext_feedback(self, instrs):
@@ -508,7 +508,7 @@ class TaskFeedback(Feedback):
         if self._is_goal(self.front_cell, goal_obj_1):
             if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
                 self.subtasks.pop(self.pop_from)
-                return f"You've put {self._get_article(goal_obj_1)} correct object next to {self._get_article(goal_obj_2)} correct {self._get_goto_type(goal_obj_2)}."
+                return f"You've completed a part of your task by putting {self._get_article(goal_obj_1)} correct move object next to {self._get_article(goal_obj_2)} correct {'fixed object' if self._get_goto_type(goal_obj_2) == 'object' else self._get_goto_type(goal_obj_2)}."
         return ""
 
     def _get_task_feedback(self):
