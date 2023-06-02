@@ -1,8 +1,7 @@
 import re
 
-import numpy as np
 import gymnasium as gym
-
+import numpy as np
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
@@ -10,8 +9,8 @@ from tqdm import tqdm
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils.utils import log
 from src.utils.argparsing import get_args
+from src.utils.utils import log
 
 
 def get_dataset(args):
