@@ -1,17 +1,18 @@
-from minigrid.core.world_object import Door, Key, Wall, Box
+from abc import ABC, abstractmethod
+
+from minigrid.core.world_object import Box, Door, Key, Wall
 from minigrid.envs.babyai.core.verifier import (
-    ObjDesc,
-    SeqInstr,
-    GoToInstr,
-    PickupInstr,
-    OpenInstr,
-    PutNextInstr,
+    AfterInstr,
     AndInstr,
     BeforeInstr,
-    AfterInstr,
+    GoToInstr,
+    ObjDesc,
+    OpenInstr,
+    PickupInstr,
+    PutNextInstr,
+    SeqInstr,
     pos_next_to,
 )
-from abc import ABC, abstractmethod
 
 
 class Feedback(ABC):

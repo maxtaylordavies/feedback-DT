@@ -1,9 +1,15 @@
+import os
+
+import cv2
 import gymnasium as gym
 import matplotlib.pyplot as plt
+
+plt.rcParams.update({"axes.titlesize": "x-small"})
+plt.rcParams.update({"axes.labelsize": "x-small"})
+
 from minigrid.wrappers import RGBImgObsWrapper
+
 from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
-import cv2
-import os
 
 DEFAULT_HARD_ACTIONS = [
     2,
@@ -200,12 +206,13 @@ class DemoVideo:
         self.config = config
         self.seed = seed
         self.actions = actions
-        self.demo_mode = demo_mode
-        self.output_dir = output_dir
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+        self.output_dir = os.path.join(output_dir, demo_mode)
         if not os.path.exists(self.output_dir):
             os.mkdir(self.output_dir)
-        self.env = self._instantiate_rgb_env(config, seed)
         self.mission = None
+        self.env = self._instantiate_rgb_env(config, seed)
 
     def _format_mission(self):
         if ", then " in self.mission:
@@ -227,13 +234,15 @@ class DemoVideo:
         _, ax = plt.subplots(1)
         _ = plt.imshow(obs["image"])
         mission_formatted = self._format_mission()
-        feedback_formatted = self._format_feedback(feedback, self.actions[i])
+        feedback_formatted = (
+            self._format_feedback(feedback, self.actions[i]) if feedback else None
+        )
         title = feedback_formatted if feedback else None
         ax.set(title=title, xlabel=mission_formatted, xticks=[], yticks=[])
         image_name = (
             f"step_{i+1 if i >= 99 else (f'0{i+1}' if i >= 9 else f'00{i+1}')}.png"
-            if i
-            else "000.png"
+            if i is not None
+            else "step_000.png"
         )
         plt.savefig(os.path.join(self.output_dir, image_name))
         plt.close()

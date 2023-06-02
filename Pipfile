@@ -22,7 +22,7 @@ matplotlib = "*"
 seaborn-image = "*"
 plotly = "*"
 e = "*"
-feedback-dt = {path = "."}
+feedback-dt = {editable = true, path = "."}
 
 [dev-packages]
 ipykernel = "*"
