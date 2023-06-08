@@ -32,14 +32,14 @@ class Feedback(ABC):
         Verify the feedback for the action taken by the agent.
 
         Parameters
-        ---------
+        ----------
         env : MiniGridEnv
             The environment which to verify an action against. MiniGridEnv is a subclass of gym.Env.
         action : int
             The action to verify.
 
         Raises
-        -------
+        ------
         NotImplementedError
             Raised when not overriden by a derived class
         """
@@ -331,7 +331,7 @@ class RuleFeedback(Feedback):
         Verify the feedback for the action taken by the agent.
 
         Raises
-        -------
+        ------
         NotImplementedError
             Raised when not overriden by a derived class
         """
