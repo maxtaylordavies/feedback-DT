@@ -8,10 +8,13 @@ from src.utils.demos import (
     DEFAULT_HARD_SEED,
     DemoVideo,
 )
+from generate_datasets import get_dataset
 
 if __name__ == "__main__":
     args = get_args()
-    print(args["demo"])
+    args["load_dataset_if_exists"] = False
+    args["demo"] = "custom"
+    args["demo_episode"] = 0
     if args["demo"] == "from_default_hard":
         config = DEFAULT_HARD_CONFIG
         seed = DEFAULT_HARD_SEED
@@ -21,6 +24,9 @@ if __name__ == "__main__":
         seed = DEFAULT_EASY_SEED
         actions = DEFAULT_EASY_ACTIONS
     else:
-        raise NotImplementedError
-    demo = DemoVideo(config, seed, actions, args["demo"], args["output_dir"])
-    demo.make_demo_video()
+        dataset = get_dataset(args)
+        config = dataset.environment_name
+        seed = dataset.seed_used
+        actions = dataset.episodes[args["demo_episode"]].actions
+    # demo = DemoVideo(config, seed, actions, args["demo"], args["output_dir"])
+    # demo.make_demo_video()

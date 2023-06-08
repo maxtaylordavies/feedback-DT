@@ -21,8 +21,9 @@ gymnasium = "*"
 matplotlib = "*"
 seaborn-image = "*"
 plotly = "*"
-e = "*"
 feedback-dt = {editable = true, path = "."}
+opencv-python = "*"
+dopamine-rl = "*"
 
 [dev-packages]
 ipykernel = "*"

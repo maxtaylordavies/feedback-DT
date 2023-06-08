@@ -5,6 +5,7 @@ import numpy as np
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
+import numpy as np
 
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
@@ -186,20 +187,33 @@ def generate_new_dataset(args):
             # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
             # resulting from taking a_t at o_t
             observation = get_observation(args, partial_observation, env)
-            if not (terminated or truncated):
-                replay_buffer["observations"][total_steps + 1] = observation["image"]
-                replay_buffer["missions"][total_steps + 1] = mission
-                replay_buffer["rewards"][total_steps + 1] = np.array(reward)
-                replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
-                replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
-                replay_buffer["feedback"][total_steps + 1] = feedback
+            replay_buffer["observations"][total_steps + 1] = observation["image"]
+            replay_buffer["missions"][total_steps + 1] = mission
+            replay_buffer["rewards"][total_steps + 1] = np.array(reward)
+            replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
+            # if terminated:
+            #     print(f"terminated: {terminated}")
+            #     print(replay_buffer["terminations"][total_steps + 1])
+            replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
+            # if truncated:
+            #     print(f"truncated: {truncated}")
+            #     print(replay_buffer["truncations"][total_steps + 1])
+            replay_buffer["feedback"][total_steps + 1] = feedback
 
             total_steps += 1
 
     env.close()
 
     for key in replay_buffer.keys():
-        replay_buffer[key] = replay_buffer[key][:total_steps]
+        replay_buffer[key] = replay_buffer[key][: total_steps + 1]
+
+    for step in replay_buffer["terminations"]:
+        if step:
+            print(step)
+
+    for step in replay_buffer["truncations"]:
+        if step:
+            print(step)
 
     episode_terminals = (
         replay_buffer["terminations"] + replay_buffer["truncations"]

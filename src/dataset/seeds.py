@@ -1,12 +1,12 @@
 import json
 import random
 from itertools import combinations_with_replacement
+import os
 
 import gymnasium as gym
 from tqdm import tqdm
 from minigrid.core.constants import COLOR_NAMES
 from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, OpenInstr
-from minigrid.envs.babyai.core.roomgrid_level import RejectSampling
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
@@ -670,6 +670,11 @@ class SeedFinder:
 
 
 if __name__ == "__main__":
+    if os.path.exists("in_domain_seeds.json") and os.path.exists("ood_seeds.json"):
+        print(
+            "CHECK EXISTING FILES. IF YOU WANT TO OVERWRITE THEM, DELETE THE EXISTING FILES."
+        )
+        exit()
     seed_finder = SeedFinder()
     in_domain_dict, ood_dict = seed_finder.find_seeds()
     json.dump(in_domain_dict, open("in_domain_seeds.json", "w"))

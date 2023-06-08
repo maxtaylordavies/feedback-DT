@@ -14,7 +14,7 @@ def get_args():
         "--env_name",
         type=str,
         default="BabyAI-GoToRedBallGrey-v0",
-        help="the name of the environment; must be registered with gymnasium",
+        help="the name of the environment config; must be registered with gymnasium",
     )
     parser.add_argument(
         "--num_episodes",
@@ -138,5 +138,11 @@ def get_args():
         type=str,
         default="demos",
         help="the directory to save output - such as demo videos - to.",
+    )
+    parser.add_argument(
+        "--demo_episode",
+        type=int,
+        default=0,
+        help="the index of the episode to make a demo video of.",
     )
     return vars(parser.parse_args())

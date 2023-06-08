@@ -2,7 +2,8 @@ import os
 
 import h5py
 import numpy as np
-from dopamine.replay_memory import circular_replay_buffer
+
+# from dopamine.replay_memory import circular_replay_buffer
 
 from src.dataset.minari_dataset import MinariDataset
 
@@ -227,15 +228,15 @@ class CustomDataset(MinariDataset):
 
 
 # helper func to load a dopamine buffer from dqn replay logs
-def load_dopamine_buffer(data_dir, game, buffer_idx):
-    replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
-        observation_shape=(84, 84),
-        stack_size=4,
-        update_horizon=1,
-        gamma=0.99,
-        observation_dtype=np.uint8,
-        batch_size=32,
-        replay_capacity=100000,
-    )
-    replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
-    return replay_buffer
+# def load_dopamine_buffer(data_dir, game, buffer_idx):
+#     replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
+#         observation_shape=(84, 84),
+#         stack_size=4,
+#         update_horizon=1,
+#         gamma=0.99,
+#         observation_dtype=np.uint8,
+#         batch_size=32,
+#         replay_capacity=100000,
+#     )
+#     replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
+#     return replay_buffer
