@@ -1,20 +1,19 @@
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from src.dataset import CustomDataset, FeedbackArray
-from src.utils.utils import to_one_hot, discounted_cumsum
+from src.dataset.minari_dataset import MinariDataset
+from src.utils.utils import discounted_cumsum, to_one_hot
 
 
 @dataclass
 class Collator:
     def __init__(
         self,
-        custom_dataset: CustomDataset,
-        feedback: Optional[FeedbackArray] = None,
+        custom_dataset: MinariDataset,
+        feedback: True,
         context_length=64,
         scale=1,
         gamma=1.0,
@@ -67,13 +66,13 @@ class Collator:
 
         # store feedback as flattened array. if no feedback provided, use empty strings
         self.feedback = (
-            np.hstack(feedback)
-            if feedback is not None
+            np.hstack(custom_dataset.feedback)
+            if feedback
             else np.array([""] * len(self.observations))
         )
         self._feedback_embeddings_map = (
             self._precompute_feedback_embeddings()
-            if feedback is not None
+            if feedback
             else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
         )
 
@@ -129,7 +128,9 @@ class Collator:
             # which means when we're using exclusive range operators like [:]
             # or np.arange, we need to use end + 1
             start = (
-                np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
+                np.random.randint(
+                    self.episode_starts[ep_idx], self.episode_ends[ep_idx]
+                )
                 if self.randomise_starts
                 else self.episode_starts[ep_idx]
             )
@@ -145,14 +146,18 @@ class Collator:
             s.append(
                 self._normalise_states(
                     self._pad(
-                        self.observations[start : end + 1].reshape(1, -1, self.state_dim)
+                        self.observations[start : end + 1].reshape(
+                            1, -1, self.state_dim
+                        )
                     )
                 )
             )
 
             # actions
             a.append(
-                self._pad(self.actions[start : end + 1].reshape(1, -1, self.act_dim), val=-10)
+                self._pad(
+                    self.actions[start : end + 1].reshape(1, -1, self.act_dim), val=-10
+                )
             )
 
             # rewards
@@ -162,7 +167,8 @@ class Collator:
             rtg.append(
                 self._pad(
                     discounted_cumsum(
-                        self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
+                        self.rewards[start : self.episode_ends[ep_idx] + 1],
+                        gamma=self.gamma,
                     )[: s[-1].shape[1]].reshape(1, -1, 1)
                 )
                 / self.scale
@@ -171,7 +177,9 @@ class Collator:
             # feedback
             f.append(
                 self._embed_feedback(
-                    self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[0]
+                    self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[
+                        0
+                    ]
                 ).reshape(1, -1, self.embedding_dim)
             )
 

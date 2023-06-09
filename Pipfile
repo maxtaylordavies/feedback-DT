@@ -23,6 +23,7 @@ seaborn-image = "*"
 plotly = "*"
 opencv-python = "*"
 dopamine-rl = "*"
+sentence-transformers = "*"
 feedback-dt = {editable = true, path = "."}
 
 [dev-packages]
