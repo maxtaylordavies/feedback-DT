@@ -161,6 +161,16 @@ class SeedFinder:
         self.in_domain_num_rows = 3
         self.random_room_quadrant = self._pick_random_room_quadrant()
         self.random_maze_quadrant = self._pick_random_maze_quadrant()
+        self.ood_types = [
+            "size",
+            "color_type",
+            "agent_loc",
+            "rel_loc",
+            "object_task",
+            "task_task",
+        ]
+        self.in_domain_filename = "in_domain_seeds.json"
+        self.ood_filename = "ood_seeds.json"
 
     def _pick_random_colors(self):
         """
@@ -589,14 +599,7 @@ class SeedFinder:
         -------
             list: list of seeds for a given environment configuration.
         """
-        seed_lists = {
-            "size": [],
-            "color_type": [],
-            "agent_loc": [],
-            "rel_loc": [],
-            "object_task": [],
-            "task_task": [],
-        }
+        seed_lists = {ood_type: [] for ood_type in self.ood_types}
 
         n_seeds = 10
 
@@ -627,55 +630,67 @@ class SeedFinder:
 
         return seed_lists
 
-    def _convert_ood_by_type(self, ood):
+    def save_in_domain_seeds(self):
         """
-        Convert the ood seeds list organised following the format env > config > type > seeds to format type > env > config > seeds.
+        Find and save in domain seeds for all (missing) environments and configs.
 
-        Parameters
-        ----------
-            ood (dict): dictionary of lists of ood seeds by environment, config and ood type.
-
-        Returns
-        -------
-            dict: dictionary of lists of ood seeds by type of ood, environment and config.
         """
-        ood_by_type = {}
-        for env, configs in ood.items():
-            for config, ood_types in configs.items():
-                for ood_type, seeds in ood_types.items():
-                    if ood_type not in ood_by_type.keys():
-                        ood_by_type[ood_type] = {}
-                    if env not in ood_by_type[ood_type].keys():
-                        ood_by_type[ood_type][env] = {}
-                    ood_by_type[ood_type][env][config] = seeds
-        return ood_by_type
 
-    def find_seeds(self):
-        """
-        Find in-domain and ood seeds for the given environment and config.
-
-        Returns
-        -------
-            tuple: tuple of dicts of of dicts of environment configurations and corresponding seeds.
-        """
-        in_domain = {}
-        ood = {}
+        if os.path.exists(self.in_domain_filename):
+            seed_dict = json.load(open(self.in_domain_filename, "r+"))
+        else:
+            seed_dict = {}
         for env, configs in ENVS_CONFIGS.items():
-            in_domain[env] = {}
-            ood[env] = {}
+            if env not in seed_dict.keys():
+                seed_dict[env] = {}
             for config in configs:
-                in_domain[env][config] = self._find_in_domain_seeds(config)
-                ood[env][config] = self._find_ood_seeds(config)
-        return in_domain, self._convert_ood_by_type(ood)
+                if config not in seed_dict[env].keys():
+                    seed_dict[env][config] = self._find_in_domain_seeds(config)
+                    json.dump(seed_dict, open(self.in_domain_filename, "w"))
+
+    def save_ood_seeds(self):
+        """
+        Find and save ood seeds for all (missing) environments and configs.
+
+        """
+        if os.path.exists(self.ood_filename):
+            seed_dict = json.load(open(self.ood_filename, "r+"))
+        else:
+            seed_dict = {}
+        for env, configs in ENVS_CONFIGS.items():
+            if env not in seed_dict.keys():
+                seed_dict[env] = {}
+            for config in configs:
+                if config not in seed_dict[env].keys():
+                    seed_dict[env][config] = self._find_ood_seeds(config)
+                    json.dump(seed_dict, open(self.ood_filename, "w"))
+
+    def get_in_domain_seeds(self):
+        """
+        Get the in-domain and ood seeds for all environments and configs.
+
+        Returns
+        -------
+            tuple: tuple of dictionary of lists of in-domain and ood seeds.
+        """
+        if not os.path.exists(self.in_domain_filename):
+            self.save_in_domain_seeds()
+        return json.load(open(self.in_domain_filename, "r+"))
+
+    def get_ood_seeds(self):
+        """
+        Get the in-domain and ood seeds for all environments and configs.
+
+        Returns
+        -------
+            tuple: tuple of dictionary of lists of in-domain and ood seeds.
+        """
+        if not os.path.exists(self.ood_filename):
+            self.save_ood_seeds()
+        return json.load(open(self.ood_filename, "r+"))
 
 
 if __name__ == "__main__":
-    if os.path.exists("in_domain_seeds.json") and os.path.exists("ood_seeds.json"):
-        print(
-            "CHECK EXISTING FILES. IF YOU WANT TO OVERWRITE THEM, DELETE THE EXISTING FILES."
-        )
-        exit()
     seed_finder = SeedFinder()
-    in_domain_dict, ood_dict = seed_finder.find_seeds()
-    json.dump(in_domain_dict, open("in_domain_seeds.json", "w"))
-    json.dump(ood_dict, open("ood_seeds.json", "w"))
+    seed_finder.save_in_domain_seeds()
+    seed_finder.save_ood_seeds()

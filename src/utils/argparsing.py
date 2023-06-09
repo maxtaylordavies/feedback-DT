@@ -127,6 +127,7 @@ def get_args():
         default=True,
         help="whether to use feedback during training",
     )
+    # Demo arguments (use with make_demo_with_feedback.py)
     parser.add_argument(
         "--demo",
         type=str,
