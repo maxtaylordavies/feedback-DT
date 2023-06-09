@@ -665,7 +665,7 @@ class SeedFinder:
                     seed_dict[env][config] = self._find_ood_seeds(config)
                     json.dump(seed_dict, open(self.ood_filename, "w"))
 
-    def get_in_domain_seeds(self):
+    def load_in_domain_seeds(self):
         """
         Get the in-domain and ood seeds for all environments and configs.
 
@@ -677,7 +677,7 @@ class SeedFinder:
             self.save_in_domain_seeds()
         return json.load(open(self.in_domain_filename, "r+"))
 
-    def get_ood_seeds(self):
+    def load_ood_seeds(self):
         """
         Get the in-domain and ood seeds for all environments and configs.
 
@@ -688,9 +688,3 @@ class SeedFinder:
         if not os.path.exists(self.ood_filename):
             self.save_ood_seeds()
         return json.load(open(self.ood_filename, "r+"))
-
-
-if __name__ == "__main__":
-    seed_finder = SeedFinder()
-    seed_finder.save_in_domain_seeds()
-    seed_finder.save_ood_seeds()
