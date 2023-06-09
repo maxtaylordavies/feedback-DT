@@ -13,10 +13,22 @@ from src.utils.utils import log
 
 
 class CustomDataset:
+    """
+    Class for generating a custom dataset for a given environment, seed and policy.
+    """
+
     def __init__(self, args):
         self.args = args
 
     def get_dataset(self):
+        """
+        Get a MinariDataset object, either by loading an existing dataset from local storage
+        or by generating a new dataset.
+
+        Returns
+        -------
+        MinariDataset: the dataset object that was retrieved from storage or created.
+        """
         dataset_name = name_dataset(self.args)
         print(f"Creating dataset {dataset_name}")
 
@@ -34,6 +46,13 @@ class CustomDataset:
             return dataset
 
     def _get_level(self):
+        """
+        Get the level name from the environment name.
+
+        Returns
+        -------
+        str: the level name.
+        """
         temp_level = re.sub(r"([SRN]\d).*", r"", self.args["env_name"].split("-")[1])
         if temp_level.startswith("GoTo"):
             level = re.sub(r"(Open|ObjMaze|ObjMazeOpen)", r"", temp_level)
@@ -51,6 +70,13 @@ class CustomDataset:
         return level
 
     def _get_category(self, level):
+        """
+        Get the category from the level name.
+
+        Returns
+        -------
+        str: the category.
+        """
         if level.startswith("GoTo"):
             return "GoTo"
         elif level.startswith("Open"):
@@ -71,6 +97,18 @@ class CustomDataset:
             return "Other"
 
     def _get_observation(self, partial_observation, env):
+        """
+        Get the observation from the environment.
+
+        Parameters
+        ----------
+        partial_observation (np.ndarray): the partial observation from the environment.
+        env (gym.Env): the environment.
+
+        Returns
+        -------
+        np.ndarray: the observation, either as a symbolic or rgb image representation.
+        """
         fully_obs_env = FullyObsWrapper(env)
         rgb_env = RGBImgPartialObsWrapper(env)
         rgb_fully_obs_env = RGBImgObsWrapper(env)
@@ -93,6 +131,13 @@ class CustomDataset:
         return observation
 
     def _get_used_action_space(self):
+        """
+        Get the used action space for the environment.
+
+        Returns
+        -------
+        list: the used action space.
+        """
         file_path = "env_metadata.jsonc"
         metadata = JsoncParser.parse_file(file_path)
         level = self._get_level()
@@ -100,9 +145,33 @@ class CustomDataset:
         return metadata["levels"][category][level]["used_action_space"]
 
     def _ppo(self, observation):
+        """
+        Get the next action from the PPO policy.
+
+        Parameters
+        ----------
+        observation (np.ndarray): the observation.
+
+        Raises
+        ------
+        Exception: if the policy has not been implemented yet.
+        """
+
         raise Exception("This policy has not been implemented yet")
 
     def _policy(self, observation):
+        """
+        Get the next action from a given policy.
+
+        Parameters
+        ----------
+        observation (np.ndarray): the observation.
+
+        Returns
+        -------
+        int: the next action.
+        """
+
         if self.args["policy"] == "random_used_action_space_only":
             return np.random.choice(self._get_used_action_space())
         elif self.args["policy"] == "online_ppo":
@@ -113,6 +182,13 @@ class CustomDataset:
             return np.random.randint(0, 6)
 
     def _generate_new_dataset(self):
+        """
+        Generate a new dataset for a given environment, seed and policy.
+
+        Returns
+        -------
+        MinariDataset: the dataset object that was created.
+        """
         env = gym.make(self.args["env_name"])
         partial_observation, _ = env.reset(seed=self.args["seed"])
 
