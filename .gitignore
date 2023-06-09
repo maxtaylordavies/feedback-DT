@@ -13,7 +13,6 @@ Pipfile.lock
 src/temp.py
 src/old_*
 scripts/baseline_ids.json
-*.json
 .DS_Store
 scripts/test.py
 build/

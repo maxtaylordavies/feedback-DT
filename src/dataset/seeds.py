@@ -97,7 +97,9 @@ ENVS_CONFIGS = {
         "BabyAI-OneRoomS20-v0",
     ],
     "MoveTwoAcross": ["BabyAI-MoveTwoAcrossS5N2-v0", "BabyAI-MoveTwoAcrossS8N9-v0"],
-    "Synth": ["BabyAI-Synth-v0", "BabyAI-SynthS5R2-v0"],
+    "Synth": [
+        "BabyAI-Synth-v0",
+    ],
     "SynthLoc": ["BabyAI-SynthLoc-v0"],
     "SynthSeq": ["BabyAI-SynthSeq-v0"],
     "MiniBossLevel": ["BabyAI-MiniBossLevel-v0"],
@@ -540,13 +542,12 @@ class SeedFinder:
         """
         Find in-domain seeds for the given environment and config.
 
-        In-domain is defined as seeds that are in-domain with respect to one or any of the below.
-        - any: seeds (and envs/configs) that are not in-domain with respect to any of the below.
+        Seeds are in-domain with respect all of the below;
         - size: seeds that involve an seen room or maze size.
         - color-type: seeds that involve an seen combination of color and type of object.
         - agent-loc: seeds that involve an seen agent start position in the room or maze.
         - object-task: seeds that involve an seen combination of object and task.
-        - rel-goal-loc: seeds that involve an seen goal location relative to the agent.
+        - rel-loc: seeds that involve an seen goal location relative to the agent.
         - task-task: seeds (and envs/configs) that involve seen task combinations in sequence tasks.
 
         Parameters
@@ -581,13 +582,12 @@ class SeedFinder:
         """
         Find in-domain and ood seeds for the given environment and config.
 
-        Depending on the type, ood types include.
-        - any: seeds (and envs/configs) that are not in-domain with respect to any of the below.
+        Seeds are out-of-domain with respect any or all of the below:
         - size: seeds that involve an unseen room or maze size.
         - color-type: seeds that involve an unseen combination of color and type of object.
         - object-task: seeds that involve an unseen combination of object and task.
         - agent-loc: seeds that involve an unseen agent start position in the room or maze.
-        - rel-goal-loc: seeds that involve an unseen goal location relative to the agent.
+        - rel-loc: seeds that involve an unseen goal location relative to the agent.
         - task-task: seeds (and envs/configs) that involve unseen task combinations in sequence tasks.
 
         Parameters
@@ -602,7 +602,7 @@ class SeedFinder:
         seed_lists = {ood_type: [] for ood_type in self.ood_types}
 
         n_seeds = 10
-
+        print(config)
         for ood_type, seed_list in seed_lists.items():
             if ood_type in ["object_task", "task_task"]:
                 max_seeds_to_check = 1000
@@ -614,16 +614,22 @@ class SeedFinder:
                 env = gym.make(config)
                 env.reset(seed=seed)
                 if ood_type == "size":
+                    print("SIZE CHECK")
                     check = self._check_size(env)
                 if ood_type == "color_type":
+                    print("COLOR TYPE CHECK")
                     check = self._check_color_type(env)
                 if ood_type == "agent_loc":
+                    print("AGENT LOC CHECK")
                     check = self._check_agent_loc(env)
                 if ood_type == "rel_loc":
+                    print("REL LOC CHECK")
                     check = self._check_rel_loc(env)
                 if ood_type == "object_task":
+                    print("OBJECT TASK CHECK")
                     check = self._check_object_task(env)
                 if ood_type == "task_task":
+                    print("TASK TASK CHECK")
                     check = self._check_task_task(env)
                 if check and len(seed_list) < n_seeds:
                     seed_list.append(seed)
