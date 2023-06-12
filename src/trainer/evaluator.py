@@ -37,15 +37,14 @@ class Visualiser:
         self.directory = directory
         self.path = os.path.join(self.directory, f"{filename}.mp4")
         self.auto_release = auto_release
+        self.size = size
         self.active = True
         self.fps = fps
         self.rgb = rgb
 
-        if size is None:
+        if self.size is None:
             self.env.reset(seed=seed)
             self.size = self.env.render().shape[:2][::-1]
-        else:
-            self.size = size
 
     def pause(self):
         self.active = False
@@ -57,12 +56,11 @@ class Visualiser:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
 
-    def _write(self):
-        if self.active:
-            frame = self.env.render()
-            if self.rgb:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._writer.write(frame)
+    def _write(self, obs=None):
+        if not self.active:
+            return
+        frame = self.env.render()
+        self._writer.write(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if self.rgb else frame)
 
     def release(self):
         self._writer.release()
@@ -76,22 +74,41 @@ class Visualiser:
     def step(self, *args, **kwargs):
         data = self.env.step(*args, **kwargs)
 
-        self._write()
+        self._write(data[0])
 
         if self.auto_release and data[2]:
             self.release()
 
         return data
 
-    def save_as_best(self):
-        shutil.copy(self.path, os.path.join(self.directory, "best.mp4"))
+    def save_as(self, label):
+        shutil.copy(self.path, os.path.join(self.directory, f"{label}.mp4"))
 
 
 class AtariVisualiser(Visualiser):
+    def __init__(
+        self,
+        env,
+        directory,
+        filename,
+        seed,
+        auto_release=True,
+    ):
+        super().__init__(
+            env,
+            directory,
+            filename,
+            seed,
+            auto_release=auto_release,
+            size=(84, 84),
+            fps=30,
+            rgb=True,
+        )
+
     def _write(self, obs):
         if not self.active:
             return
-        frame = obs.numpy().reshape((self.env.window,) + self.size)[-1]
+        frame = obs.cpu().numpy().reshape((self.env.window,) + self.size)[-1]
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
         self._writer.write(frame)
@@ -103,9 +120,9 @@ class Evaluator(TrainerCallback):
         user_args,
         collator,
         sample_interval=1000,
-        target_returns=[0, 90, 1000],
-        num_repeats=3,
-        gamma=0.99,
+        target_returns=[90],
+        num_repeats=5,
+        gamma=1.0,
     ) -> None:
         super().__init__()
         self.user_args = user_args
@@ -114,6 +131,8 @@ class Evaluator(TrainerCallback):
         self.samples_processed = 0
         self.target_returns = target_returns
         self.best_return = -np.inf
+        self.best_random_return = -np.inf
+        self.best_length = 0
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -168,7 +187,7 @@ class Evaluator(TrainerCallback):
         if final:
             self.samples_processed = self.collator.samples_processed
 
-        self._evaluate_agent(agent)
+        self._evaluate_agent(agent, final=final)
         self._plot_results()
 
         if not final:
@@ -189,7 +208,7 @@ class Evaluator(TrainerCallback):
         _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=self.user_args["seed"])
 
-    def _record_return(self, env, ret, ep_length, model_name):
+    def _record_return(self, env, ret, ep_length, model_name, final=False):
         self.results["samples"].append(self.samples_processed)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
@@ -198,13 +217,30 @@ class Evaluator(TrainerCallback):
         if self.user_args["record_video"]:
             env.release()
 
-        if ret > self.best_return:
+        if self.samples_processed == 0:
+            env.save_as("first")
+        elif final:
+            env.save_as("final")
+
+        if model_name == "random" and ret > self.best_random_return:
+            self.best_random_return = ret
+            log(f"New best random return: {ret}", with_tqdm=True)
+            if self.user_args["record_video"]:
+                env.save_as("best_random")
+
+        if model_name != "random" and ret > self.best_return:
             self.best_return = ret
             log(f"New best return: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
-                env.save_as_best()
+                env.save_as("best")
 
-    def _evaluate_agent(self, agent: Agent):
+        if model_name != "random" and ep_length > self.best_length:
+            self.best_length = ep_length
+            log(f"New best length: {ep_length}", with_tqdm=True)
+            if self.user_args["record_video"]:
+                env.save_as("longest")
+
+    def _evaluate_agent(self, agent: Agent, final=False):
         atari = self.user_args["env_name"].startswith("atari")
         run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_env
 
@@ -213,13 +249,13 @@ class Evaluator(TrainerCallback):
             # random baseline
             env = self._create_env(atari=atari)
             ret, ep_length = run_agent(self.random_agent, env, 0)
-            self.record_return(env, ret, ep_length, "random")
+            self._record_return(env, ret, ep_length, "random")
 
             # agent under evaluation
             for tr in self.target_returns:
                 env = self._create_env(atari=atari)
                 ret, ep_length = run_agent(agent, env, tr)
-                self.record_return(env, ret, ep_length, f"DT ({tr})")
+                self._record_return(env, ret, ep_length, f"DT ({tr})", final=final)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
@@ -312,42 +348,55 @@ class Evaluator(TrainerCallback):
         self, agent: Agent, env: AtariVisualiser, target_return: int, stack_size=4
     ):
         def get_state(frames):
-            return frames.reshape(1, self.collator.state_dim).to(
-                device=self.device, dtype=torch.float32
-            )
+            return self.collator._normalise_states(
+                frames.reshape(1, self.collator.state_dim)
+            ).to(device=self.device, dtype=torch.float32)
 
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
 
-        state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
-            device=self.device
-        )
-        state_std = torch.from_numpy(self.collator.state_std.astype(np.float32)).to(
-            device=self.device
-        )
+        obs = env.reset(seed=self.user_args["seed"])
+        _start_idx = self.collator.episode_starts[-1]
 
-        (obs,) = env.reset(seed=self.user_args["seed"])
-        states = get_state(obs)
-
-        print(f"states.shape: {states.shape}")
-
-        actions = torch.zeros(
-            (0, self.collator.act_dim), device=self.device, dtype=torch.float32
+        # states = get_state(obs)
+        states = torch.zeros(0, device=self.device, dtype=torch.float32)
+        actions = torch.tensor(
+            self.collator.actions[_start_idx : _start_idx + 20], device=self.device
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
-        returns_to_go = torch.tensor(
-            target_return, device=self.device, dtype=torch.float32
-        ).reshape(1, 1)
-        timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+        returns_to_go = torch.zeros(0, device=self.device, dtype=torch.float32)
+        timesteps = torch.zeros(0, device=self.device, dtype=torch.long)
 
-        for t in range(max_ep_len):
-            actions = torch.cat(
-                [actions, torch.zeros((1, self.collator.act_dim), device=self.device)], dim=0
+        # execute set of initial actions to get going
+        a_idxs = []
+        for i, a in enumerate(actions):
+            a_idx = np.argmax(a.detach().cpu().numpy())
+            a_idxs.append(a_idx)
+            obs, r, _ = env.step(a_idx)
+            states = torch.cat([states, get_state(obs)], dim=0)
+            rewards = torch.cat([rewards, torch.tensor(r, device=self.device).reshape(1)])
+
+            if i == 0:
+                returns_to_go = torch.tensor(
+                    target_return, device=self.device, dtype=torch.float32
+                ).reshape(1, 1)
+            else:
+                returns_to_go = torch.cat(
+                    [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
+                )
+
+            timesteps = torch.cat(
+                [
+                    timesteps,
+                    torch.ones((1, 1), device=self.device, dtype=torch.long) * (i),
+                ],
+                dim=1,
             )
-            rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
-            actions[-1] = agent.get_action(
+        for t in range(20, max_ep_len):
+            # get action from agent
+            a = agent.get_action(
                 AgentInput(
-                    states=(states - state_mean) / state_std,
+                    states=states,
                     actions=actions,
                     rewards=rewards,
                     returns_to_go=returns_to_go,
@@ -358,26 +407,32 @@ class Evaluator(TrainerCallback):
                 context=self.user_args["context_length"],
                 one_hot=True,
             )
-            a = actions[-1].detach().cpu().numpy()
 
-            obs, r, done, _, _ = env.step(np.argmax(a))
+            # take action, get next state and reward
+            a_idx = np.argmax(a.detach().cpu().numpy())
+            a_idxs.append(a_idx)
+            obs, r, done = env.step(a_idx)
+            s = get_state(obs)
 
-            cur_state = get_state(obs)
-            states = torch.cat([states, cur_state], dim=0)
-
-            rewards[-1] = r
-            pred_return = returns_to_go[0, -1] - r
-            returns_to_go = torch.cat([returns_to_go, pred_return.reshape(1, 1)], dim=1)
+            # update state, reward, return, timestep tensors
+            states = torch.cat([states, s], dim=0)
+            actions = torch.cat([actions, a.reshape((1, 4))], dim=0)
+            rewards = torch.cat([rewards, torch.tensor(r, device=self.device).reshape(1)])
+            returns_to_go = torch.cat(
+                [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
+            )
 
             timesteps = torch.cat(
                 [
                     timesteps,
-                    torch.ones((1, 1), device=self.device, dtype=torch.long) * (t + 1),
+                    torch.ones((1, 1), device=self.device, dtype=torch.long) * t,
                 ],
                 dim=1,
             )
 
             if done:
+                if target_return:
+                    print(a_idxs)
                 break
 
         return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
@@ -390,13 +445,26 @@ class Evaluator(TrainerCallback):
         plt.close(fig)
 
     def _plot_results(self):
-        fig, ax = plt.subplots()
         df = pd.DataFrame(self.results)
+
+        fig, ax = plt.subplots()
         sns.lineplot(x="samples", y="return", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "returns.png"))
+        fig.savefig(os.path.join(self.output_dir, "returns-mean.png"))
         plt.close(fig)
 
         fig, ax = plt.subplots()
-        sns.lineplot(x="samples", y="ep_length", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "ep_length.png"))
+        sns.lineplot(x="samples", y="return", hue="model", estimator="max", data=df, ax=ax)
+        fig.savefig(os.path.join(self.output_dir, "returns-max.png"))
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        sns.lineplot(x="samples", y="episode length", hue="model", data=df, ax=ax)
+        fig.savefig(os.path.join(self.output_dir, "ep-length-mean.png"))
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        sns.lineplot(
+            x="samples", y="episode length", hue="model", estimator="max", data=df, ax=ax
+        )
+        fig.savefig(os.path.join(self.output_dir, "ep-length-max.png"))
         plt.close(fig)
