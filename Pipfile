@@ -25,6 +25,7 @@ opencv-python = "*"
 dopamine-rl = "*"
 sentence-transformers = "*"
 feedback-dt = {editable = true, path = "."}
+seaborn = "*"
 
 [dev-packages]
 ipykernel = "*"

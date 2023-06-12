@@ -45,13 +45,14 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True):
+    def __init__(self, config, use_feedback=True, use_missions=True):
         DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
 
         self.use_feedback = use_feedback
-        x = 1 + int(self.use_feedback)
+        self.use_missions = use_missions
+        x = 1 + int(self.use_feedback) + int(self.use_missions)
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
@@ -75,10 +76,17 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            input.attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            input.attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long
+            )
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
+        mission_embeddings = (
+            input.mission_embeddings.reshape(batch_size, seq_length, self.hidden_size)
+            + time_embeddings
+        )
+
         state_embeddings = (
             self._embed_state(
                 input.states.reshape((-1,) + self.config.state_shape)
@@ -100,14 +108,15 @@ class FDTAgent(Agent, DecisionTransformerModel):
             torch.stack(
                 (
                     returns_embeddings,
+                    mission_embeddings,
                     state_embeddings,
                     action_embeddings,
                     feedback_embeddings,
                 ),
                 dim=1,
             )
-            .permute(0, 2, 1, 3)
-            .reshape(batch_size, 4 * seq_length, self.hidden_size)
+            # TO-DO CHANGE THE BELOW TO ACCOUNT FOR MISSIONS
+            .permute(0, 2, 1, 3).reshape(batch_size, 4 * seq_length, self.hidden_size)
         )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
@@ -119,11 +128,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
                     input.attention_mask,
                     input.attention_mask,
                     input.attention_mask,
+                    input.attention_mask,
                 ),
                 dim=1,
             )
-            .permute(0, 2, 1)
-            .reshape(batch_size, 4 * seq_length)
+            # TO-DO CHANGE THIS TO ACCOUNT FOR MISSIONS
+            .permute(0, 2, 1).reshape(batch_size, 4 * seq_length)
         )
 
         # we feed in the input embeddings (not word indices as in NLP) to the model
@@ -141,12 +151,14 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         x = encoder_outputs[0]
 
+        # TO-DO CHANGE THIS TO ACCOUNT FOR MISSIONS
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(
             0, 2, 1, 3
         )  # shape (batch_size, 4, seq_length, hidden_size)
 
+        # TO-DO CHANGE THIS TO ACCOUNT FOR MISSIONS
         _s, _a, _f = x[:, 1], x[:, 2], x[:, 3]
         if self.use_feedback:
             _s = torch.cat([_s, _f], axis=2)
@@ -166,7 +178,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
+    def _compute_loss(
+        self, input: AgentInput, output: DecisionTransformerOutput, **kwargs
+    ):
         act_dim = output.action_preds.shape[2]
         action_preds = output.action_preds.reshape(-1, act_dim)[
             input.attention_mask.reshape(-1) > 0
@@ -189,6 +203,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
+        # TO-DO WHY IS THE BELOW COMMENTED OUT?
         # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 

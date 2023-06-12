@@ -14,6 +14,7 @@ class Collator:
         self,
         custom_dataset: MinariDataset,
         feedback: True,
+        mission: True,
         context_length=64,
         scale=1,
         gamma=1.0,
@@ -71,8 +72,20 @@ class Collator:
             else np.array([""] * len(self.observations))
         )
         self._feedback_embeddings_map = (
-            self._precompute_feedback_embeddings()
+            self._precompute_sentence_embeddings(self.feedback)
             if feedback
+            else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
+        )
+
+        # store mission as flattened array. if no mission provided, use empty strings
+        self.missions = (
+            np.hstack(custom_dataset.missions)
+            if mission
+            else np.array([""] * len(self.observations))
+        )
+        self._mission_embeddings_map = (
+            self._precompute_sentence_embeddings(self.missions)
+            if mission
             else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
         )
 
@@ -81,7 +94,7 @@ class Collator:
     def reset_counter(self):
         self.samples_processed = 0
 
-    def _precompute_feedback_embeddings(self):
+    def _precompute_sentence_embeddings(self, sentence):
         model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )
@@ -93,14 +106,14 @@ class Collator:
                 model.encode(s, convert_to_tensor=True, device="cpu").reshape(1, -1)
             )
             for s in np.unique(
-                np.append(self.feedback, "")
+                np.append(sentence, "")
             )  # add empty string to ensure it has an embedding
         }
 
-    def _embed_feedback(self, feedback):
-        emb = torch.zeros((len(feedback), self.embedding_dim))
-        for i in range(len(feedback)):
-            emb[i] = self._feedback_embeddings_map[feedback[i, 0]]
+    def _embed_sentence(self, sentence_embeddings_map, sentence):
+        emb = torch.zeros((len(sentence), self.embedding_dim))
+        for i in range(len(sentence)):
+            emb[i] = sentence_embeddings_map[sentence[i, 0]]
         return emb
 
     def _normalise_states(self, states):
@@ -114,7 +127,7 @@ class Collator:
         return np.pad(x, pad_shape, constant_values=val)
 
     def _sample_batch(self, batch_size):
-        t, s, a, r, f, rtg, mask = [], [], [], [], [], [], []
+        t, m, s, a, r, f, rtg, mask = [], [], [], [], [], [], [], []
 
         # sample episodes with a probability inversely proportional to their length (successful eps are shorter)
         episode_indices = np.random.choice(
@@ -141,6 +154,16 @@ class Collator:
 
             # timesteps
             t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
+
+            # mission
+            m.append(
+                self._embed_sentence(
+                    self._mission_embeddings_map,
+                    self._pad(self.missions[start : end + 1].reshape(1, -1, 1), val="")[
+                        0
+                    ],
+                ).reshape(1, -1, self.embedding_dim)
+            )
 
             # states
             s.append(
@@ -176,10 +199,11 @@ class Collator:
 
             # feedback
             f.append(
-                self._embed_feedback(
+                self._embed_sentence(
+                    self._feedback_embeddings_map,
                     self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[
                         0
-                    ]
+                    ],
                 ).reshape(1, -1, self.embedding_dim)
             )
 
@@ -196,6 +220,7 @@ class Collator:
 
         return {
             "timesteps": torch.from_numpy(np.concatenate(t, axis=0)).long(),
+            "mission_embeddings": torch.cat(m, axis=0),
             "states": torch.from_numpy(np.concatenate(s, axis=0)).float(),
             "actions": torch.from_numpy(np.concatenate(a, axis=0)).float(),
             "rewards": torch.from_numpy(np.concatenate(r, axis=0)).float(),
