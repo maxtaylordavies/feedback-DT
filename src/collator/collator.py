@@ -105,7 +105,8 @@ class Collator:
         return emb
 
     def _normalise_states(self, states):
-        return (states - self.state_mean) / self.state_std
+        # return (states - self.state_mean) / self.state_std
+        return (states - states.min()) / (states.max() - states.min())
 
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
