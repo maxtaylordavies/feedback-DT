@@ -163,14 +163,14 @@ class SeedFinder:
         self.in_domain_num_rows = 3
         self.random_room_quadrant = self._pick_random_room_quadrant()
         self.random_maze_quadrant = self._pick_random_maze_quadrant()
-        self.ood_types = [
-            "size",
-            "color_type",
-            "agent_loc",
-            "rel_loc",
-            "object_task",
-            "task_task",
-        ]
+        self.ood_types = {
+            "size": self._check_size,
+            "color_type": self._check_color_type,
+            "agent_loc": self._check_agent_loc,
+            "rel_loc": self._check_rel_loc,
+            "object_task": self._check_object_task,
+            "task_task": self._check_task_task,
+        }
         self.in_domain_filename = "in_domain_seeds.json"
         self.ood_filename = "ood_seeds.json"
 
@@ -599,10 +599,9 @@ class SeedFinder:
         -------
             list: list of seeds for a given environment configuration.
         """
-        seed_lists = {ood_type: [] for ood_type in self.ood_types}
+        seed_lists = {ood_type: [] for ood_type in self.ood_types.keys()}
 
         n_seeds = 10
-        print(config)
         for ood_type, seed_list in seed_lists.items():
             if ood_type in ["object_task", "task_task"]:
                 max_seeds_to_check = 1000
@@ -613,25 +612,7 @@ class SeedFinder:
                     break
                 env = gym.make(config)
                 env.reset(seed=seed)
-                if ood_type == "size":
-                    print("SIZE CHECK")
-                    check = self._check_size(env)
-                if ood_type == "color_type":
-                    print("COLOR TYPE CHECK")
-                    check = self._check_color_type(env)
-                if ood_type == "agent_loc":
-                    print("AGENT LOC CHECK")
-                    check = self._check_agent_loc(env)
-                if ood_type == "rel_loc":
-                    print("REL LOC CHECK")
-                    check = self._check_rel_loc(env)
-                if ood_type == "object_task":
-                    print("OBJECT TASK CHECK")
-                    check = self._check_object_task(env)
-                if ood_type == "task_task":
-                    print("TASK TASK CHECK")
-                    check = self._check_task_task(env)
-                if check and len(seed_list) < n_seeds:
+                if self.ood_types[ood_type](env) and len(seed_list) < n_seeds:
                     seed_list.append(seed)
 
         return seed_lists
