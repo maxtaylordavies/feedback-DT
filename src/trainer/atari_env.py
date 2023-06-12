@@ -7,12 +7,12 @@ import torch
 
 
 class AtariEnv:
-    def __init__(self, device, game, seed, max_steps=1000, history_length=4):
+    def __init__(self, device, game, seed, max_steps=5000, history_length=4):
         self.device = device
         self.max_steps = max_steps
         self.ale = atari_py.ALEInterface()
         self.ale.setInt("random_seed", seed)
-        self.ale.setInt("max_num_frames_per_episode", 1000)
+        self.ale.setInt("max_num_frames_per_episode", 5000)
         self.ale.setFloat("repeat_action_probability", 0)  # Disable sticky actions
         self.ale.setInt("frame_skip", 0)
         self.ale.setBool("color_averaging", False)
@@ -25,7 +25,7 @@ class AtariEnv:
         self.life_termination = False  # Used to check if resetting only from loss of life
         self.window = history_length  # Number of frames to concatenate
         self.state_buffer = deque([], maxlen=history_length)
-        self.training = True  # Consistent with model training mode
+        self.training = False  # Consistent with model training mode
 
     def _get_state(self):
         state = cv2.resize(
@@ -37,7 +37,7 @@ class AtariEnv:
         for _ in range(self.window):
             self.state_buffer.append(torch.zeros(84, 84, device=self.device))
 
-    def reset(self):
+    def reset(self, seed=None):
         if self.life_termination:
             self.life_termination = False  # Reset flag
             self.ale.act(0)  # Use a no-op after loss of life
