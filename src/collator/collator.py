@@ -68,7 +68,7 @@ class Collator:
         self.feedback = (
             np.hstack(custom_dataset.feedback)
             if feedback
-            else np.array([""] * len(self.observations))
+            else np.array(["no feedback available"] * len(self.observations))
         )
         self._feedback_embeddings_map = (
             self._precompute_feedback_embeddings()
