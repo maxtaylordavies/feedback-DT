@@ -17,7 +17,7 @@ class Collator:
         feedback: Optional[FeedbackArray] = None,
         context_length=64,
         scale=1,
-        gamma=1.0,
+        gamma=0.99,
         embedding_dim=128,
         randomise_starts=False,
     ) -> None:

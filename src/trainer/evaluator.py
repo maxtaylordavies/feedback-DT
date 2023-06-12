@@ -122,7 +122,7 @@ class Evaluator(TrainerCallback):
         sample_interval=1000,
         target_returns=[90],
         num_repeats=5,
-        gamma=1.0,
+        gamma=0.99,
     ) -> None:
         super().__init__()
         self.user_args = user_args

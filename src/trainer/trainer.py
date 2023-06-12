@@ -39,9 +39,7 @@ class AgentTrainer(Trainer):
         self.create_callbacks()
 
     def create_callbacks(self):
-        self.add_callback(
-            Evaluator(user_args=self.user_args, collator=self.data_collator, gamma=1)
-        )
+        self.add_callback(Evaluator(user_args=self.user_args, collator=self.data_collator))
 
     def compute_loss(self, model, inputs, return_outputs=False):
         input = AgentInput(**inputs)
