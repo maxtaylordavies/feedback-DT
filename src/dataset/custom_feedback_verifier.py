@@ -324,7 +324,7 @@ class RuleFeedback(Feedback):
             return self._get_pickup_feedback()
         if self.action == self.env.actions.drop and not self._is_valid_drop():
             return self._get_drop_feedback()
-        return ""
+        return "No feedback available."
 
     def verify_feedback(self, env, action):
         """
@@ -480,7 +480,7 @@ class TaskFeedback(Feedback):
 
     def _get_completion_level(self):
         if not self.subtasks:
-            return ""
+            return "No feedback available."
         return "a part of "
 
     def _get_goto_feedback(self, instrs):
@@ -489,7 +489,7 @@ class TaskFeedback(Feedback):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
                 return f"You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
-        return ""
+        return "No feedback available."
 
     def _get_open_feedback(self, instrs):
         goal_obj = instrs.desc
@@ -498,7 +498,7 @@ class TaskFeedback(Feedback):
                 if self._is_open_door():
                     self.subtasks.pop(self.pop_from)
                     return f"You've completed {self._get_completion_level()}your task by opening {self._get_article(goal_obj)} correct door."
-        return ""
+        return "No feedback available."
 
     def _get_pickup_feedback(self, instrs):
         goal_obj = instrs.desc
@@ -506,7 +506,7 @@ class TaskFeedback(Feedback):
             # if self._is_goal_pickup(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
             return f"You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} correct object."
-        return ""
+        return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
         goal_obj_1 = instrs.desc_move
@@ -515,13 +515,13 @@ class TaskFeedback(Feedback):
             if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
                 self.subtasks.pop(self.pop_from)
                 return f"You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} correct move object next to {self._get_article(goal_obj_2)} correct {'fixed object' if self._get_goto_type(goal_obj_2) == 'object' else self._get_goto_type(goal_obj_2)}."
-        return ""
+        return "No feedback available."
 
     def _get_task_feedback(self):
         try:
             current_subtask = self.subtasks[self.pop_from]
         except IndexError:
-            return ""
+            return "No feedback available."
         if (
             self.action == self.env.actions.left
             or self.action == self.env.actions.right
