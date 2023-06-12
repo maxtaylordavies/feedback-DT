@@ -62,7 +62,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_valid_forward_empty(self):
         action = 2
@@ -70,7 +73,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_invalid_toggle_empty(self):
         action = 5
@@ -122,7 +128,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3, 2, 0]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_invalid_pickup_empty(self):
         action = 3
@@ -185,7 +194,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3, 2, 1]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_valid_forward_open_door(self):
         action = 2
@@ -193,7 +205,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3, 2, 1, 5]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_invalid_toggle_locked_door_wrong_key(self):
         action = 5
@@ -260,7 +275,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3, 2, 1, 1, 4, 0, 0, 3, 0, 2, 2, 1, 2, 5, 2, 2, 2, 1, 2, 2]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_valid_toggle_box(self):
         action = 5
@@ -268,7 +286,10 @@ class TestCustomRuleFeedbackVerifier(unittest.TestCase):
         feedback_verifier = RuleFeedback()
         for step in [1, 1, 3, 2, 0, 0, 4, 1, 2, 2, 1, 2, 5, 2, 2, 1, 2]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
 
 class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
@@ -281,7 +302,10 @@ class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
         for step in [2, action]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     # Only relevant if including 'partial success' feedback
     def test_goto_wrong_color(self):
@@ -289,7 +313,10 @@ class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
         for step in [1, 2, 2, 2, 1, action]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     # Only relevant if including 'partial success' feedback
     def test_goto_wrong_type(self):
@@ -297,14 +324,20 @@ class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
         for step in [2, 2, 0, 2, 2, 0]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_goto_wrong_not_facing(self):
         action = 2
         for step in [0, 2, 0, 2, 1, action]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, action)
+            == "No feedback available."
+        )
 
     def test_goto_success_color(self):
         action = 0
@@ -339,7 +372,10 @@ class TestCustomTaskOpenFeedbackVerifier(unittest.TestCase):
         for step in [2, 1, self.action]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_open_color_success(self):
         for step in [2, 0, 2, 2, 2, 2, 1, self.action]:
@@ -355,7 +391,10 @@ class TestCustomTaskOpenFeedbackVerifier(unittest.TestCase):
         for step in [2, 0, 2, 2, 1, 5, self.action]:
             self.env.step(step)
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_open_location_success(self):
         self.env.reset(seed=2)
@@ -388,19 +427,28 @@ class TestCustomTaskPickupFeedbackVerifier(unittest.TestCase):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [2, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_pickup_wrong_color(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [1, 2, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_pickup_wrong_type(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [0, 2, 1, 2, 2, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_pickup_color_success(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
@@ -442,19 +490,28 @@ class TestCustomTaskPutnextFeedbackVerifier(unittest.TestCase):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [0, 2, 0, 3, 2, 1, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_putnext_wrong_color(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [0, 2, 0, 3, 2, 0, 2, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_putnext_wrong_type(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         for step in [0, 2, 0, 3, 2, self.action]:
             self.env.step(step)
-        assert feedback_verifier.verify_feedback(self.env, self.action) == ""
+        assert (
+            feedback_verifier.verify_feedback(self.env, self.action)
+            == "No feedback available."
+        )
 
     def test_putnext_success(self):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)

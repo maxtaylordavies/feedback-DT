@@ -69,24 +69,32 @@ class Collator:
         self.feedback = (
             np.hstack(custom_dataset.feedback)
             if feedback
-            else np.array([""] * len(self.observations))
+            else np.array(["No feedback available."] * len(self.observations))
         )
         self._feedback_embeddings_map = (
             self._precompute_sentence_embeddings(self.feedback)
             if feedback
-            else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
+            else {
+                "No feedback available": torch.tensor(
+                    np.random.random((1, self.embedding_dim))
+                )
+            }
         )
 
         # store mission as flattened array. if no mission provided, use empty strings
         self.missions = (
             np.hstack(custom_dataset.missions)
             if mission
-            else np.array([""] * len(self.observations))
+            else np.array(["No mission available."] * len(self.observations))
         )
         self._mission_embeddings_map = (
             self._precompute_sentence_embeddings(self.missions)
             if mission
-            else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
+            else {
+                "No mission available.": torch.tensor(
+                    np.random.random((1, self.embedding_dim))
+                )
+            }
         )
 
         self.reset_counter()
@@ -119,6 +127,7 @@ class Collator:
     def _normalise_states(self, states):
         return (states - self.state_mean) / self.state_std
 
+    # MAX LOOKING INTO IMPLEMENTING PADDING WITH PYTORCH
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
         pad_width = pad_width or max(self.context_length - x.shape[1], 0)

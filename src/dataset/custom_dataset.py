@@ -231,7 +231,7 @@ class CustomDataset:
             replay_buffer["observations"][total_steps] = observation["image"]
             # Storing initial values for rewards, terminations, truncations and feedback
             replay_buffer["rewards"][total_steps] = np.array(0)
-            replay_buffer["feedback"][total_steps] = ""
+            replay_buffer["feedback"][total_steps] = "No feedback available."
             rule_feedback_verifier = RuleFeedback()
             task_feedback_verifier = TaskFeedback(env)
             replay_buffer["terminations"][total_steps] = np.array(terminated)
@@ -251,7 +251,7 @@ class CustomDataset:
                 # the rule feedback
                 # (note that there should always either be rule feedback or task success feedback
                 # as task success and rule violations are mutually exclusive)
-                if rule_feedback == "":
+                if rule_feedback == "No feedback available.":
                     feedback = task_feedback_verifier.verify_feedback(env, action)
                 else:
                     feedback = rule_feedback
