@@ -20,7 +20,7 @@ class AgentTrainer(Trainer):
             args=TrainingArguments(
                 run_name=self.user_args["run_name"],
                 output_dir=self.user_args["output"],
-                report_to=None if self.user_args["wandb_mode"] == "disabled" else "wandb",
+                report_to="none" if self.user_args["wandb_mode"] == "disabled" else "wandb",
                 logging_steps=self.user_args["log_interval"],
                 remove_unused_columns=False,
                 num_train_epochs=self.user_args["epochs"],
