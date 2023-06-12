@@ -1,7 +1,7 @@
 import os
 
 from src.agent import RandomAgent
-from src.dataset import CustomDataset
+from src.dataset.minari_dataset import MinariDataset
 from src.collator import Collator
 from src.trainer import AgentTrainer
 
@@ -14,10 +14,10 @@ ACT_DIM = 4
 CONTEXT_LENGTH = 1
 
 agent = RandomAgent(act_dim=ACT_DIM)
-dataset = CustomDataset.random(
+dataset = MinariDataset.random(
     num_eps=NUM_EPS, ep_length=EP_LENGTH, state_dim=STATE_DIM, act_dim=ACT_DIM
 )
-collator = Collator(custom_dataset=dataset, feedback=None, context_length=1)
+collator = Collator(custom_dataset=dataset, feedback=False, context_length=1)
 trainer = AgentTrainer(
     agent=agent,
     collator=collator,

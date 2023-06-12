@@ -1,7 +1,7 @@
 import numpy as np
 
 from src.utils.argparsing import get_args
-from scripts.generate_datasets import get_dataset
+from src.dataset.custom_dataset import CustomDataset
 
 args = get_args()
 
@@ -11,5 +11,6 @@ args["policy"] = "random_used_action_space_only"
 
 for num_eps in [100, 1000, 10000, 100000]:
     args["num_episodes"] = num_eps
-    dataset = get_dataset(args)
-    print(len(dataset), np.max(dataset.actions))
+    dataset = CustomDataset(args)
+    data = dataset.get_dataset()
+    print(len(data), np.max(data.actions))

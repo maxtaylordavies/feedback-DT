@@ -2,7 +2,7 @@ import os
 
 from transformers import DecisionTransformerConfig
 
-from src.dataset.custom_dataset import CustomDataset
+from src.dataset.custom_dataset import MinariDataset
 from src.collator import Collator
 from src.agent.fdt import AtariFDTAgent
 from src.trainer import AgentTrainer
@@ -24,10 +24,12 @@ log("setting up devices")
 device = setup_devices(SEED, useGpu=True)
 
 log("creating dataset")
-dataset = CustomDataset.from_dqn_replay(DATA_DIR, GAME, NUM_SAMPLES)
+dataset = MinariDataset.from_dqn_replay(DATA_DIR, GAME, NUM_SAMPLES)
 
 log("creating collator")
-collator = Collator(custom_dataset=dataset, feedback=None, context_length=CONTEXT_LENGTH)
+collator = Collator(
+    custom_dataset=dataset, feedback=False, context_length=CONTEXT_LENGTH
+)
 
 log("creating agent")
 agent = AtariFDTAgent(
