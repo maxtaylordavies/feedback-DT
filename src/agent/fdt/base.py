@@ -175,65 +175,72 @@ class FDTAgent(Agent, DecisionTransformerModel):
             input.attention_mask.reshape(-1) > 0
         ]
 
+        preds, targets = torch.argmax(action_preds, dim=1), torch.argmax(
+            action_targets, dim=1
+        )
+        acc = torch.mean((preds == targets).float())
+        log(f"train acc: {acc}", with_tqdm=True)
+
         return torch.mean((action_preds - action_targets) ** 2)
 
     # function that gets an action from the model using autoregressive prediction
     def get_action(
         self,
         input: AgentInput,
-        context=64,
-        one_hot=False,
+        context=30,
+        one_hot=True,
     ):
-        device = input.states.device
+        # device = input.states.device
 
-        input.states = input.states.reshape(1, -1, self.config.state_dim)
-        input.actions = input.actions.reshape(1, -1, self.config.act_dim)
-        input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        # feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
-        input.timesteps = input.timesteps.reshape(1, -1)
+        # input.states = input.states.reshape(1, -1, self.config.state_dim)
+        # input.actions = input.actions.reshape(1, -1, self.config.act_dim)
+        # input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
+        # # input.feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
+        # input.timesteps = input.timesteps.reshape(1, -1)
 
-        input.states = input.states[:, -context:]
-        input.actions = input.actions[:, -context:]
-        input.returns_to_go = input.returns_to_go[:, -context:]
-        input.timesteps = input.timesteps[:, -context:]
+        # input.states = input.states[:, -context:]
+        # input.actions = input.actions[:, -context:]
+        # input.returns_to_go = input.returns_to_go[:, -context:]
+        # input.timesteps = input.timesteps[:, -context:]
 
-        # pad all tokens to sequence length
-        padding = context - input.states.shape[1]
-        input.attention_mask = (
-            torch.cat(
-                [
-                    torch.zeros(padding, device=device),
-                    torch.ones(input.states.shape[1], device=device),
-                ]
-            )
-            .to(dtype=torch.long)
-            .reshape(1, -1)
-        )
+        # # pad all tokens to sequence length
+        # padding = context - input.states.shape[1]
+        # input.attention_mask = (
+        #     torch.cat(
+        #         [
+        #             torch.zeros(padding, device=device),
+        #             torch.ones(input.states.shape[1], device=device),
+        #         ]
+        #     )
+        #     .to(dtype=torch.long)
+        #     .reshape(1, -1)
+        # )
 
-        input.states = torch.cat(
-            [
-                torch.zeros((1, padding, self.config.state_dim), device=device),
-                input.states,
-            ],
-            dim=1,
-        ).float()
-        input.actions = torch.cat(
-            [
-                torch.zeros((1, padding, self.config.act_dim), device=device),
-                input.actions,
-            ],
-            dim=1,
-        ).float()
-        input.returns_to_go = torch.cat(
-            [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
-        ).float()
-        input.timesteps = torch.cat(
-            [
-                torch.zeros((1, padding), dtype=torch.long, device=device),
-                input.timesteps,
-            ],
-            dim=1,
-        )
+        # input.states = torch.cat(
+        #     [
+        #         torch.zeros((1, padding, self.config.state_dim), device=device),
+        #         input.states,
+        #     ],
+        #     dim=1,
+        # ).float()
+        # input.actions = torch.cat(
+        #     [
+        #         torch.zeros((1, padding, self.config.act_dim), device=device),
+        #         input.actions,
+        #     ],
+        #     dim=1,
+        # ).float()
+        # input.returns_to_go = torch.cat(
+        #     [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
+        # ).float()
+        # input.timesteps = torch.cat(
+        #     [
+        #         torch.zeros((1, padding), dtype=torch.long, device=device),
+        #         input.timesteps,
+        #     ],
+        #     dim=1,
+        # )
+
 
         output = self._forward(input)
         action = output.action_preds[0, -1]
