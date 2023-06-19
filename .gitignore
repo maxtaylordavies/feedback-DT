@@ -1,4 +1,5 @@
 data/
+debugging/
 *.out
 *.pyc
 .venv
