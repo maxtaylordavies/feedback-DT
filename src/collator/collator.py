@@ -15,11 +15,12 @@ class Collator:
         self,
         custom_dataset: CustomDataset,
         feedback: Optional[FeedbackArray] = None,
-        context_length=64,
+        context_length=30,
         scale=1,
         gamma=0.99,
         embedding_dim=128,
         randomise_starts=False,
+        episode_probs="uniform",
     ) -> None:
         (
             self.context_length,
@@ -40,11 +41,17 @@ class Collator:
             custom_dataset.terminations + custom_dataset.truncations == 1
         )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
+        self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
 
-        # define a distribution for sampling episodes with probability inversely proportional to their length
-        self.episode_probabilities = 1 / (self.episode_ends - self.episode_starts + 1)
-        self.episode_probabilities /= np.sum(self.episode_probabilities)
+        # define a distribution for sampling episodes
+        if episode_probs == "length":
+            self.episode_probabilities = self.episode_lengths
+        elif episode_probs == "inverse_length":
+            self.episode_probabilities = 1 / self.episode_lengths
+        else:
+            self.episode_probabilities = np.ones(self.num_episodes)
+        self.episode_probabilities /= self.num_episodes
 
         # set state and action dimensions
         self.state_dim, self.act_dim = (
@@ -58,12 +65,6 @@ class Collator:
             custom_dataset.actions, width=self.act_dim
         )  # convert from index integer representation to one-hot
         self.rewards = custom_dataset.rewards
-
-        # compute observation statistics
-        self.state_mean, self.state_std = (
-            np.mean(self.observations, axis=0),
-            np.std(self.observations, axis=0) + 1e-6,  # avoid division by zero
-        )
 
         # store feedback as flattened array. if no feedback provided, use empty strings
         self.feedback = (
@@ -115,7 +116,47 @@ class Collator:
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
-    def _sample_batch(self, batch_size):
+    def _sample_episode(self, ep_idx, random_start=True, full=False):
+        # optionally sample a random start timestep for this episode
+        # note: end represents the last timestep _included_ in the sequence,
+        # which means when we're using exclusive range operators like [:]
+        # or np.arange, we need to use end + 1
+        start = self.episode_starts[ep_idx]
+        if random_start:
+            start += np.random.randint(0, self.episode_lengths[ep_idx])
+
+        tmp = self.episode_ends[ep_idx] if full else start + self.context_length - 1
+        end = min(tmp, self.episode_ends[ep_idx])
+
+        t = self._pad(np.arange(0, end - start + 1).reshape(1, -1))
+        s = self._normalise_states(
+            self._pad(self.observations[start : end + 1].reshape(1, -1, self.state_dim))
+        )
+        a = self._pad(self.actions[start : end + 1].reshape(1, -1, self.act_dim))
+        r = self._pad(self.rewards[start : end + 1].reshape(1, -1, 1))
+
+        all_rtg = discounted_cumsum(
+            self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
+        )
+        rtg = self._pad(all_rtg[: end - start + 1].reshape(1, -1, 1)) / self.scale
+
+        f = self._embed_feedback(
+            self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[0]
+        ).reshape(1, -1, self.embedding_dim)
+
+        mask = np.ones((1, end - start + 1))
+        if (end - start + 1) < self.context_length:
+            mask = np.concatenate(
+                [
+                    np.zeros((1, self.context_length - (end - start + 1))),
+                    mask,
+                ],
+                axis=1,
+            )
+
+        return t, s, a, r, f, rtg, mask
+
+    def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
         t, s, a, r, f, rtg, mask = [], [], [], [], [], [], []
 
         # sample episodes with a probability inversely proportional to their length (successful eps are shorter)
@@ -125,67 +166,17 @@ class Collator:
 
         # sample a subsequence of each chosen episode
         for ep_idx in episode_indices:
-            # optionally sample a random start timestep for this episode
-            # note: end represents the last timestep _included_ in the sequence,
-            # which means when we're using exclusive range operators like [:]
-            # or np.arange, we need to use end + 1
-            start = (
-                np.random.randint(self.episode_starts[ep_idx], self.episode_ends[ep_idx])
-                if self.randomise_starts
-                else self.episode_starts[ep_idx]
-            )
-            end = min(start + self.context_length - 1, self.episode_ends[ep_idx])
+            tmp = self._sample_episode(ep_idx, random_start=random_start, full=full)
+            t.append(tmp[0])
+            s.append(tmp[1])
+            a.append(tmp[2])
+            r.append(tmp[3])
+            f.append(tmp[4])
+            rtg.append(tmp[5])
+            mask.append(tmp[6])
 
-            # increment counter
-            self.samples_processed += end - start + 1
-
-            # timesteps
-            t.append(self._pad(np.arange(0, end - start + 1).reshape(1, -1)))
-
-            # states
-            s.append(
-                self._normalise_states(
-                    self._pad(
-                        self.observations[start : end + 1].reshape(1, -1, self.state_dim)
-                    )
-                )
-            )
-
-            # actions
-            a.append(
-                self._pad(self.actions[start : end + 1].reshape(1, -1, self.act_dim), val=-10)
-            )
-
-            # rewards
-            r.append(self._pad(self.rewards[start : end + 1].reshape(1, -1, 1)))
-
-            # returns-to-go
-            rtg.append(
-                self._pad(
-                    discounted_cumsum(
-                        self.rewards[start : self.episode_ends[ep_idx] + 1], gamma=self.gamma
-                    )[: s[-1].shape[1]].reshape(1, -1, 1)
-                )
-                / self.scale
-            )
-
-            # feedback
-            f.append(
-                self._embed_feedback(
-                    self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[0]
-                ).reshape(1, -1, self.embedding_dim)
-            )
-
-            # attention mask
-            mask.append(
-                np.concatenate(
-                    [
-                        np.zeros((1, self.context_length - (end - start + 1))),
-                        np.ones((1, end - start + 1)),
-                    ],
-                    axis=1,
-                )
-            )
+            if train:
+                self.samples_processed += tmp[0].shape[1]
 
         return {
             "timesteps": torch.from_numpy(np.concatenate(t, axis=0)).long(),
@@ -198,5 +189,6 @@ class Collator:
         }
 
     def __call__(self, features):
-        batch_size = len(features)
+        # batch_size = len(features)
+        batch_size = 128
         return self._sample_batch(batch_size)
