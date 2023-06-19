@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import gymnasium as gym
 import torch
@@ -18,6 +19,82 @@ from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
 sns.set_theme()
+
+
+class Visualiser:
+    def __init__(
+        self,
+        env,
+        directory,
+        filename,
+        seed,
+        auto_release=True,
+        size=None,
+        fps=30,
+        rgb=True,
+    ):
+        self.env = env
+        self.directory = directory
+        self.path = os.path.join(self.directory, f"{filename}.mp4")
+        self.auto_release = auto_release
+        self.active = True
+        self.fps = fps
+        self.rgb = rgb
+
+        if size is None:
+            self.env.reset(seed=seed)
+            self.size = self.env.render().shape[:2][::-1]
+        else:
+            self.size = size
+
+    def pause(self):
+        self.active = False
+
+    def resume(self):
+        self.active = True
+
+    def _start(self):
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
+
+    def _write(self):
+        if self.active:
+            frame = self.env.render()
+            if self.rgb:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            self._writer.write(frame)
+
+    def release(self):
+        self._writer.release()
+
+    def reset(self, *args, **kwargs):
+        obs = self.env.reset(*args, **kwargs)
+        self._start()
+        self._write(obs)
+        return obs
+
+    def step(self, *args, **kwargs):
+        data = self.env.step(*args, **kwargs)
+
+        self._write()
+
+        if self.auto_release and data[2]:
+            self.release()
+
+        return data
+
+    def save_as_best(self):
+        shutil.copy(self.path, os.path.join(self.directory, "best.mp4"))
+
+
+class AtariVisualiser(Visualiser):
+    def _write(self, obs):
+        if not self.active:
+            return
+        frame = obs.numpy().reshape((self.env.window,) + self.size)[-1]
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        self._writer.write(frame)
 
 
 class Evaluator(TrainerCallback):
@@ -160,7 +237,8 @@ class Evaluator(TrainerCallback):
         )
 
         # save the results to disk
-        df.to_pickle(os.path.join(self.output_dir, "returns.pkl"))
+        df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
+
 
     def _evaluate_agent_predictions(self, agent, agent_name, repeats=10, num_steps=100):
         accs = np.zeros(repeats)
@@ -197,6 +275,7 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
+        
     def _run_agent_on_env(self, agent: Agent, env: Visualiser):
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
@@ -384,8 +463,8 @@ class Evaluator(TrainerCallback):
 
     def _plot_results(self):
         df = pd.DataFrame(self.results)
-
         fig, ax = plt.subplots()
+
         sns.lineplot(x="samples", y="return", hue="model", data=df, ax=ax)
         fig.savefig(os.path.join(self.output_dir, "returns.png"))
         plt.close(fig)

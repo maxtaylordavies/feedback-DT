@@ -3,6 +3,8 @@ import pathlib
 import warnings
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 
+# from dopamine.replay_memory import circular_replay_buffer
+
 import h5py
 import numpy as np
 
@@ -12,9 +14,11 @@ class Transition:
         self,
         observation_shape: Sequence[int],
         action_size: int,
+        mission: np.ndarray,
         observation: np.ndarray,
         action: Union[int, np.ndarray],
         reward: float,
+        feedback: np.ndarray,
         next_observation: np.ndarray,
         termination: float,
         truncation: float,
@@ -34,6 +38,10 @@ class Transition:
         ...
 
     @property
+    def mission(self) -> bool:
+        ...
+
+    @property
     def observation(self) -> np.ndarray:
         ...
 
@@ -43,6 +51,10 @@ class Transition:
 
     @property
     def reward(self) -> float:
+        ...
+
+    @property
+    def feedback(self) -> np.ndarray:
         ...
 
     @property
@@ -88,6 +100,10 @@ class TransitionMiniBatch:
         ...
 
     @property
+    def missions(self) -> np.ndarray:
+        ...
+
+    @property
     def observations(self) -> np.ndarray:
         ...
 
@@ -97,6 +113,10 @@ class TransitionMiniBatch:
 
     @property
     def rewards(self) -> np.ndarray:
+        ...
+
+    @property
+    def feedback(self) -> np.ndarray:
         ...
 
     @property
@@ -155,9 +175,11 @@ def _safe_size(array):
 def _to_episodes(
     observation_shape,
     action_size,
+    missions,
     observations,
     actions,
     rewards,
+    feedback,
     terminations,
     truncations,
     episode_terminals,
@@ -165,13 +187,15 @@ def _to_episodes(
     rets = []
     head_index = 0
     for i in range(_safe_size(observations)):
-        if episode_terminals[i]:  # todo: check
+        if episode_terminals[i]:
             episode = Episode(
                 observation_shape=observation_shape,
                 action_size=action_size,
+                missions=missions[head_index : i + 1],
                 observations=observations[head_index : i + 1],
                 actions=actions[head_index : i + 1],
                 rewards=rewards[head_index : i + 1],
+                feedback=feedback[head_index : i + 1],
                 termination=terminations[i],
                 truncation=truncations[i],
             )
@@ -184,8 +208,10 @@ def _to_transitions(
     observation_shape,
     action_size,
     observations,
+    missions,
     actions,
     rewards,
+    feedback,
     termination,
     truncation,
 ):
@@ -193,9 +219,11 @@ def _to_transitions(
     num_data = _safe_size(observations)
     prev_transition = None
     for i in range(num_data):
+        mission = missions[i]
         observation = observations[i]
         action = actions[i]
         reward = rewards[i]
+        feedback = feedback[i]
 
         if i == num_data - 1:
             if termination or truncation:
@@ -210,9 +238,11 @@ def _to_transitions(
         transition = Transition(
             observation_shape=observation_shape,
             action_size=action_size,
+            mission=mission,
             observation=observation,
             action=action,
             reward=reward,
+            feedback=feedback,
             next_observation=next_observation,
             termination=termination,
             truncation=truncation,
@@ -240,6 +270,8 @@ class MinariDataset:
 
     MinariDataset is deisnged for reinforcement learning datasets to use them like
     supervised learning datasets.
+
+    Adapted from https://github.com/Farama-Foundation/Minari
 
     .. code-block:: python
 
@@ -297,6 +329,8 @@ class MinariDataset:
 
     def __init__(
         self,
+        level_group,
+        level_name,
         dataset_name,
         algorithm_name,
         environment_name,
@@ -304,14 +338,18 @@ class MinariDataset:
         code_permalink,
         author,
         author_email,
+        missions,
         observations,
         actions,
         rewards,
+        feedback,
         terminations,
         truncations,
         episode_terminals=None,
         discrete_action=None,
     ):
+        self._level_group = level_group
+        self._level_name = level_name
         self._dataset_name = dataset_name
         self._algorithm_name = algorithm_name
         self._environment_name = environment_name
@@ -352,8 +390,10 @@ class MinariDataset:
         assert np.all(np.logical_not(np.isnan(terminations)))
         assert np.all(np.logical_not(np.isnan(truncations)))
 
+        self._missions = np.asarray(missions, dtype="S")
         self._observations = observations
         self._rewards = np.asarray(rewards, dtype=np.float32).reshape(-1)
+        self._feedback = np.asarray(feedback, dtype="S")
         self._terminations = np.asarray(terminations, dtype=np.float32).reshape(-1)
         self._truncations = np.asarray(truncations, dtype=np.float32).reshape(-1)
 
@@ -376,6 +416,14 @@ class MinariDataset:
             self._actions = np.asarray(actions, dtype=np.float32)
 
         self._episodes = None
+
+    @property
+    def level_group(self):
+        return self._level_group
+
+    @property
+    def level_name(self):
+        return self._level_name
 
     @property
     def dataset_name(self):
@@ -406,6 +454,10 @@ class MinariDataset:
         return self._author_email
 
     @property
+    def missions(self):
+        return self._missions
+
+    @property
     def observations(self):
         """Returns the observations.
 
@@ -434,6 +486,10 @@ class MinariDataset:
 
         """
         return self._rewards
+
+    @property
+    def feedback(self):
+        return self._feedback
 
     @property
     def terminations(self):
@@ -607,9 +663,11 @@ class MinariDataset:
 
     def append(
         self,
+        missions,
         observations,
         actions,
         rewards,
+        feedback,
         terminations,
         truncations,
         episode_terminals=None,
@@ -617,9 +675,11 @@ class MinariDataset:
         """Appends new data.
 
         Args:
+            missions (numpy.ndarray): missions.
             observations (numpy.ndarray): N-D array.
             actions (numpy.ndarray): actions.
             rewards (numpy.ndarray): rewards.
+            feedback (numpy.ndarray): feedback.
             terminals (numpy.ndarray): terminals.
             episode_terminals (numpy.ndarray): episode terminals.
 
@@ -638,31 +698,32 @@ class MinariDataset:
                     self.get_action_size(),
                 ), f"Action size must be {self.get_action_size()}."
 
-        # append observations
+        self._missions = np.hstack([self._missions, missions])
+
         self._observations = np.vstack([self._observations, observations])
 
-        # append actions
         if self.discrete_action:
             self._actions = np.hstack([self._actions, actions])
         else:
             self._actions = np.vstack([self._actions, actions])
 
-        # append rests
         self._rewards = np.hstack([self._rewards, rewards])
+        self._feedback = np.hstack([self._feedback, feedback])
         self._terminations = np.hstack([self._terminations, terminations])
         if episode_terminals is None:
-            episode_terminals = (
-                terminations or truncations
-            )  # todo: check this (not sure it's refactored correctly)
-        self._episode_terminals = np.hstack([self._episode_terminals, episode_terminals])
+            episode_terminals = terminations or truncations
+        self._episode_terminals = np.hstack(
+            [self._episode_terminals, episode_terminals]
+        )
 
-        # convert new data to list of episodes
         episodes = _to_episodes(
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
+            missions=self._missions,
             observations=self._observations,
             actions=self._actions,
             rewards=self._rewards,
+            feedback=self._feedback,
             terminations=self._terminations,
             truncations=self._truncations,
             episode_terminals=self._episode_terminals,
@@ -685,9 +746,11 @@ class MinariDataset:
         ), f"Observation shape must be {self.get_observation_shape()}"
 
         self.append(
+            dataset.missions,
             dataset.observations,
             dataset.actions,
             dataset.rewards,
+            dataset.feedback,
             dataset.terminations,
             dataset.truncations,
             dataset.episode_terminals,
@@ -710,6 +773,8 @@ class MinariDataset:
         os.makedirs(datasets_path, exist_ok=True)
 
         with h5py.File(file_path, "w") as f:
+            f.create_dataset("level_group", data=self._level_group)
+            f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("algorithm_name", data=self._algorithm_name)
             f.create_dataset("environment_name", data=self._environment_name)
@@ -719,9 +784,11 @@ class MinariDataset:
             )  # allows saving of NoneType
             f.create_dataset("author", data=str(self._author))
             f.create_dataset("author_email", data=str(self._author_email))
+            f.create_dataset("missions", data=self._missions)
             f.create_dataset("observations", data=self._observations)
             f.create_dataset("actions", data=self._actions)
             f.create_dataset("rewards", data=self._rewards)
+            f.create_dataset("feedback", data=self._feedback)
             f.create_dataset("terminations", data=self._terminations)
             f.create_dataset("truncations", data=self._truncations)
             f.create_dataset("episode_terminals", data=self._episode_terminals)
@@ -754,6 +821,8 @@ class MinariDataset:
 
         """
         with h5py.File(fname, "r") as f:
+            level_group = f["level_group"][()]
+            level_name = f["level_name"][()]
             dataset_name = f["dataset_name"][()]
             algorithm_name = f["algorithm_name"][()]
             environment_name = f["environment_name"][()]
@@ -761,9 +830,11 @@ class MinariDataset:
             code_permalink = f["code_permalink"][()]
             author = f["author"][()]
             author_email = f["author_email"][()]
+            missions = f["missions"][()]
             observations = f["observations"][()]
             actions = f["actions"][()]
             rewards = f["rewards"][()]
+            feedback = f["feedback"][()]
             terminations = f["terminations"][()]
             truncations = f["truncations"][()]
             discrete_action = f["discrete_action"][()]
@@ -775,6 +846,8 @@ class MinariDataset:
                 episode_terminals = None
 
         dataset = cls(
+            level_group=level_group,
+            level_name=level_name,
             dataset_name=dataset_name,
             algorithm_name=algorithm_name,
             environment_name=environment_name,
@@ -782,9 +855,11 @@ class MinariDataset:
             code_permalink=code_permalink,
             author=author,
             author_email=author_email,
+            missions=missions,
             observations=observations,
             actions=actions,
             rewards=rewards,
+            feedback=feedback,
             terminations=terminations,
             truncations=truncations,
             episode_terminals=episode_terminals,
@@ -803,13 +878,112 @@ class MinariDataset:
         self._episodes = _to_episodes(
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
+            missions=self._missions,
             observations=self._observations,
             actions=self._actions,
             rewards=self._rewards,
+            feedback=self._feedback,
             terminations=self._terminations,
             truncations=self.truncations,
             episode_terminals=self._episode_terminals,
         )
+
+    @classmethod
+    def random(cls, num_eps, ep_length, state_dim, act_dim):
+        states = np.random.rand(num_eps * ep_length, state_dim)
+        actions = np.random.randint(0, act_dim, size=(num_eps * ep_length))
+        rewards = np.random.rand(num_eps * ep_length)
+
+        terminations = np.zeros((num_eps, ep_length))
+        terminations[:, -1] = 1
+        terminations = terminations.reshape((num_eps * ep_length))
+        truncations = np.zeros_like(terminations)
+
+        return cls(
+            level_group="",
+            level_name="",
+            missions=np.array([]),
+            feedback=np.array([]),
+            dataset_name="",
+            algorithm_name="",
+            environment_name="",
+            seed_used=0,
+            code_permalink="",
+            author="",
+            author_email="",
+            observations=states,
+            actions=actions,
+            rewards=rewards,
+            terminations=terminations,
+            truncations=truncations,
+            episode_terminals=None,
+            discrete_action=True,
+        )
+
+    @classmethod
+    def from_dqn_replay(cls, data_dir, game, num_samples):
+        obs, acts, rewards, dones = [], [], [], []
+
+        buffer_idx, depleted = -1, True
+        while len(obs) < num_samples:
+            if depleted:
+                buffer_idx, depleted = buffer_idx + 1, False
+                buffer, i = load_dopamine_buffer(data_dir, game, 50 - buffer_idx), 0
+
+            (
+                s,
+                a,
+                r,
+                _,
+                _,
+                _,
+                terminal,
+                _,
+            ) = buffer.sample_transition_batch(batch_size=1, indices=[i])
+
+            obs.append(s[0])
+            acts.append(a[0])
+            rewards.append(r[0])
+            dones.append(terminal[0])
+
+            i += 1
+            depleted = i == buffer._replay_capacity
+
+        return cls(
+            level_group="",
+            level_name="",
+            dataset_name=f"dqn_replay-{game}-{num_samples}",
+            algorithm_name="",
+            environment_name="",
+            environment_stack="",
+            seed_used=0,
+            code_permalink="",
+            author="",
+            author_email="",
+            observations=np.array(obs),
+            missions=np.array([]),
+            actions=np.array(acts),
+            rewards=np.array(rewards),
+            feedback=np.array([]),
+            terminations=np.array(dones),
+            truncations=np.zeros_like(dones),
+            episode_terminals=None,
+            discrete_action=True,
+        )
+
+    # helper func to load a dopamine buffer from dqn replay logs
+    def load_dopamine_buffer(data_dir, game, buffer_idx):
+        replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
+            observation_shape=(84, 84),
+            stack_size=4,
+            update_horizon=1,
+            gamma=0.99,
+            observation_dtype=np.uint8,
+            batch_size=32,
+            replay_capacity=100000,
+        )
+        replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
+        return replay_buffer
 
     def __len__(self):
         return self.size()
@@ -858,9 +1032,11 @@ class Episode:
         self,
         observation_shape,
         action_size,
+        missions,
         observations,
         actions,
         rewards,
+        feedback,
         termination=True,
         truncation=True,
     ):
@@ -880,12 +1056,24 @@ class Episode:
 
         self.observation_shape = observation_shape
         self.action_size = action_size
+        self._missions = missions
         self._observations = observations
         self._actions = actions
         self._rewards = np.asarray(rewards, dtype=np.float32)
+        self._feedback = feedback
         self._termination = termination
         self._truncation = truncation
         self._transitions = None
+
+    @property
+    def missions(self):
+        """Returns the missions.
+
+        Returns:
+            numpy.ndarray: array of missions.
+
+        """
+        return self._missions
 
     @property
     def observations(self):
@@ -916,6 +1104,16 @@ class Episode:
 
         """
         return self._rewards
+
+    @property
+    def feedback(self):
+        """Returns the feedback.
+
+        Returns:
+            numpy.ndarray: array of feedback.
+
+        """
+        return self._feedback
 
     @property
     def termination(self):
@@ -960,9 +1158,11 @@ class Episode:
         self._transitions = _to_transitions(
             observation_shape=self.observation_shape,
             action_size=self.action_size,
+            missions=self._missions,
             observations=self._observations,
             actions=self._actions,
             rewards=self._rewards,
+            feedback=self._feedback,
             termination=self._termination,
             truncation=self._truncation,
         )

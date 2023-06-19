@@ -7,12 +7,14 @@ from transformers import (
 
 from src.agent import Agent, AgentInput
 from src.collator import Collator
-from src.dataset import CustomDataset
+from src.dataset.minari_dataset import MinariDataset
 from .evaluator import Evaluator
 
 
 class AgentTrainer(Trainer):
-    def __init__(self, args: Dict, agent: Agent, collator: Collator, dataset: CustomDataset):
+    def __init__(
+        self, args: Dict, agent: Agent, collator: Collator, dataset: MinariDataset
+    ):
         self.user_args = args
 
         super().__init__(

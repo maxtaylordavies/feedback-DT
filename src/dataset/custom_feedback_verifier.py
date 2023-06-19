@@ -1,17 +1,18 @@
-from minigrid.core.world_object import Door, Key, Wall
+from abc import ABC, abstractmethod
+
+from minigrid.core.world_object import Box, Door, Key, Wall
 from minigrid.envs.babyai.core.verifier import (
-    ObjDesc,
-    SeqInstr,
-    GoToInstr,
-    PickupInstr,
-    OpenInstr,
-    PutNextInstr,
+    AfterInstr,
     AndInstr,
     BeforeInstr,
-    AfterInstr,
+    GoToInstr,
+    ObjDesc,
+    OpenInstr,
+    PickupInstr,
+    PutNextInstr,
+    SeqInstr,
     pos_next_to,
 )
-from abc import ABC, abstractmethod
 
 
 class Feedback(ABC):
@@ -31,14 +32,14 @@ class Feedback(ABC):
         Verify the feedback for the action taken by the agent.
 
         Parameters
-        ---------
+        ----------
         env : MiniGridEnv
             The environment which to verify an action against. MiniGridEnv is a subclass of gym.Env.
         action : int
             The action to verify.
 
         Raises
-        -------
+        ------
         NotImplementedError
             Raised when not overriden by a derived class
         """
@@ -53,10 +54,7 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of an empty cell, False otherwise.
         """
-        if self.front_cell is None:
-            return True
-        else:
-            return False
+        return self.front_cell is None
 
     def _is_wall(self):
         """
@@ -78,10 +76,7 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of a door, False otherwise.
         """
-        if isinstance(self.front_cell, Door):
-            return True
-        else:
-            return False
+        return isinstance(self.front_cell, Door)
 
     def _is_open_door(self):
         """
@@ -92,10 +87,27 @@ class Feedback(ABC):
         bool
             True if the agent is positioned in front of an open door, False otherwise.
         """
-        if self._is_door() and self.front_cell.is_open:
-            return True
-        else:
-            return False
+
+        return self._is_door() and self.front_cell.is_open
+
+
+class RuleFeedback(Feedback):
+    """
+    Sub class for generating rule feedback for actions on BabyAI environments.
+    """
+
+    def _is_obstacle(self):
+        """
+        Check if there is an obstacle object in front of the agent.
+
+        Returns
+        -------
+        bool
+            True if the object in front of the agent is an obstacle (other than a closed/locked door or wall), False otherwise.
+        """
+        return not self.front_cell.can_overlap() and not (
+            self._is_closed_door() or self._is_locked_door() or self._is_wall()
+        )
 
     def _is_closed_door(self):
         """
@@ -107,8 +119,7 @@ class Feedback(ABC):
             True if the agent is positioned in front of an cloed door, False otherwise.
         """
         if self._is_door():
-            if not self.front_cell.is_open:
-                return True
+            return not self.front_cell.is_open and not self.front_cell.is_locked
         return False
 
     def _is_locked_door(self):
@@ -121,8 +132,20 @@ class Feedback(ABC):
             True if the agent is positioned in front of a locked door, False otherwise.
         """
         if self._is_door():
-            if self.front_cell.is_locked:
-                return True
+            return self.front_cell.is_locked
+        return False
+
+    def _is_box(self):
+        """
+        Check if there is a box object in front of the agent.
+
+        Returns
+        -------
+        bool
+            True if the object in front of the agent is a box, False otherwise.
+        """
+        if isinstance(self.front_cell, Box):
+            return True
         return False
 
     def _is_carrying(self):
@@ -150,27 +173,6 @@ class Feedback(ABC):
             and self.carrying.color == self.front_cell.color
         )
 
-
-class RuleFeedback(Feedback):
-    """
-    Sub class for generating rule feedback for actions on BabyAI environments.
-    """
-
-    def _is_obstacle(self):
-        """
-        Check if the .
-
-        Returns
-        -------
-        bool
-            True if the agent can move forward, False otherwise.
-        """
-        if not self.front_cell.can_overlap() and not (
-            self._is_closed_door() or self._is_locked_door() or self._is_wall()
-        ):
-            return True
-        return False
-
     def _is_valid_move_forward(self):
         """
         Check if the agent can move forward.
@@ -192,15 +194,15 @@ class RuleFeedback(Feedback):
             The feedback for the move forward action with respect to the object in the cell that the agent is facing.
         """
         if self._is_locked_door():
-            return "You can't move forward here. The door in front of you is locked."
+            return "You can't move forward here as the door in front of you is locked."
         if self._is_closed_door():
-            return "You can't move forward here. The door in front of you is closed."
+            return "You can't move forward here as the door in front of you is closed."
         if self._is_wall():
             return "You can't move forward while you're facing the wall."
         if self._is_obstacle():
             return (
-                "You can't move forward here. "
-                + f"There is an obstacle in the form of a {self.front_cell.type} blocking the way."
+                "You can't move forward here "
+                + f"as there is an obstacle in the form of a {self.front_cell.type} blocking the way."
             )
 
     def _is_valid_toggle(self):
@@ -212,9 +214,12 @@ class RuleFeedback(Feedback):
         bool
             True if the agent can toggle the object in front of it, False otherwise."""
         if self.front_cell:
-            return self.front_cell.toggle(self.env, self.env.agent_pos)
-        else:
-            return False
+            return (
+                (self._is_locked_door() and self._is_carrying_correct_key())
+                or self._is_closed_door()
+                or self._is_box()
+            )
+        return False
 
     def _get_toggle_feedback(self):
         """
@@ -226,15 +231,15 @@ class RuleFeedback(Feedback):
             The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "There is nothing to toggle in front of you."
+            return "There is nothing to open in front of you."
         if self._is_open_door():
-            return "You can't toggle an already open door."
+            return "You just closed an already open door."
         if self._is_locked_door() and not self._is_carrying_correct_key():
-            return "You can't toggle a locked door without the correct key."
+            return "You can't open a locked door without a key of the same color as the door."
         if self._is_wall():
-            return "You can't toggle the wall."
+            return "You can't open the wall."
         if self._is_obstacle():
-            return f"You can't toggle {self.front_cell.type}s."
+            return f"You can't open {self.front_cell.type}s."
 
     def _is_valid_pickup(self):
         """
@@ -261,7 +266,7 @@ class RuleFeedback(Feedback):
         if self._is_empty_cell():
             return "There is nothing to pick up in front of you."
         if self._is_door():
-            return "You can't pick up a door."
+            return "You can't pick up doors."
         if self._is_wall():
             return "You can't pick up the wall."
         if self._is_carrying():
@@ -295,8 +300,8 @@ class RuleFeedback(Feedback):
             return "You can't drop an object while you're facing a door."
         if self._is_obstacle():
             return (
-                "You can't drop an object in front of you. "
-                + f"There is already a {self.front_cell.type} there."
+                "You can't drop an object on top of another object, and "
+                + f"there is already a {self.front_cell.type} in front of you."
             )
 
     def _get_rule_feedback(self):
@@ -319,14 +324,14 @@ class RuleFeedback(Feedback):
             return self._get_pickup_feedback()
         if self.action == self.env.actions.drop and not self._is_valid_drop():
             return self._get_drop_feedback()
-        return ""
+        return "No feedback available."
 
     def verify_feedback(self, env, action):
         """
         Verify the feedback for the action taken by the agent.
 
         Raises
-        -------
+        ------
         NotImplementedError
             Raised when not overriden by a derived class
         """
@@ -349,6 +354,7 @@ class TaskFeedback(Feedback):
             self.pop_from = -1
         else:
             self.pop_from = 0
+        # self.prev_goal_objects = None
 
     # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
 
@@ -390,7 +396,7 @@ class TaskFeedback(Feedback):
     def _decompose_and_instrs(self, instrs):
         if self._task_is_and(instrs):
             return instrs.instr_a, instrs.instr_b
-        return instrs
+        return [instrs]
 
     def _get_tasks(self):
         if self._task_is_before():
@@ -411,9 +417,13 @@ class TaskFeedback(Feedback):
         return GoToInstr(instrs.desc), instrs
 
     def _decompose_unlock_instrs(self, instrs):
+        goto_key_instrs = GoToInstr(ObjDesc("key", instrs.desc.color))
+        goto_key_instrs.reset_verifier(self.env)
+        pickup_key_instrs = PickupInstr(ObjDesc("key", instrs.desc.color))
+        pickup_key_instrs.reset_verifier(self.env)
         return (
-            GoToInstr(ObjDesc(Key, instrs.desc.color)),
-            PickupInstr(ObjDesc(Key, instrs.desc.color)),
+            goto_key_instrs,
+            pickup_key_instrs,
             GoToInstr(instrs.desc),
             instrs,
         )
@@ -425,7 +435,6 @@ class TaskFeedback(Feedback):
         return (
             GoToInstr(instrs.desc_move),
             PickupInstr(instrs.desc_move),
-            GoToInstr(instrs.desc_fixed),
             instrs,
         )
 
@@ -437,7 +446,8 @@ class TaskFeedback(Feedback):
             if self._task_is_open(task):
                 if self._task_is_unlock(task):
                     subtasks.extend(self._decompose_unlock_instrs(task))
-                subtasks.extend(self._decompose_open_instrs(task))
+                else:
+                    subtasks.extend(self._decompose_open_instrs(task))
             if self._task_is_pickup(task):
                 subtasks.extend(self._decompose_pickup_instrs(task))
             if self._task_is_putnext(task):
@@ -445,19 +455,6 @@ class TaskFeedback(Feedback):
         return subtasks
 
     # METHODS FOR GENERATING FEEDBACK FOR EACH SUBTASK
-
-    def _has_different_col(self, current_obj, goal_obj):
-        return current_obj.color == goal_obj.color
-
-    def _has_different_type(self, current_obj, goal_obj):
-        return current_obj.type == goal_obj.type
-
-    def _has_different_location(self, current_obj, goal_obj):
-        return not (
-            self._is_goal(current_obj, goal_obj)
-            and self._has_different_col(current_obj, goal_obj)
-            and self._has_different_type(current_obj, goal_obj)
-        )
 
     def _is_goal(self, current_obj, goal_obj):
         return current_obj in goal_obj.obj_set
@@ -481,13 +478,18 @@ class TaskFeedback(Feedback):
             return "door"
         return "object"
 
+    def _get_completion_level(self):
+        if not self.subtasks:
+            return "No feedback available."
+        return "a part of "
+
     def _get_goto_feedback(self, instrs):
         goal_obj = instrs.desc
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
-                return f"You've gone to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
-        return ""
+                return f"You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
+        return "No feedback available."
 
     def _get_open_feedback(self, instrs):
         goal_obj = instrs.desc
@@ -495,29 +497,36 @@ class TaskFeedback(Feedback):
             if self._is_goal(self.front_cell, goal_obj):
                 if self._is_open_door():
                     self.subtasks.pop(self.pop_from)
-                    return f"You've opened {self._get_article(goal_obj)} correct door."
-        return ""
+                    return f"You've completed {self._get_completion_level()}your task by opening {self._get_article(goal_obj)} correct door."
+        return "No feedback available."
 
     def _get_pickup_feedback(self, instrs):
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
+            # if self._is_goal_pickup(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
-            return f"You've picked up {self._get_article(goal_obj)} correct object."
-        return ""
+            return f"You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} correct object."
+        return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
         goal_obj_1 = instrs.desc_move
         goal_obj_2 = instrs.desc_fixed
-        if not (self._is_wall() or self._is_empty_cell()):
-            if self._is_goal(self.front_cell, goal_obj_1):
-                if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
-                    self.subtasks.pop(self.pop_from)
-                    return f"You've put {self._get_article(goal_obj_1)} correct object next to {self._get_article(goal_obj_2)} correct {self._get_goto_type(goal_obj_2)}."
-        return ""
+        if self._is_goal(self.front_cell, goal_obj_1):
+            if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
+                self.subtasks.pop(self.pop_from)
+                return f"You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} correct move object next to {self._get_article(goal_obj_2)} correct {'fixed object' if self._get_goto_type(goal_obj_2) == 'object' else self._get_goto_type(goal_obj_2)}."
+        return "No feedback available."
 
     def _get_task_feedback(self):
-        current_subtask = self.subtasks[self.pop_from]
-        if self._task_is_goto(current_subtask):
+        try:
+            current_subtask = self.subtasks[self.pop_from]
+        except IndexError:
+            return "No feedback available."
+        if (
+            self.action == self.env.actions.left
+            or self.action == self.env.actions.right
+            or self.action == self.env.actions.forward
+        ) and self._task_is_goto(current_subtask):
             return self._get_goto_feedback(current_subtask)
         if self.action == self.env.actions.toggle and self._task_is_open(
             current_subtask

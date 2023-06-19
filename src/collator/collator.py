@@ -5,16 +5,16 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from src.dataset import CustomDataset, FeedbackArray
-from src.utils.utils import to_one_hot, discounted_cumsum
+from src.dataset.minari_dataset import MinariDataset
+from src.utils.utils import discounted_cumsum, to_one_hot
 
 
 @dataclass
 class Collator:
     def __init__(
         self,
-        custom_dataset: CustomDataset,
-        feedback: Optional[FeedbackArray] = None,
+        custom_dataset: MinariDataset,
+        feedback: True,
         context_length=30,
         scale=1,
         gamma=0.99,
@@ -68,13 +68,13 @@ class Collator:
 
         # store feedback as flattened array. if no feedback provided, use empty strings
         self.feedback = (
-            np.hstack(feedback)
-            if feedback is not None
-            else np.array([""] * len(self.observations))
+            np.hstack(custom_dataset.feedback)
+            if feedback
+            else np.array(["No feedback available."] * len(self.observations))
         )
         self._feedback_embeddings_map = (
             self._precompute_feedback_embeddings()
-            if feedback is not None
+            if feedback
             else {"": torch.tensor(np.random.random((1, self.embedding_dim)))}
         )
 
@@ -178,6 +178,7 @@ class Collator:
             if train:
                 self.samples_processed += tmp[0].shape[1]
 
+
         return {
             "timesteps": torch.from_numpy(np.concatenate(t, axis=0)).long(),
             "states": torch.from_numpy(np.concatenate(s, axis=0)).float(),
@@ -189,6 +190,5 @@ class Collator:
         }
 
     def __call__(self, features):
-        # batch_size = len(features)
-        batch_size = 128
+        batch_size = len(features)
         return self._sample_batch(batch_size)

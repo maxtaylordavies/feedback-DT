@@ -1,146 +1,304 @@
-import os
+import re
 
-import h5py
+import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
+from jsonc_parser.parser import JsoncParser
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
+from tqdm import tqdm
 
+from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
+from src.dataset.minari_storage import list_local_datasets, name_dataset
+from src.utils.utils import log
 
 
-class CustomDataset(MinariDataset):
-    def __init__(
-        self,
-        level_group,
-        level_name,
-        missions,
-        feedback,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
 
-        self._level_group = level_group
-        self._level_name = level_name
-        self._missions = np.asarray(missions, dtype="S")
-        self._feedback = np.asarray(feedback, dtype="S")
+class CustomDataset:
+    """
+    Class for generating a custom dataset for a given environment, seed and policy.
+    """
 
-    def save(self):
-        """Saves dataset as HDF5.
-        Args:
-            fname (str): file path.
+    def __init__(self, args):
+        self.args = args
+
+    def get_dataset(self):
         """
-        datasets_path = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
-            os.path.expanduser("~"), ".minari", "datasets"
-        )
-        file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
+        Get a MinariDataset object, either by loading an existing dataset from local storage
+        or by generating a new dataset.
 
-        os.makedirs(datasets_path, exist_ok=True)
-
-        with h5py.File(file_path, "w") as f:
-            f.create_dataset("level_group", data=self._level_group)
-            f.create_dataset("level_name", data=self._level_name)
-            f.create_dataset("missions", data=self._missions)
-            f.create_dataset("feedback", data=self._feedback)
-            f.create_dataset("dataset_name", data=self._dataset_name)
-            f.create_dataset("algorithm_name", data=self._algorithm_name)
-            f.create_dataset("environment_name", data=self._environment_name)
-            f.create_dataset("seed_used", data=self._seed_used)
-            f.create_dataset("code_permalink", data=str(self._code_permalink))
-            f.create_dataset("author", data=str(self._author))
-            f.create_dataset("author_email", data=str(self._author_email))
-            f.create_dataset("observations", data=self._observations)
-            f.create_dataset("actions", data=self._actions)
-            f.create_dataset("rewards", data=self._rewards)
-            f.create_dataset("terminations", data=self._terminations)
-            f.create_dataset("truncations", data=self._truncations)
-            f.create_dataset("episode_terminals", data=self._episode_terminals)
-            f.create_dataset("discrete_action", data=self.discrete_action)
-            f.create_dataset("version", data="1.0")
-            f.flush()
-
-    @property
-    def level_group(self):
-        return self._level_group
-
-    @property
-    def level_name(self):
-        return self._level_name
-
-    @property
-    def missions(self):
-        return self._missions
-
-    @classmethod
-    def load(cls, dataset_name):
-        """Loads dataset from HDF5.
-        .. code-block:: python
-            import numpy as np
-            from minari.dataset import MinariDataset
-            dataset = MinariDataset(np.random.random(10, 4),
-                                 np.random.random(10, 2),
-                                 np.random.random(10),
-                                 np.random.randint(2, size=10))
-            # save as HDF5
-            dataset.dump('dataset.h5')
-            # load from HDF5
-            new_dataset = MinariDataset.load('dataset.h5')
-        Args:
-            fname (str): file .
+        Returns
+        -------
+        MinariDataset: the dataset object that was retrieved from storage or created.
         """
-        datasets_path = os.environ.get("MINARI_DATASETS_PATH")
-        if datasets_path is not None:
-            file_path = os.path.join(datasets_path, f"{dataset_name}.hdf5")
+        dataset_name = name_dataset(self.args)
+        print(f"Creating dataset {dataset_name}")
+
+        if (
+            self.args["load_dataset_if_exists"]
+            and dataset_name in list_local_datasets()
+        ):
+            log(f"Loading dataset {dataset_name} from local storage")
+            return MinariDataset.load(dataset_name)
         else:
-            datasets_path = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
-            file_path = os.path.join(datasets_path, f"{dataset_name}.hdf5")
+            dataset = self._generate_new_dataset()
+            log(f"Created new dataset {dataset_name}, saving to local storage")
+            dataset.save()
+            return dataset
 
-        with h5py.File(file_path, "r") as f:
-            level_group = f["level_group"][()]
-            level_name = f["level_name"][()]
-            missions = f["missions"][()]
-            feedback = f["feedback"][()]
-            dataset_name = f["dataset_name"][()]
-            algorithm_name = f["algorithm_name"][()]
-            environment_name = f["environment_name"][()]
-            seed_used = f["seed_used"][()]
-            code_permalink = f["code_permalink"][()]
-            author = f["author"][()]
-            author_email = f["author_email"][()]
-            observations = f["observations"][()]
-            actions = f["actions"][()]
-            rewards = f["rewards"][()]
-            terminations = f["terminations"][()]
-            truncations = f["truncations"][()]
-            discrete_action = f["discrete_action"][()]
+    def _get_level(self):
+        """
+        Get the level name from the environment name.
 
-            # for backward compatibility
-            if "episode_terminals" in f:
-                episode_terminals = f["episode_terminals"][()]
+        Returns
+        -------
+        str: the level name.
+        """
+        temp_level = re.sub(r"([SRN]\d).*", r"", self.args["env_name"].split("-")[1])
+        if temp_level.startswith("GoTo"):
+            level = re.sub(r"(Open|ObjMaze|ObjMazeOpen)", r"", temp_level)
+        elif temp_level.startswith("Open"):
+            if "RedBlue" in temp_level:
+                level = re.sub(r"(RedBlue)", r"Two", temp_level)
             else:
-                episode_terminals = None
+                level = re.sub(r"(Color|Loc)", r"", temp_level)
+        elif temp_level.startswith("Unlock"):
+            level = re.sub(r"(Dist)", r"", temp_level)
+        elif temp_level.startswith("Pickup"):
+            level = re.sub(r"(Dist)", r"", temp_level)
+        else:
+            level = temp_level
+        return level
 
-        dataset = cls(
-            level_group=level_group,
-            level_name=level_name,
-            missions=missions,
-            feedback=feedback,
-            dataset_name=dataset_name,
-            algorithm_name=algorithm_name,
-            environment_name=environment_name,
-            seed_used=seed_used,
-            code_permalink=code_permalink,
-            author=author,
-            author_email=author_email,
-            observations=observations,
-            actions=actions,
-            rewards=rewards,
-            terminations=terminations,
-            truncations=truncations,
-            episode_terminals=episode_terminals,
-            discrete_action=discrete_action,
+    def _get_category(self, level):
+        """
+        Get the category from the level name.
+
+        Returns
+        -------
+        str: the category.
+        """
+        if level.startswith("GoTo"):
+            return "GoTo"
+        elif level.startswith("Open"):
+            return "Open"
+        elif level.startswith("Pickup") or level.startswith("UnblockPickup"):
+            return "Pickup"
+        elif level.startswith("PutNext"):
+            return "PutNext"
+        elif (
+            level.startswith("Unlock")
+            or level.startswith("KeyInBox")
+            or level.startswith("BlockedUnlockPickup")
+        ):
+            return "Unlock"
+        elif level.startswith("Synth") or "Boss" in level:
+            return "Synth"
+        else:
+            return "Other"
+
+    def _get_observation(self, partial_observation, env):
+        """
+        Get the observation from the environment.
+
+        Parameters
+        ----------
+        partial_observation (np.ndarray): the partial observation from the environment.
+        env (gym.Env): the environment.
+
+        Returns
+        -------
+        np.ndarray: the observation, either as a symbolic or rgb image representation.
+        """
+        fully_obs_env = FullyObsWrapper(env)
+        rgb_env = RGBImgPartialObsWrapper(env)
+        rgb_fully_obs_env = RGBImgObsWrapper(env)
+
+        full_observation = fully_obs_env.observation({})
+        rgb_partial_observation = rgb_env.observation({})
+        rgb_full_observation = rgb_fully_obs_env.observation({})
+
+        if self.args["fully_obs"]:
+            if self.args["rgb_obs"]:
+                observation = rgb_full_observation
+            else:
+                observation = full_observation
+        else:
+            if self.args["rgb_obs"]:
+                observation = rgb_partial_observation
+            else:
+                observation = partial_observation
+
+        return observation
+
+    def _get_used_action_space(self):
+        """
+        Get the used action space for the environment.
+
+        Returns
+        -------
+        list: the used action space.
+        """
+        file_path = "env_metadata.jsonc"
+        metadata = JsoncParser.parse_file(file_path)
+        level = self._get_level()
+        category = self._get_category(level)
+        return metadata["levels"][category][level]["used_action_space"]
+
+    def _ppo(self, observation):
+        """
+        Get the next action from the PPO policy.
+
+        Parameters
+        ----------
+        observation (np.ndarray): the observation.
+
+        Raises
+        ------
+        Exception: if the policy has not been implemented yet.
+        """
+        raise Exception("This policy has not been implemented yet")
+
+    def _policy(self, observation):
+        """
+        Get the next action from a given policy.
+
+        Parameters
+        ----------
+        observation (np.ndarray): the observation.
+
+        Returns
+        -------
+        int: the next action.
+        """
+
+        if self.args["policy"] == "random_used_action_space_only":
+            return np.random.choice(self._get_used_action_space())
+        elif self.args["policy"] == "online_ppo":
+            return self._ppo(observation["image"])
+        else:
+            # Excluding the 'done' action (integer representation: 6), as by default, this is not used
+            # to evaluate success for any of the tasks
+            return np.random.randint(0, 6)
+
+    def _generate_new_dataset(self):
+        """
+        Generate a new dataset for a given environment, seed and policy.
+
+        Returns
+        -------
+        MinariDataset: the dataset object that was created.
+        """
+        env = gym.make(self.args["env_name"])
+        partial_observation, _ = env.reset(seed=self.args["seed"])
+
+        observation = self._get_observation(partial_observation, env)
+
+        replay_buffer = {
+            "missions": [""] * (env.max_steps * self.args["num_episodes"] + 1),
+            "observations": np.array(
+                [np.zeros_like(observation["image"])]
+                * (env.max_steps * self.args["num_episodes"] + 1),
+                dtype=np.uint8,
+            ),
+            "actions": np.array(
+                [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
+                dtype=np.float32,
+            ),
+            "rewards": np.array(
+                [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
+                dtype=np.float32,
+            ),
+            "feedback": [""] * (env.max_steps * self.args["num_episodes"] + 1),
+            "terminations": np.array(
+                [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
+            ),
+            "truncations": np.array(
+                [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
+            ),
+        }
+
+        total_steps = 0
+        terminated, truncated = False, False
+        for episode in tqdm(range(self.args["num_episodes"])):
+            partial_observation, _ = env.reset(seed=self.args["seed"])
+            # Mission is the same for the whole episode
+            mission = partial_observation["mission"]
+            # Storing mission for initial episode timestep t=0 (m_0)
+            replay_buffer["missions"][total_steps] = mission
+            # Storing observation at initial episode timestep t=0 (o_0)
+            observation = self._get_observation(partial_observation, env)
+            replay_buffer["observations"][total_steps] = observation["image"]
+            # Storing initial values for rewards, terminations, truncations and feedback
+            replay_buffer["rewards"][total_steps] = np.array(0)
+            replay_buffer["feedback"][total_steps] = ""
+            rule_feedback_verifier = RuleFeedback()
+            task_feedback_verifier = TaskFeedback(env)
+            replay_buffer["terminations"][total_steps] = np.array(terminated)
+            replay_buffer["truncations"][total_steps] = np.array(truncated)
+            terminated, truncated = False, False
+            while not (terminated or truncated):
+                action = self._policy(observation)
+                rule_feedback = rule_feedback_verifier.verify_feedback(env, action)
+                partial_observation, reward, terminated, truncated, _ = env.step(action)
+
+                # Storing action a_t taken after observing o_t
+                replay_buffer["actions"][total_steps] = np.array(action)
+
+                # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
+                # If no rule feedback is provided (no rules have been breached), then
+                # we set the feedback to be the task feedback, otherwise we set it to be
+                # the rule feedback
+                # (note that there should always either be rule feedback or task success feedback
+                # as task success and rule violations are mutually exclusive)
+                if rule_feedback == "":
+                    feedback = task_feedback_verifier.verify_feedback(env, action)
+                else:
+                    feedback = rule_feedback
+
+                # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
+                # resulting from taking a_t at o_t
+                observation = self._get_observation(partial_observation, env)
+                replay_buffer["observations"][total_steps + 1] = observation["image"]
+                replay_buffer["missions"][total_steps + 1] = mission
+                replay_buffer["rewards"][total_steps + 1] = np.array(reward)
+                replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
+                replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
+                replay_buffer["feedback"][total_steps + 1] = feedback
+
+                total_steps += 1
+
+        env.close()
+
+        for key in replay_buffer.keys():
+            replay_buffer[key] = replay_buffer[key][: total_steps + 1]
+
+        episode_terminals = (
+            replay_buffer["terminations"] + replay_buffer["truncations"]
+            if self.args["include_timeout"]
+            else None
         )
 
-        return dataset
-
+        return MinariDataset(
+            level_group=self._get_category(self._get_level()),
+            level_name=self._get_level(),
+            dataset_name=name_dataset(self.args),
+            algorithm_name=self.args["policy"],
+            environment_name=self.args["env_name"],
+            seed_used=self.args["seed"],
+            code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
+            author="Sabrina McCallum",
+            author_email="s2431177@ed.ac.uk",
+            missions=replay_buffer["missions"],
+            observations=replay_buffer["observations"],
+            actions=replay_buffer["actions"],
+            rewards=replay_buffer["rewards"],
+            feedback=replay_buffer["feedback"],
+            terminations=replay_buffer["terminations"],
+            truncations=replay_buffer["truncations"],
+            episode_terminals=episode_terminals,
+        )
+      
     @classmethod
     def random(cls, num_eps, ep_length, state_dim, act_dim):
         states = np.random.rand(num_eps * ep_length, state_dim)

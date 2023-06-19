@@ -241,6 +241,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         #     dim=1,
         # )
 
+
         output = self._forward(input)
         action = output.action_preds[0, -1]
         return to_one_hot(action) if one_hot else action

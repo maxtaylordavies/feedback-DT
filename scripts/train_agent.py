@@ -10,6 +10,7 @@ from src.agent.fdt import AtariFDTAgent
 from src.trainer import AgentTrainer
 from src.utils.utils import log
 
+
 log("imports done")
 
 os.environ["WANDB_DISABLED"] = "true"

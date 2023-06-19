@@ -25,7 +25,7 @@ class AtariEnv:
         self.life_termination = False  # Used to check if resetting only from loss of life
         self.window = history_length  # Number of frames to concatenate
         self.state_buffer = deque([], maxlen=history_length)
-        self.training = False  # Consistent with model training mode
+        self.training = False
 
     def _get_state(self):
         state = cv2.resize(
@@ -50,6 +50,7 @@ class AtariEnv:
             #     self.ale.act(0)  # Assumes raw action 0 is always no-op
             #     if self.ale.game_over():
             #         self.ale.reset_game()
+            
         # Process and return "initial" state
         observation = self._get_state()
         self.state_buffer.append(observation)

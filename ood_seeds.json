@@ -1,0 +1,2811 @@
+{
+    "GoToRedBallGrey": {
+        "BabyAI-GoToRedBallGrey-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToRedBall": {
+        "BabyAI-GoToRedBall-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToRedBallNoDists": {
+        "BabyAI-GoToRedBallNoDists-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToObj": {
+        "BabyAI-GoToObj-v0": {
+            "size": [],
+            "color_type": [
+                28,
+                50,
+                57,
+                58,
+                63,
+                105,
+                141,
+                176,
+                207,
+                220
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjS4-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                9,
+                36,
+                58,
+                63,
+                97,
+                105,
+                127,
+                141,
+                203,
+                207
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToLocal": {
+        "BabyAI-GoToLocal-v0": {
+            "size": [],
+            "color_type": [
+                35,
+                58,
+                59,
+                99,
+                133,
+                170,
+                181,
+                182,
+                183,
+                207
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS5N2-v0": {
+            "size": [],
+            "color_type": [
+                7,
+                36,
+                50,
+                52,
+                58,
+                63,
+                66,
+                97,
+                105,
+                110
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS6N2-v0": {
+            "size": [],
+            "color_type": [
+                32,
+                50,
+                58,
+                63,
+                102,
+                110,
+                118,
+                174,
+                206,
+                220
+            ],
+            "agent_loc": [
+                2,
+                7,
+                18,
+                21,
+                31,
+                34,
+                40,
+                47,
+                56,
+                66
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS6N3-v0": {
+            "size": [],
+            "color_type": [
+                7,
+                32,
+                50,
+                58,
+                61,
+                79,
+                102,
+                105,
+                118,
+                141
+            ],
+            "agent_loc": [
+                2,
+                7,
+                18,
+                21,
+                31,
+                34,
+                40,
+                47,
+                56,
+                66
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS6N4-v0": {
+            "size": [],
+            "color_type": [
+                50,
+                53,
+                61,
+                65,
+                88,
+                90,
+                98,
+                141,
+                173,
+                180
+            ],
+            "agent_loc": [
+                2,
+                7,
+                18,
+                31,
+                34,
+                40,
+                47,
+                56,
+                66,
+                76
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS7N4-v0": {
+            "size": [],
+            "color_type": [
+                28,
+                35,
+                50,
+                52,
+                61,
+                74,
+                90,
+                97,
+                133,
+                141
+            ],
+            "agent_loc": [
+                4,
+                14,
+                18,
+                21,
+                23,
+                34,
+                37,
+                40,
+                43,
+                47
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS7N5-v0": {
+            "size": [],
+            "color_type": [
+                74,
+                79,
+                87,
+                112,
+                117,
+                141,
+                170,
+                207,
+                215,
+                226
+            ],
+            "agent_loc": [
+                4,
+                14,
+                18,
+                21,
+                23,
+                34,
+                37,
+                40,
+                43,
+                47
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N2-v0": {
+            "size": [],
+            "color_type": [
+                7,
+                28,
+                50,
+                57,
+                58,
+                63,
+                110,
+                118,
+                138,
+                176
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N3-v0": {
+            "size": [],
+            "color_type": [
+                50,
+                57,
+                61,
+                63,
+                64,
+                75,
+                91,
+                107,
+                118,
+                141
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N4-v0": {
+            "size": [],
+            "color_type": [
+                28,
+                35,
+                50,
+                57,
+                61,
+                79,
+                105,
+                133,
+                138,
+                141
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N5-v0": {
+            "size": [],
+            "color_type": [
+                11,
+                52,
+                63,
+                75,
+                91,
+                112,
+                133,
+                181,
+                182,
+                197
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N6-v0": {
+            "size": [],
+            "color_type": [
+                15,
+                28,
+                34,
+                52,
+                54,
+                61,
+                63,
+                74,
+                97,
+                99
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToLocalS8N7-v0": {
+            "size": [],
+            "color_type": [
+                6,
+                7,
+                26,
+                50,
+                72,
+                75,
+                79,
+                91,
+                110,
+                112
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                14,
+                18,
+                21,
+                23,
+                33,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoTo": {
+        "BabyAI-GoTo-v0": {
+            "size": [],
+            "color_type": [
+                35,
+                37,
+                45,
+                65,
+                95,
+                96,
+                99,
+                107,
+                119,
+                141
+            ],
+            "agent_loc": [
+                6,
+                7,
+                10,
+                14,
+                15,
+                16,
+                19,
+                22,
+                23,
+                24
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToOpen-v0": {
+            "size": [],
+            "color_type": [
+                35,
+                37,
+                45,
+                65,
+                95,
+                96,
+                99,
+                107,
+                119,
+                141
+            ],
+            "agent_loc": [
+                6,
+                7,
+                10,
+                14,
+                15,
+                16,
+                19,
+                22,
+                23,
+                24
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMaze-v0": {
+            "size": [],
+            "color_type": [
+                39,
+                47,
+                54,
+                72,
+                87,
+                91,
+                106,
+                109,
+                145,
+                178
+            ],
+            "agent_loc": [
+                5,
+                7,
+                10,
+                12,
+                15,
+                16,
+                19,
+                22,
+                28,
+                29
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeOpen-v0": {
+            "size": [],
+            "color_type": [
+                39,
+                47,
+                54,
+                72,
+                87,
+                91,
+                106,
+                109,
+                145,
+                178
+            ],
+            "agent_loc": [
+                5,
+                7,
+                10,
+                12,
+                15,
+                16,
+                19,
+                22,
+                28,
+                29
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeS4R2-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                3,
+                9,
+                43,
+                62,
+                76,
+                118,
+                131,
+                136,
+                143,
+                157
+            ],
+            "agent_loc": [
+                2,
+                3,
+                4,
+                5,
+                9,
+                13,
+                14,
+                21,
+                29,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeS4-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                33,
+                39,
+                57,
+                65,
+                72,
+                74,
+                91,
+                97,
+                101,
+                109
+            ],
+            "agent_loc": [
+                17,
+                21,
+                26,
+                31,
+                36,
+                40,
+                41,
+                49,
+                62,
+                63
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeS5-v0": {
+            "size": [],
+            "color_type": [
+                39,
+                65,
+                72,
+                74,
+                87,
+                91,
+                93,
+                109,
+                145,
+                178
+            ],
+            "agent_loc": [
+                0,
+                13,
+                16,
+                18,
+                25,
+                29,
+                35,
+                36,
+                46,
+                49
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeS6-v0": {
+            "size": [],
+            "color_type": [
+                39,
+                65,
+                72,
+                87,
+                91,
+                106,
+                109,
+                145,
+                178,
+                187
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                22,
+                24,
+                25,
+                29,
+                32,
+                34,
+                37
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToObjMazeS7-v0": {
+            "size": [],
+            "color_type": [
+                39,
+                72,
+                87,
+                91,
+                106,
+                109,
+                145,
+                178,
+                187,
+                193
+            ],
+            "agent_loc": [
+                1,
+                4,
+                7,
+                9,
+                12,
+                15,
+                19,
+                20,
+                32,
+                33
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToImpUnlock": {
+        "BabyAI-GoToImpUnlock-v0": {
+            "size": [],
+            "color_type": [
+                0,
+                1,
+                4,
+                75,
+                79,
+                89,
+                91,
+                99,
+                112,
+                184
+            ],
+            "agent_loc": [
+                0,
+                6,
+                8,
+                9,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToSeq": {
+        "BabyAI-GoToSeq-v0": {
+            "size": [],
+            "color_type": [
+                25,
+                51,
+                59,
+                66,
+                73,
+                90,
+                97,
+                104,
+                106,
+                122
+            ],
+            "agent_loc": [
+                0,
+                3,
+                5,
+                7,
+                10,
+                11,
+                14,
+                17,
+                18,
+                19
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-GoToSeqS5R2-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                4,
+                57,
+                115,
+                119,
+                150,
+                211,
+                227,
+                252,
+                274,
+                355
+            ],
+            "agent_loc": [
+                1,
+                4,
+                6,
+                9,
+                12,
+                14,
+                17,
+                20,
+                25,
+                27
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToRedBlueBall": {
+        "BabyAI-GoToRedBlueBall-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                5,
+                6,
+                12,
+                14,
+                21,
+                24,
+                26,
+                34
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToDoor": {
+        "BabyAI-GoToDoor-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                4,
+                17,
+                24,
+                25,
+                30,
+                34,
+                37,
+                44,
+                46,
+                48
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "GoToObjDoor": {
+        "BabyAI-GoToObjDoor-v0": {
+            "size": [],
+            "color_type": [
+                28,
+                43,
+                58,
+                113,
+                121,
+                137,
+                181,
+                195,
+                206,
+                217
+            ],
+            "agent_loc": [
+                1,
+                2,
+                6,
+                7,
+                9,
+                12,
+                14,
+                15,
+                20,
+                22
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "Open": {
+        "BabyAI-Open-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                6,
+                7,
+                10,
+                14,
+                15,
+                16,
+                19,
+                22,
+                23,
+                24
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "OpenDoor": {
+        "BabyAI-OpenDoor-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                0,
+                2,
+                4,
+                7,
+                8,
+                9,
+                10,
+                15,
+                16,
+                27
+            ],
+            "rel_loc": [
+                2,
+                14,
+                15,
+                18,
+                19,
+                38,
+                57,
+                66,
+                72,
+                77
+            ],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OpenDoorColor-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                5,
+                7,
+                10,
+                12,
+                16,
+                22,
+                28,
+                29,
+                34,
+                35
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OpenDoorLoc-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                7,
+                8,
+                9,
+                10,
+                14,
+                16,
+                20,
+                21,
+                27,
+                30
+            ],
+            "rel_loc": [
+                27,
+                28,
+                33,
+                34,
+                35,
+                43,
+                44,
+                45,
+                52,
+                62
+            ],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "OpenTwoDoors": {
+        "BabyAI-OpenTwoDoors-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                4,
+                6,
+                26,
+                29,
+                31,
+                33,
+                43,
+                47,
+                50
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OpenRedBlueDoors-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                4,
+                6,
+                26,
+                29,
+                31,
+                33,
+                43,
+                47,
+                50
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "OpenDoorsOrder": {
+        "BabyAI-OpenDoorsOrderN2-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                7,
+                15,
+                29,
+                31,
+                33,
+                47,
+                50,
+                52,
+                56
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OpenDoorsOrderN4-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                5,
+                9,
+                12,
+                16,
+                39,
+                40,
+                52,
+                63,
+                66
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "Pickup": {
+        "BabyAI-Pickup-v0": {
+            "size": [],
+            "color_type": [
+                35,
+                37,
+                45,
+                65,
+                95,
+                96,
+                99,
+                107,
+                119,
+                141
+            ],
+            "agent_loc": [
+                6,
+                7,
+                10,
+                14,
+                15,
+                16,
+                19,
+                22,
+                23,
+                24
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "UnblockPickup": {
+        "BabyAI-UnblockPickup-v0": {
+            "size": [],
+            "color_type": [
+                12,
+                20,
+                29,
+                56,
+                61,
+                62,
+                138,
+                139,
+                210,
+                238
+            ],
+            "agent_loc": [
+                2,
+                5,
+                8,
+                9,
+                10,
+                12,
+                15,
+                20,
+                22,
+                30
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "PickupLoc": {
+        "BabyAI-PickupLoc-v0": {
+            "size": [],
+            "color_type": [
+                2,
+                8,
+                11,
+                34,
+                66,
+                76,
+                109,
+                129,
+                174,
+                182
+            ],
+            "agent_loc": [
+                1,
+                6,
+                7,
+                8,
+                11,
+                12,
+                14,
+                16,
+                17,
+                18
+            ],
+            "rel_loc": [
+                25,
+                39,
+                72,
+                77,
+                99,
+                102,
+                104,
+                108,
+                126,
+                140
+            ],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "PickuDist": {
+        "BabyAI-PickupDist-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                3,
+                6,
+                7,
+                12,
+                13,
+                19,
+                22,
+                23,
+                24
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "PickupAbove": {
+        "BabyAI-PickupAbove-v0": {
+            "size": [],
+            "color_type": [
+                9,
+                32,
+                37,
+                61,
+                75,
+                101,
+                105,
+                127,
+                144,
+                152
+            ],
+            "agent_loc": [
+                2,
+                9,
+                11,
+                15,
+                16,
+                24,
+                50,
+                51,
+                52,
+                54
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "PutNextLocal": {
+        "BabyAI-PutNextLocal-v0": {
+            "size": [],
+            "color_type": [
+                7,
+                15,
+                39,
+                42,
+                44,
+                57,
+                61,
+                63,
+                64,
+                99
+            ],
+            "agent_loc": [
+                1,
+                6,
+                9,
+                21,
+                23,
+                33,
+                34,
+                36,
+                37,
+                39
+            ],
+            "rel_loc": [],
+            "object_task": [
+                14,
+                43,
+                60,
+                67,
+                72,
+                102,
+                126,
+                158,
+                165,
+                194
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextLocalS5N3-v0": {
+            "size": [],
+            "color_type": [
+                4,
+                7,
+                15,
+                22,
+                25,
+                36,
+                58,
+                61,
+                74,
+                85
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                15,
+                35,
+                43,
+                64,
+                109,
+                116,
+                147,
+                155,
+                181,
+                214
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextLocalS6N4-v0": {
+            "size": [],
+            "color_type": [
+                3,
+                7,
+                53,
+                60,
+                61,
+                63,
+                73,
+                74,
+                87,
+                88
+            ],
+            "agent_loc": [
+                2,
+                7,
+                18,
+                22,
+                24,
+                33,
+                40,
+                47,
+                56,
+                66
+            ],
+            "rel_loc": [],
+            "object_task": [
+                2,
+                17,
+                37,
+                55,
+                62,
+                78,
+                109,
+                115,
+                116,
+                119
+            ],
+            "task_task": []
+        }
+    },
+    "PutNext": {
+        "BabyAI-PutNextS4N1-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                9,
+                12,
+                18,
+                27,
+                41,
+                42,
+                56,
+                58,
+                88,
+                102
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                29,
+                56,
+                99,
+                143,
+                160,
+                161,
+                181,
+                190,
+                205,
+                241
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS5N1-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                10,
+                12,
+                13,
+                27,
+                56,
+                88,
+                97,
+                100,
+                111
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                41,
+                48,
+                101,
+                143,
+                160,
+                172,
+                183,
+                190,
+                194,
+                216
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS5N2-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                10,
+                13,
+                27,
+                52,
+                58,
+                62,
+                88,
+                100,
+                107
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                31,
+                35,
+                36,
+                101,
+                105,
+                113,
+                122,
+                157,
+                159,
+                196
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS6N3-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                2,
+                12,
+                20,
+                21,
+                26,
+                27,
+                28,
+                41,
+                47,
+                52
+            ],
+            "agent_loc": [
+                1,
+                7,
+                9,
+                10,
+                16,
+                17,
+                24,
+                30,
+                35,
+                45
+            ],
+            "rel_loc": [],
+            "object_task": [
+                24,
+                32,
+                35,
+                53,
+                83,
+                119,
+                143,
+                146,
+                165,
+                166
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS7N4-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                8,
+                15,
+                31,
+                34,
+                44,
+                60,
+                71,
+                88,
+                97
+            ],
+            "agent_loc": [
+                1,
+                10,
+                11,
+                16,
+                22,
+                24,
+                25,
+                30,
+                35,
+                44
+            ],
+            "rel_loc": [],
+            "object_task": [
+                9,
+                42,
+                49,
+                83,
+                84,
+                111,
+                146,
+                161,
+                167,
+                195
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS5N2Carrying-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                10,
+                13,
+                27,
+                52,
+                58,
+                62,
+                88,
+                100,
+                107
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                31,
+                35,
+                36,
+                101,
+                105,
+                113,
+                122,
+                157,
+                159,
+                196
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS6N3Carrying-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                2,
+                12,
+                20,
+                21,
+                26,
+                27,
+                28,
+                41,
+                47,
+                52
+            ],
+            "agent_loc": [
+                1,
+                7,
+                9,
+                10,
+                16,
+                17,
+                24,
+                30,
+                35,
+                45
+            ],
+            "rel_loc": [],
+            "object_task": [
+                24,
+                32,
+                35,
+                53,
+                83,
+                119,
+                143,
+                146,
+                165,
+                166
+            ],
+            "task_task": []
+        },
+        "BabyAI-PutNextS7N4Carrying-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                8,
+                15,
+                31,
+                34,
+                44,
+                60,
+                71,
+                88,
+                97
+            ],
+            "agent_loc": [
+                1,
+                10,
+                11,
+                16,
+                22,
+                24,
+                25,
+                30,
+                35,
+                44
+            ],
+            "rel_loc": [],
+            "object_task": [
+                9,
+                42,
+                49,
+                83,
+                84,
+                111,
+                146,
+                161,
+                167,
+                195
+            ],
+            "task_task": []
+        }
+    },
+    "Unlock": {
+        "BabyAI-Unlock-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                4,
+                8,
+                10,
+                13,
+                15,
+                17,
+                18,
+                19,
+                20,
+                23
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "UnlockLocal": {
+        "BabyAI-UnlockLocal-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                7,
+                10,
+                12,
+                13,
+                17,
+                22,
+                24,
+                34,
+                38
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-UnlockLocalDist-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                11,
+                20,
+                30,
+                32,
+                33,
+                35,
+                37,
+                39,
+                45,
+                49
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "KeyInBox": {
+        "BabyAI-KeyInBox-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                7,
+                14,
+                20,
+                23,
+                27,
+                42,
+                43,
+                45,
+                49,
+                50
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "UnlockPickup": {
+        "BabyAI-UnlockPickup-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                4,
+                9,
+                10,
+                13,
+                17,
+                28,
+                31,
+                41,
+                46,
+                51
+            ],
+            "agent_loc": [
+                4,
+                5,
+                6,
+                14,
+                16,
+                21,
+                23,
+                28,
+                31,
+                38
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-UnlockPickupDist-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                4,
+                9,
+                10,
+                13,
+                17,
+                28,
+                31,
+                41,
+                46,
+                51
+            ],
+            "agent_loc": [
+                8,
+                12,
+                16,
+                17,
+                18,
+                21,
+                22,
+                27,
+                35,
+                40
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "BlockedUnlockPickup": {
+        "BabyAI-BlockedUnlockPickup-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                9,
+                10,
+                11,
+                13,
+                14,
+                25,
+                27,
+                30,
+                35,
+                38
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "UnlockToUnlock": {
+        "BabyAI-UnlockToUnlock-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                5,
+                8,
+                13,
+                14,
+                18,
+                23,
+                26,
+                28,
+                29
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "ActionObjDoor": {
+        "BabyAI-ActionObjDoor-v0": {
+            "size": [],
+            "color_type": [
+                56,
+                80,
+                101,
+                109,
+                284,
+                299,
+                368,
+                393,
+                448,
+                504
+            ],
+            "agent_loc": [
+                1,
+                8,
+                10,
+                23,
+                26,
+                33,
+                66,
+                84,
+                88,
+                100
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "FindObj": {
+        "BabyAI-FindObjS5-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                7,
+                9,
+                10,
+                12,
+                14,
+                19,
+                23,
+                29,
+                33,
+                35
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-FindObjS6-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                5,
+                7,
+                12,
+                18,
+                20,
+                32,
+                36,
+                48
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-FindObjS7-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                6,
+                13,
+                15,
+                24,
+                35,
+                39,
+                46,
+                47,
+                51,
+                69
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "KeyCorridor": {
+        "BabyAI-KeyCorridor-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                0,
+                7,
+                17,
+                20,
+                21,
+                26,
+                27,
+                31,
+                33,
+                36
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-KeyCorridorS3R1-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-KeyCorridorS3R2-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-KeyCorridorS3R3-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                4,
+                7,
+                11,
+                13,
+                19,
+                21,
+                22,
+                23,
+                24,
+                26
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-KeyCorridorS4R3-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-KeyCorridorS5R3-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                19,
+                20,
+                21,
+                23,
+                24,
+                26,
+                31,
+                40,
+                48,
+                50
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "OneRoom": {
+        "BabyAI-OneRoomS8-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                8,
+                9,
+                11,
+                12,
+                24,
+                25,
+                40,
+                47
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OneRoomS12-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                7,
+                10,
+                12,
+                17,
+                21,
+                24,
+                25,
+                35,
+                38
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OneRoomS16-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                1,
+                4,
+                20,
+                22,
+                23,
+                26,
+                32,
+                33,
+                35,
+                37
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        },
+        "BabyAI-OneRoomS20-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [],
+            "agent_loc": [
+                4,
+                5,
+                6,
+                7,
+                11,
+                15,
+                22,
+                27,
+                29,
+                31
+            ],
+            "rel_loc": [],
+            "object_task": [],
+            "task_task": []
+        }
+    },
+    "MoveTwoAcross": {
+        "BabyAI-MoveTwoAcrossS5N2-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                2,
+                10,
+                12,
+                13,
+                19,
+                21,
+                27,
+                28,
+                33
+            ],
+            "agent_loc": [],
+            "rel_loc": [],
+            "object_task": [
+                31,
+                35,
+                48,
+                51,
+                65,
+                76,
+                81,
+                84,
+                95,
+                98
+            ],
+            "task_task": []
+        },
+        "BabyAI-MoveTwoAcrossS8N9-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                0,
+                5,
+                9,
+                13,
+                23,
+                25,
+                29,
+                33,
+                35,
+                36
+            ],
+            "agent_loc": [
+                10,
+                11,
+                22,
+                24,
+                25,
+                26,
+                30,
+                32,
+                35,
+                44
+            ],
+            "rel_loc": [],
+            "object_task": [
+                14,
+                36,
+                47,
+                59,
+                65,
+                70,
+                85,
+                101,
+                114,
+                122
+            ],
+            "task_task": []
+        }
+    },
+    "Synth": {
+        "BabyAI-Synth-v0": {
+            "size": [],
+            "color_type": [
+                50,
+                90,
+                101,
+                375,
+                416,
+                460,
+                462,
+                502,
+                507,
+                590
+            ],
+            "agent_loc": [
+                0,
+                2,
+                3,
+                9,
+                10,
+                14,
+                18,
+                19,
+                24,
+                25
+            ],
+            "rel_loc": [],
+            "object_task": [
+                70,
+                148,
+                484,
+                585,
+                838,
+                882,
+                1106,
+                1402,
+                1417,
+                1520
+            ],
+            "task_task": []
+        }
+    },
+    "SynthLoc": {
+        "BabyAI-SynthLoc-v0": {
+            "size": [],
+            "color_type": [],
+            "agent_loc": [
+                2,
+                9,
+                10,
+                14,
+                18,
+                19,
+                24,
+                25,
+                28,
+                31
+            ],
+            "rel_loc": [
+                0,
+                17,
+                45,
+                66,
+                119,
+                148,
+                163,
+                183,
+                200,
+                238
+            ],
+            "object_task": [
+                110,
+                578,
+                1031,
+                1068,
+                1139,
+                1351,
+                1852,
+                1877,
+                1996,
+                2118
+            ],
+            "task_task": []
+        }
+    },
+    "SynthSeq": {
+        "BabyAI-SynthSeq-v0": {
+            "size": [],
+            "color_type": [
+                0,
+                13,
+                19,
+                73,
+                122,
+                145,
+                152,
+                158,
+                184,
+                204
+            ],
+            "agent_loc": [
+                0,
+                2,
+                9,
+                10,
+                14,
+                18,
+                19,
+                24,
+                25,
+                28
+            ],
+            "rel_loc": [
+                3,
+                35,
+                73,
+                90,
+                92,
+                94,
+                114,
+                119,
+                152,
+                191
+            ],
+            "object_task": [
+                27,
+                79,
+                414,
+                591,
+                650,
+                766,
+                854,
+                855,
+                876,
+                1170
+            ],
+            "task_task": [
+                910,
+                1587,
+                1620,
+                2590,
+                2622,
+                2946,
+                3013,
+                3366,
+                3960,
+                4288
+            ]
+        }
+    },
+    "MiniBossLevel": {
+        "BabyAI-MiniBossLevel-v0": {
+            "size": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "color_type": [
+                1,
+                29,
+                50,
+                59,
+                60,
+                85,
+                97,
+                109,
+                146,
+                150
+            ],
+            "agent_loc": [
+                2,
+                4,
+                5,
+                6,
+                8,
+                9,
+                11,
+                13,
+                29,
+                30
+            ],
+            "rel_loc": [
+                1,
+                8,
+                40,
+                42,
+                61,
+                76,
+                83,
+                86,
+                92,
+                97
+            ],
+            "object_task": [
+                35,
+                60,
+                749,
+                755,
+                869,
+                933,
+                970,
+                1274,
+                1387,
+                1591
+            ],
+            "task_task": [
+                66,
+                82,
+                178,
+                676,
+                819,
+                889,
+                1140,
+                1189,
+                1255,
+                1285
+            ]
+        }
+    },
+    "BossLevel": {
+        "BabyAI-BossLevel-v0": {
+            "size": [],
+            "color_type": [
+                0,
+                13,
+                19,
+                73,
+                122,
+                145,
+                152,
+                158,
+                184,
+                204
+            ],
+            "agent_loc": [
+                0,
+                2,
+                9,
+                10,
+                14,
+                18,
+                19,
+                24,
+                25,
+                28
+            ],
+            "rel_loc": [
+                35,
+                73,
+                90,
+                92,
+                94,
+                114,
+                119,
+                152,
+                191,
+                193
+            ],
+            "object_task": [
+                79,
+                315,
+                414,
+                591,
+                650,
+                766,
+                854,
+                855,
+                876,
+                1043
+            ],
+            "task_task": [
+                640,
+                910,
+                1587,
+                2590,
+                2622,
+                2730,
+                2742,
+                2946,
+                3013,
+                3056
+            ]
+        }
+    },
+    "BossLevelNoUnlock": {
+        "BabyAI-BossLevelNoUnlock-v0": {
+            "size": [],
+            "color_type": [
+                0,
+                13,
+                19,
+                58,
+                73,
+                82,
+                85,
+                101,
+                121,
+                122
+            ],
+            "agent_loc": [
+                0,
+                7,
+                9,
+                10,
+                14,
+                17,
+                18,
+                19,
+                21,
+                24
+            ],
+            "rel_loc": [
+                7,
+                57,
+                58,
+                73,
+                88,
+                90,
+                94,
+                119,
+                121,
+                130
+            ],
+            "object_task": [
+                236,
+                304,
+                394,
+                414,
+                448,
+                453,
+                591,
+                650,
+                766,
+                854
+            ],
+            "task_task": []
+        }
+    }
+}
