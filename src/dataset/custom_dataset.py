@@ -1,5 +1,5 @@
 import re
-
+import os
 import gymnasium as gym
 import numpy as np
 from jsonc_parser.parser import JsoncParser
@@ -209,7 +209,7 @@ class CustomDataset:
                 [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
                 dtype=np.float32,
             ),
-            "feedback": [""] * (env.max_steps * self.args["num_episodes"] + 1),
+            "feedback": ["TEST"] * (env.max_steps * self.args["num_episodes"] + 1),
             "terminations": np.array(
                 [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
             ),
@@ -271,7 +271,7 @@ class CustomDataset:
         env.close()
 
         for key in replay_buffer.keys():
-            replay_buffer[key] = replay_buffer[key][: total_steps + 1]
+            replay_buffer[key] = replay_buffer[key][: total_steps + 2]
 
         episode_terminals = (
             replay_buffer["terminations"] + replay_buffer["truncations"]

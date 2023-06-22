@@ -201,16 +201,30 @@ ACTION_DICT = {
 }
 
 
-class DemoVideo:
+class Demo:
     def __init__(self, config, seed, actions, demo_mode, output_dir):
         self.config = config
         self.seed = seed
         self.actions = actions
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-        self.output_dir = os.path.join(output_dir, demo_mode)
-        if not os.path.exists(self.output_dir):
-            os.mkdir(self.output_dir)
+        self.demo_mode = demo_mode
+        self.output_dir_root = output_dir.split("/")[0]
+        if not os.path.exists(self.output_dir_root):
+            print(self.output_dir_root)
+            os.mkdir(self.output_dir_root)
+        self.output_dir_sub = os.path.join(self.output_dir_root, demo_mode)
+        if not os.path.exists(self.output_dir_sub):
+            print(self.output_dir_sub)
+            os.mkdir(self.output_dir_sub)
+        if "ood" in demo_mode:
+            self.output_dir_sub_sub = os.path.join(
+                self.output_dir_sub, output_dir.split("/")[-1]
+            )
+            if not os.path.exists(self.output_dir_sub_sub):
+                print(self.output_dir_sub_sub)
+                os.mkdir(self.output_dir_sub_sub)
+            self.output_dir = self.output_dir_sub_sub
+        else:
+            self.output_dir = self.output_dir_sub
         self.mission = None
         self.env = self._instantiate_rgb_env(config, seed)
 
@@ -221,37 +235,47 @@ class DemoVideo:
         if " after you " in self.mission:
             mission_split = self.mission.split(" after you ")
             return f"{mission_split[0]}\nafter you {mission_split[1]}"
+        else:
+            return self.mission
 
     def _format_feedback(self, feedback, action):
         rule_feedback, task_feedback = feedback
         return (
             f"action: {ACTION_DICT[action]}\n"
-            + f"RF: {rule_feedback if rule_feedback else '--'}\n"
-            + f"TF: {task_feedback if task_feedback else '--'}"
+            + f"RF: {rule_feedback if rule_feedback != 'No feedback available.' else '--'}\n"
+            + f"TF: {task_feedback if task_feedback != 'No feedback available.' else '--'}"
         )
 
-    def _plot_and_save_obs(self, obs, i=None, feedback=None):
+    def _get_image_name(self, i):
+        if self.demo_mode in ["ood_seeds", "in_domain_seeds"]:
+            return f"{self.config}_seed-{self.seed}.png"
+        if i:
+            return (
+                f"step_{i+1 if i >= 99 else (f'0{i+1}' if i >= 9 else f'00{i+1}')}.png"
+            )
+        return "step_000.png"
+
+    def _plot_and_save_obs(self, frame, i=None, feedback=None):
         _, ax = plt.subplots(1)
-        _ = plt.imshow(obs["image"])
+        plt.imshow(frame)
+        # plt.show()
+        # _ = plt.imshow(frame)
         mission_formatted = self._format_mission()
         feedback_formatted = (
             self._format_feedback(feedback, self.actions[i]) if feedback else None
         )
         title = feedback_formatted if feedback else None
         ax.set(title=title, xlabel=mission_formatted, xticks=[], yticks=[])
-        image_name = (
-            f"step_{i+1 if i >= 99 else (f'0{i+1}' if i >= 9 else f'00{i+1}')}.png"
-            if i is not None
-            else "step_000.png"
-        )
+        image_name = self._get_image_name(i)
         plt.savefig(os.path.join(self.output_dir, image_name))
         plt.close()
 
     def _instantiate_rgb_env(self, config, seed):
-        env = RGBImgObsWrapper(gym.make(config))
-        obs, _ = env.reset(seed=seed)
+        env = gym.make(config, render_mode="rgb_array")
+        env.reset(seed=seed)
+        frame = env.render()
         self.mission = env.instrs.surface(env)
-        self._plot_and_save_obs(obs)
+        self._plot_and_save_obs(frame)
         return env
 
     def interact_with_env(self):
@@ -259,11 +283,10 @@ class DemoVideo:
         task_feedback_generator = TaskFeedback(self.env)
         for i, action in enumerate(self.actions):
             rule_feedback = rule_feedback_generator.verify_feedback(self.env, action)
-            output = self.env.step(action)
+            self.env.step(action)
+            frame = self.env.render()
             task_feedback = task_feedback_generator.verify_feedback(self.env, action)
-            self._plot_and_save_obs(
-                output[0], feedback=(rule_feedback, task_feedback), i=i
-            )
+            self._plot_and_save_obs(frame, feedback=(rule_feedback, task_feedback), i=i)
 
     def make_demo_video_from_images(self):
         video_name = "demo.mp4"

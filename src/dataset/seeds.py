@@ -1,12 +1,13 @@
 import json
+import os
 import random
 from itertools import combinations_with_replacement
-import os
 
 import gymnasium as gym
-from tqdm import tqdm
+import numpy as np
 from minigrid.core.constants import COLOR_NAMES
 from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, OpenInstr
+from tqdm import tqdm
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
@@ -70,9 +71,6 @@ ENVS_CONFIGS = {
         "BabyAI-PutNextS5N2-v0",
         "BabyAI-PutNextS6N3-v0",
         "BabyAI-PutNextS7N4-v0",
-        "BabyAI-PutNextS5N2Carrying-v0",
-        "BabyAI-PutNextS6N3Carrying-v0",
-        "BabyAI-PutNextS7N4Carrying-v0",
     ],
     "Unlock": ["BabyAI-Unlock-v0"],
     "UnlockLocal": ["BabyAI-UnlockLocal-v0", "BabyAI-UnlockLocalDist-v0"],
@@ -108,39 +106,6 @@ ENVS_CONFIGS = {
 }
 
 
-MAZE_QUADRANTS = {}
-ROOM_QUADRANTS = {}
-
-for x in range(0, 22):
-    for y in range(0, 22):
-        if x <= 6:
-            x_qm = 1
-        elif 6 < x <= 13:
-            x_qm = 2
-        else:
-            x_qm = 3
-        if y <= 6:
-            y_qm = 1
-        elif 6 < y <= 13:
-            y_qm = 2
-        else:
-            y_qm = 3
-        MAZE_QUADRANTS.update({(x, y): (x_qm, y_qm)})
-
-for x in range(0, 22):
-    for y in range(0, 22):
-        if x <= 3 or 6 < x <= 10 or 14 < x <= 17:
-            x_qr = 1
-        else:
-            x_qr = 2
-        if y <= 3 or 6 < y <= 10 or 14 < y <= 17:
-            y_qr = 1
-        else:
-            y_qr = 2
-
-        ROOM_QUADRANTS.update({(x, y): (x_qr, y_qr)})
-
-
 class SeedFinder:
     """
     Class to find in-domain and ood seeds for a given environment and config.
@@ -157,7 +122,7 @@ class SeedFinder:
         self.random_colors = self._pick_random_colors()
         self.random_types = self._pick_random_types()
         self.random_rel_loc = self._pick_random_rel_location()
-        self.in_domain_room_size_min = 5
+        self.in_domain_room_size_min = 6
         self.in_domain_room_size_max = 8
         self.in_domain_num_cols = 3
         self.in_domain_num_rows = 3
@@ -246,6 +211,76 @@ class SeedFinder:
         """
         return env.num_rows > 1 or env.num_cols > 1
 
+    def _get_all_positions(self, size, n):
+        """
+        Get all possible positions in the grid for a given axis.
+
+        Parameters
+        ----------
+            env: instance of the environment made using a seed.
+            size (int): size of the room.
+            n (int): number of rows or columns in the grid.
+
+        Returns
+        -------
+            list: list of tuples of x or y coordinates of all possible positions in the grid.
+        """
+        all_positions = [c for c in range(1, size * n - n) if c % (size - 1) != 0]
+        return np.asarray(all_positions)
+
+    def _split_positions_by_room(self, positions, n):
+        """
+        Split an array of positions into arrays of quadrants.
+
+        Parameters
+        ----------
+            positions (np.array): array of x or y coordinates of all possible positions in the grid.
+            n (int): number of rows or columns in the grid.
+
+        Returns
+        -------
+            array: array of arrays of x or y coordinates of all possible positions in the grid, by room.
+        """
+        return np.array_split(
+            np.asarray(positions),
+            n,
+        )
+
+    def _split_rooms_into_quadrants(self, room_positions):
+        """
+        Split an array of room positions into arrays of quadrants.
+
+        Parameters
+        ----------
+            room_positions (np.array): array of x or y coordinates of all possible positions in the grid, by room.
+
+        Returns
+        -------
+            array: array of arrays of x or y coordinates of all possible positions in the grid, by room quadrant.
+        """
+        return [np.array_split(x, 2) for x in room_positions]
+
+    def _get_quadrant_lookup(self, quadrant_positions):
+        """
+        Get a lookup of quadrants to positions.
+
+        Parameters
+        ----------
+            quadrant_positions (list): list of arrays of x or y coordinates of all possible positions in the grid, by room quadrant.
+
+        Returns
+        -------
+            dict: dict of quadrants to positions.
+        """
+        quadrant_lookup = {}
+        for _, quadrants in enumerate(quadrant_positions):
+            for quadrant, positions in enumerate(quadrants):
+                if quadrant + 1 not in quadrant_lookup:
+                    quadrant_lookup[quadrant + 1] = list(positions)
+                else:
+                    quadrant_lookup[quadrant + 1].extend(list(positions))
+        return quadrant_lookup
+
     def _agent_pos_to_room_quadrant(self, env):
         """
         Convert the agent position into a quadrant in the room.
@@ -259,7 +294,23 @@ class SeedFinder:
             tuple: tuple of x and y coordinates of the quadrant of the room.
 
         """
-        return ROOM_QUADRANTS[env.agent_pos]
+        all_positions_x = self._get_all_positions(env.room_size, env.num_cols)
+        all_positions_y = self._get_all_positions(env.room_size, env.num_rows)
+
+        room_positions_x = self._split_positions_by_room(all_positions_x, env.num_cols)
+        room_positions_y = self._split_positions_by_room(all_positions_y, env.num_rows)
+
+        quadrant_positions_x = self._split_rooms_into_quadrants(room_positions_x)
+        quadrant_positions_y = self._split_rooms_into_quadrants(room_positions_y)
+
+        for x_quadrant, x_positions in self._get_quadrant_lookup(
+            quadrant_positions_x
+        ).items():
+            for y_quadrant, y_positions in self._get_quadrant_lookup(
+                quadrant_positions_y
+            ).items():
+                if env.agent_pos[0] in x_positions and env.agent_pos[1] in y_positions:
+                    return x_quadrant, y_quadrant
 
     def _agent_pos_to_maze_quadrant(self, env):
         """
@@ -273,7 +324,17 @@ class SeedFinder:
         -------
             tuple: tuple of x and y coordinates of the quadrant of the maze.
         """
-        return MAZE_QUADRANTS[env.agent_pos]
+
+        all_positions_x = self._get_all_positions(env.room_size, env.num_cols)
+        all_positions_y = self._get_all_positions(env.room_size, env.num_rows)
+
+        room_positions_x = self._split_positions_by_room(all_positions_x, env.num_cols)
+        room_positions_y = self._split_positions_by_room(all_positions_y, env.num_rows)
+
+        for x_room, x_positions in enumerate(room_positions_x):
+            for y_room, y_positions in enumerate(room_positions_y):
+                if env.agent_pos[0] in x_positions and env.agent_pos[1] in y_positions:
+                    return x_room, y_room
 
     def _get_agent_quadrants(self, env):
         """
@@ -373,7 +434,7 @@ class SeedFinder:
                 return True
         return False
 
-    def _has_two_unlocks(self, env):
+    def _has_two_doors_unlock(self, env):
         """
         Check if the task explicitly requires unlocking two doors.
 
@@ -536,7 +597,7 @@ class SeedFinder:
         -------
             bool: True if SeqInstr which involves opening two doors, False otherwise.
         """
-        return self._has_two_unlocks(env)
+        return self._has_two_doors_unlock(env)
 
     def _find_in_domain_seeds(self, config):
         """
@@ -563,7 +624,11 @@ class SeedFinder:
         seed_list = []
         for seed in tqdm(range(0, 1000)):
             env = gym.make(config)
-            env.reset(seed=seed)
+            try:
+                env.reset(seed=seed)
+                _ = env.instrs.surface(env)
+            except:
+                continue
             if (
                 not self._check_size(env)
                 and not self._check_color_type(env)
@@ -600,7 +665,6 @@ class SeedFinder:
             list: list of seeds for a given environment configuration.
         """
         seed_lists = {ood_type: [] for ood_type in self.ood_types.keys()}
-
         n_seeds = 10
         for ood_type, seed_list in seed_lists.items():
             if ood_type in ["object_task", "task_task"]:
@@ -611,10 +675,15 @@ class SeedFinder:
                 if seed >= max_seeds_to_check and len(seed_list) == 0:
                     break
                 env = gym.make(config)
-                env.reset(seed=seed)
+                try:
+                    env.reset(seed=seed)
+                    _ = env.instrs.surface(env)
+                except:
+                    continue
                 if self.ood_types[ood_type](env) and len(seed_list) < n_seeds:
+                    if ood_type == "agent_loc" and self.ood_types["size"](env):
+                        continue
                     seed_list.append(seed)
-
         return seed_lists
 
     def save_in_domain_seeds(self):
