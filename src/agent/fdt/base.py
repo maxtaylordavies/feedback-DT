@@ -76,9 +76,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            input.attention_mask = torch.ones(
-                (batch_size, seq_length), dtype=torch.long
-            )
+            input.attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
@@ -181,9 +179,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def _compute_loss(
-        self, input: AgentInput, output: DecisionTransformerOutput, **kwargs
-    ):
+    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
         act_dim = output.action_preds.shape[2]
         action_preds = output.action_preds.reshape(-1, act_dim)[
             input.attention_mask.reshape(-1) > 0
@@ -192,20 +188,24 @@ class FDTAgent(Agent, DecisionTransformerModel):
             input.attention_mask.reshape(-1) > 0
         ]
 
+        preds, targets = torch.argmax(action_preds, dim=1), torch.argmax(
+            action_targets, dim=1
+        )
+        acc = torch.mean((preds == targets).float())
+        # log(f"train acc: {acc}", with_tqdm=True)
+
         return torch.mean((action_preds - action_targets) ** 2)
 
     # function that gets an action from the model using autoregressive prediction
     def get_action(
         self,
         input: AgentInput,
-        context=64,
-        one_hot=False,
+        context=30,
+        one_hot=True,
     ):
         device = input.states.device
 
-        mission_embeddings = input.mission_embeddings.reshape(
-            1, -1, self.self.hidden_size
-        )
+        mission_embeddings = input.mission_embeddings.reshape(1, -1, self.self.hidden_size)
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
@@ -228,31 +228,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
             )
             .to(dtype=torch.long)
             .reshape(1, -1)
-        )
-
-        input.states = torch.cat(
-            [
-                torch.zeros((1, padding, self.config.state_dim), device=device),
-                input.states,
-            ],
-            dim=1,
-        ).float()
-        input.actions = torch.cat(
-            [
-                torch.zeros((1, padding, self.config.act_dim), device=device),
-                input.actions,
-            ],
-            dim=1,
-        ).float()
-        input.returns_to_go = torch.cat(
-            [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
-        ).float()
-        input.timesteps = torch.cat(
-            [
-                torch.zeros((1, padding), dtype=torch.long, device=device),
-                input.timesteps,
-            ],
-            dim=1,
         )
 
         output = self._forward(input)
