@@ -24,6 +24,7 @@ plotly = "*"
 opencv-python = "*"
 dopamine-rl = "*"
 sentence-transformers = "*"
+seaborn = "*"
 feedback-dt = {editable = true, path = "."}
 
 [dev-packages]

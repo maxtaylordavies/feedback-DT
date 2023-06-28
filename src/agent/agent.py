@@ -8,6 +8,7 @@ from torch import nn
 
 @dataclass
 class AgentInput:
+    mission_embeddings: Any
     states: Any
     actions: Any
     rewards: Any

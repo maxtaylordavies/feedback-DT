@@ -7,7 +7,13 @@ import numpy as np
 import pandas as pd
 
 # from minigrid.wrappers import FullyObsWrapper
-from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+import cv2
+from transformers import (
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
+    TrainingArguments,
+)
 from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
 import matplotlib.pyplot as plt
@@ -135,9 +141,16 @@ class Evaluator(TrainerCallback):
             "eval acc": [],
         }
 
-        # create blank feedback embeddings
-        self.feedback_embeddings = self.collator._embed_feedback(
-            np.array([[""] * user_args["context_length"]]).reshape(-1, 1)
+        # create default missing feedback embeddings
+        self.feedback_embeddings = self.collator._embed_sentence(
+            np.array([["No feedback available."] * user_args["context_length"]]).reshape(
+                -1, 1
+            )
+        ).to(self.device)
+
+        # create default missing mission embeddings
+        self.mission_embeddings = self.collator._embed_sentence(
+            np.array([["No mission available."] * user_args["context_length"]]).reshape(-1, 1)
         ).to(self.device)
 
         # create a random agent to evaluate against
@@ -239,7 +252,6 @@ class Evaluator(TrainerCallback):
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
 
-
     def _evaluate_agent_predictions(self, agent, agent_name, repeats=10, num_steps=100):
         accs = np.zeros(repeats)
 
@@ -275,7 +287,6 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-        
     def _run_agent_on_env(self, agent: Agent, env: Visualiser):
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
@@ -306,12 +317,14 @@ class Evaluator(TrainerCallback):
 
         for t in range(max_ep_len):
             actions = torch.cat(
-                [actions, torch.zeros((1, self.collator.act_dim), device=self.device)], dim=0
+                [actions, torch.zeros((1, self.collator.act_dim), device=self.device)],
+                dim=0,
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
             actions[-1] = agent.get_action(
                 AgentInput(
+                    mission_embeddings=self.mission_embeddings,
                     states=(states - state_mean) / state_std,
                     actions=actions,
                     rewards=rewards,
@@ -402,18 +415,11 @@ class Evaluator(TrainerCallback):
                     [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
                 )
 
-            timesteps = torch.cat(
-                [
-                    timesteps,
-                    torch.ones((1, 1), device=self.device, dtype=torch.long) * (i),
-                ],
-                dim=1,
-            )
-
         for t in range(NUM_INITIAL_ACTIONS, max_ep_len):
             # get action from agent
             a = agent.get_action(
                 AgentInput(
+                    mission_embeddings=self.mission_embeddings,
                     states=states,
                     actions=actions,
                     rewards=rewards,

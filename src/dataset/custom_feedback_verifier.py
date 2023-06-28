@@ -204,6 +204,7 @@ class RuleFeedback(Feedback):
                 "You can't move forward here "
                 + f"as there is an obstacle in the form of a {self.front_cell.type} blocking the way."
             )
+        return "No feedback available."
 
     def _is_valid_toggle(self):
         """
@@ -240,6 +241,7 @@ class RuleFeedback(Feedback):
             return "You can't open the wall."
         if self._is_obstacle():
             return f"You can't open {self.front_cell.type}s."
+        return "No feedback available."
 
     def _is_valid_pickup(self):
         """
@@ -271,6 +273,7 @@ class RuleFeedback(Feedback):
             return "You can't pick up the wall."
         if self._is_carrying():
             return "You can't pick up another object while you're already carrying one."
+        return "No feedback available."
 
     def _is_valid_drop(self):
         """
@@ -303,6 +306,7 @@ class RuleFeedback(Feedback):
                 "You can't drop an object on top of another object, and "
                 + f"there is already a {self.front_cell.type} in front of you."
             )
+        return "No feedback available."
 
     def _get_rule_feedback(self):
         """
@@ -362,12 +366,10 @@ class TaskFeedback(Feedback):
         return isinstance(self.env.instrs, SeqInstr)
 
     # Instructions for AfterInst are sequences linked by inst_a 'after you' inst_b
-    # Note that for some seeds, this is actually not the case (uses ', then' instead of 'after you')
     def _task_is_after(self):
         return isinstance(self.env.instrs, AfterInstr)
 
     # Instructions for BeforeInst are sequences linked by inst_a ', then' inst_b
-    # Note that for some seeds, this is actually not the case (uses 'after you' instead of ', then')
     def _task_is_before(self):
         return isinstance(self.env.instrs, BeforeInstr)
 
@@ -480,7 +482,7 @@ class TaskFeedback(Feedback):
 
     def _get_completion_level(self):
         if not self.subtasks:
-            return "No feedback available."
+            return ""
         return "a part of "
 
     def _get_goto_feedback(self, instrs):
@@ -540,6 +542,7 @@ class TaskFeedback(Feedback):
             current_subtask
         ):
             return self._get_putnext_feedback(current_subtask)
+        return "No feedback available."
 
     def verify_feedback(self, env, action):
         self.env = env

@@ -45,13 +45,14 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True):
+    def __init__(self, config, use_feedback=True, use_missions=True):
         DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
 
         self.use_feedback = use_feedback
-        x = 1 + int(self.use_feedback)
+        self.use_missions = use_missions
+        x = 1 + int(self.use_feedback) + int(self.use_missions)
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
@@ -79,6 +80,10 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
+        mission_embeddings = (
+            input.mission_embeddings.reshape(batch_size, seq_length, self.hidden_size)
+            + time_embeddings
+        )
         state_embeddings = (
             self._embed_state(
                 input.states.reshape((-1,) + self.config.state_shape)
@@ -103,11 +108,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
                     state_embeddings,
                     action_embeddings,
                     feedback_embeddings,
+                    mission_embeddings,
                 ),
                 dim=1,
             )
-            .permute(0, 2, 1, 3)
-            .reshape(batch_size, 4 * seq_length, self.hidden_size)
+            # MAX LOOKING AT THIS
+            .permute(0, 2, 1, 3).reshape(batch_size, 4 * seq_length, self.hidden_size)
         )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
@@ -119,11 +125,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
                     input.attention_mask,
                     input.attention_mask,
                     input.attention_mask,
+                    input.attention_mask,
                 ),
                 dim=1,
             )
-            .permute(0, 2, 1)
-            .reshape(batch_size, 4 * seq_length)
+            # MAX LOOKING AT THIS
+            .permute(0, 2, 1).reshape(batch_size, 4 * seq_length)
         )
 
         # we feed in the input embeddings (not word indices as in NLP) to the model
@@ -141,16 +148,22 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         x = encoder_outputs[0]
 
+        # MAX LOOKING AT THIS
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(
             0, 2, 1, 3
         )  # shape (batch_size, 4, seq_length, hidden_size)
 
-        _s, _a, _f = x[:, 1], x[:, 2], x[:, 3]
+        # TO-DO CHANGE THIS TO ACCOUNT FOR MISSIONS
+        _s, _a, _f, _m = x[:, 1], x[:, 2], x[:, 3], x[:, 4]
         if self.use_feedback:
             _s = torch.cat([_s, _f], axis=2)
             _a = torch.cat([_a, _f], axis=2)
+
+        if self.use_missions:
+            _s = torch.cat([_s, _m], axis=2)
+            _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
         return_preds = self.predict_return(_a)
@@ -179,7 +192,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
             action_targets, dim=1
         )
         acc = torch.mean((preds == targets).float())
-        log(f"train acc: {acc}", with_tqdm=True)
+        # log(f"train acc: {acc}", with_tqdm=True)
 
         return torch.mean((action_preds - action_targets) ** 2)
 
@@ -190,57 +203,32 @@ class FDTAgent(Agent, DecisionTransformerModel):
         context=30,
         one_hot=True,
     ):
-        # device = input.states.device
+        device = input.states.device
 
-        # input.states = input.states.reshape(1, -1, self.config.state_dim)
-        # input.actions = input.actions.reshape(1, -1, self.config.act_dim)
-        # input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        # # input.feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
-        # input.timesteps = input.timesteps.reshape(1, -1)
+        mission_embeddings = input.mission_embeddings.reshape(1, -1, self.self.hidden_size)
+        input.states = input.states.reshape(1, -1, self.config.state_dim)
+        input.actions = input.actions.reshape(1, -1, self.config.act_dim)
+        input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
+        feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
+        input.timesteps = input.timesteps.reshape(1, -1)
 
-        # input.states = input.states[:, -context:]
-        # input.actions = input.actions[:, -context:]
-        # input.returns_to_go = input.returns_to_go[:, -context:]
-        # input.timesteps = input.timesteps[:, -context:]
+        input.states = input.states[:, -context:]
+        input.actions = input.actions[:, -context:]
+        input.returns_to_go = input.returns_to_go[:, -context:]
+        input.timesteps = input.timesteps[:, -context:]
 
-        # # pad all tokens to sequence length
-        # padding = context - input.states.shape[1]
-        # input.attention_mask = (
-        #     torch.cat(
-        #         [
-        #             torch.zeros(padding, device=device),
-        #             torch.ones(input.states.shape[1], device=device),
-        #         ]
-        #     )
-        #     .to(dtype=torch.long)
-        #     .reshape(1, -1)
-        # )
-
-        # input.states = torch.cat(
-        #     [
-        #         torch.zeros((1, padding, self.config.state_dim), device=device),
-        #         input.states,
-        #     ],
-        #     dim=1,
-        # ).float()
-        # input.actions = torch.cat(
-        #     [
-        #         torch.zeros((1, padding, self.config.act_dim), device=device),
-        #         input.actions,
-        #     ],
-        #     dim=1,
-        # ).float()
-        # input.returns_to_go = torch.cat(
-        #     [torch.zeros((1, padding, 1), device=device), input.returns_to_go], dim=1
-        # ).float()
-        # input.timesteps = torch.cat(
-        #     [
-        #         torch.zeros((1, padding), dtype=torch.long, device=device),
-        #         input.timesteps,
-        #     ],
-        #     dim=1,
-        # )
-
+        # pad all tokens to sequence length
+        padding = context - input.states.shape[1]
+        input.attention_mask = (
+            torch.cat(
+                [
+                    torch.zeros(padding, device=device),
+                    torch.ones(input.states.shape[1], device=device),
+                ]
+            )
+            .to(dtype=torch.long)
+            .reshape(1, -1)
+        )
 
         output = self._forward(input)
         action = output.action_preds[0, -1]

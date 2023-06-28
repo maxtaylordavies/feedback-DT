@@ -1,5 +1,5 @@
 import re
-
+import os
 import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
@@ -209,7 +209,7 @@ class CustomDataset:
                 [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
                 dtype=np.float32,
             ),
-            "feedback": [""] * (env.max_steps * self.args["num_episodes"] + 1),
+            "feedback": ["TEST"] * (env.max_steps * self.args["num_episodes"] + 1),
             "terminations": np.array(
                 [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
             ),
@@ -231,7 +231,7 @@ class CustomDataset:
             replay_buffer["observations"][total_steps] = observation["image"]
             # Storing initial values for rewards, terminations, truncations and feedback
             replay_buffer["rewards"][total_steps] = np.array(0)
-            replay_buffer["feedback"][total_steps] = ""
+            replay_buffer["feedback"][total_steps] = "No feedback available."
             rule_feedback_verifier = RuleFeedback()
             task_feedback_verifier = TaskFeedback(env)
             replay_buffer["terminations"][total_steps] = np.array(terminated)
@@ -251,7 +251,7 @@ class CustomDataset:
                 # the rule feedback
                 # (note that there should always either be rule feedback or task success feedback
                 # as task success and rule violations are mutually exclusive)
-                if rule_feedback == "":
+                if rule_feedback == "No feedback available.":
                     feedback = task_feedback_verifier.verify_feedback(env, action)
                 else:
                     feedback = rule_feedback
@@ -271,7 +271,7 @@ class CustomDataset:
         env.close()
 
         for key in replay_buffer.keys():
-            replay_buffer[key] = replay_buffer[key][: total_steps + 1]
+            replay_buffer[key] = replay_buffer[key][: total_steps + 2]
 
         episode_terminals = (
             replay_buffer["terminations"] + replay_buffer["truncations"]

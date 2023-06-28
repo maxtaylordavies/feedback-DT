@@ -390,10 +390,10 @@ class MinariDataset:
         assert np.all(np.logical_not(np.isnan(terminations)))
         assert np.all(np.logical_not(np.isnan(truncations)))
 
-        self._missions = np.asarray(missions, dtype="S")
+        self._missions = missions
         self._observations = observations
         self._rewards = np.asarray(rewards, dtype=np.float32).reshape(-1)
-        self._feedback = np.asarray(feedback, dtype="S")
+        self._feedback = feedback
         self._terminations = np.asarray(terminations, dtype=np.float32).reshape(-1)
         self._truncations = np.asarray(truncations, dtype=np.float32).reshape(-1)
 
@@ -784,10 +784,10 @@ class MinariDataset:
             )  # allows saving of NoneType
             f.create_dataset("author", data=str(self._author))
             f.create_dataset("author_email", data=str(self._author_email))
-            f.create_dataset("missions", data=self._missions)
+            f.create_dataset("missions", data=np.asarray(self._missions, dtype="S"))
             f.create_dataset("observations", data=self._observations)
             f.create_dataset("actions", data=self._actions)
-            f.create_dataset("rewards", data=self._rewards)
+            f.create_dataset("rewards", data=np.asarray(self._feedback, dtype="S"))
             f.create_dataset("feedback", data=self._feedback)
             f.create_dataset("terminations", data=self._terminations)
             f.create_dataset("truncations", data=self._truncations)
@@ -820,21 +820,30 @@ class MinariDataset:
             fname (str): file path.
 
         """
-        with h5py.File(fname, "r") as f:
-            level_group = f["level_group"][()]
-            level_name = f["level_name"][()]
-            dataset_name = f["dataset_name"][()]
-            algorithm_name = f["algorithm_name"][()]
-            environment_name = f["environment_name"][()]
-            seed_used = f["seed_used"][()]
-            code_permalink = f["code_permalink"][()]
-            author = f["author"][()]
-            author_email = f["author_email"][()]
-            missions = f["missions"][()]
+        datasets_path = os.environ.get("MINARI_DATASETS_PATH")
+        if datasets_path is not None:
+            file_path = os.path.join(datasets_path, f"{fname}.hdf5")
+        else:
+            datasets_path = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
+            file_path = os.path.join(datasets_path, f"{fname}.hdf5")
+
+        os.makedirs(datasets_path, exist_ok=True)
+
+        with h5py.File(file_path, "r") as f:
+            level_group = str(f["level_group"][()], "utf-8")
+            level_name = str(f["level_name"][()], "utf-8")
+            dataset_name = str(f["dataset_name"][()], "utf-8")
+            algorithm_name = str(f["algorithm_name"][()], "utf-8")
+            environment_name = str(f["environment_name"][()], "utf-8")
+            seed_used = int(f["seed_used"][()])
+            code_permalink = str(f["code_permalink"][()], "utf-8")
+            author = str(f["author"][()], "utf-8")
+            author_email = str(f["author_email"][()], "utf-8")
+            missions = np.char.decode(f["missions"][()])
             observations = f["observations"][()]
             actions = f["actions"][()]
             rewards = f["rewards"][()]
-            feedback = f["feedback"][()]
+            feedback = np.char.decode(f["feedback"][()])
             terminations = f["terminations"][()]
             truncations = f["truncations"][()]
             discrete_action = f["discrete_action"][()]

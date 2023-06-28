@@ -35,7 +35,9 @@ log("creating dataset")
 dataset = CustomDataset.from_dqn_replay(DATA_DIR, GAME, NUM_SAMPLES)
 
 log("creating collator")
-collator = Collator(custom_dataset=dataset, feedback=None, context_length=CONTEXT_LENGTH)
+collator = Collator(
+    custom_dataset=dataset, feedback=False, mission=False, context_length=CONTEXT_LENGTH
+)
 
 log("creating agent")
 agent = AtariFDTAgent(
