@@ -21,7 +21,7 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
 
-    def get_dataset(self):
+    def _get_dataset(self):
         """
         Get a MinariDataset object, either by loading an existing dataset from local storage
         or by generating a new dataset.
@@ -127,7 +127,7 @@ class CustomDataset:
         -------
         list: the used action space.
         """
-        file_path = "env_metadata.jsonc"
+        file_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
         metadata = JsoncParser.parse_file(file_path)
         level = self._get_level()
         category = self._get_category(level)
@@ -208,22 +208,26 @@ class CustomDataset:
 
         total_steps = 0
         terminated, truncated = False, False
-        for episode in tqdm(range(self.args["num_episodes"])):
+        for _ in tqdm(range(self.args["num_episodes"])):
             partial_observation, _ = env.reset(seed=self.args["seed"])
+
             # Mission is the same for the whole episode
             mission = partial_observation["mission"]
             # Storing mission for initial episode timestep t=0 (m_0)
             replay_buffer["missions"][total_steps] = mission
+
             # Storing observation at initial episode timestep t=0 (o_0)
             observation = self._get_observation(partial_observation, env)
             replay_buffer["observations"][total_steps] = observation["image"]
+
             # Storing initial values for rewards, terminations, truncations and feedback
             replay_buffer["rewards"][total_steps] = np.array(0)
             replay_buffer["feedback"][total_steps] = "No feedback available."
-            rule_feedback_verifier = RuleFeedback()
-            task_feedback_verifier = TaskFeedback(env)
             replay_buffer["terminations"][total_steps] = np.array(terminated)
             replay_buffer["truncations"][total_steps] = np.array(truncated)
+
+            rule_feedback_verifier = RuleFeedback()
+            task_feedback_verifier = TaskFeedback(env)
             terminated, truncated = False, False
             while not (terminated or truncated):
                 action = self._policy(observation)
@@ -286,6 +290,11 @@ class CustomDataset:
             truncations=replay_buffer["truncations"],
             episode_terminals=episode_terminals,
         )
+
+    @classmethod
+    def get_dataset(cls, args):
+        print("Generating dataset...")
+        return cls(args)._get_dataset()
 
     @classmethod
     def random(cls, num_eps, ep_length, state_dim, act_dim):
