@@ -13,7 +13,6 @@ from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import log
 
 
-
 class CustomDataset:
     """
     Class for generating a custom dataset for a given environment, seed and policy.
@@ -34,10 +33,7 @@ class CustomDataset:
         dataset_name = name_dataset(self.args)
         print(f"Creating dataset {dataset_name}")
 
-        if (
-            self.args["load_dataset_if_exists"]
-            and dataset_name in list_local_datasets()
-        ):
+        if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
             log(f"Loading dataset {dataset_name} from local storage")
             return MinariDataset.load(dataset_name)
         else:
@@ -110,26 +106,18 @@ class CustomDataset:
         -------
         np.ndarray: the observation, either as a symbolic or rgb image representation.
         """
-        fully_obs_env = FullyObsWrapper(env)
-        rgb_env = RGBImgPartialObsWrapper(env)
-        rgb_fully_obs_env = RGBImgObsWrapper(env)
-
-        full_observation = fully_obs_env.observation({})
-        rgb_partial_observation = rgb_env.observation({})
-        rgb_full_observation = rgb_fully_obs_env.observation({})
-
-        if self.args["fully_obs"]:
-            if self.args["rgb_obs"]:
-                observation = rgb_full_observation
-            else:
-                observation = full_observation
+        full, rgb = self.args["fully_obs"], self.args["rgb_obs"]
+        if full and rgb:
+            _env = RGBImgObsWrapper(env)
+            return _env.observation({})
+        elif full and not rgb:
+            _env = FullyObsWrapper(env)
+            return _env.observation({})
+        elif not full and rgb:
+            _env = RGBImgPartialObsWrapper(env)
+            return _env.observation({})
         else:
-            if self.args["rgb_obs"]:
-                observation = rgb_partial_observation
-            else:
-                observation = partial_observation
-
-        return observation
+            return partial_observation
 
     def _get_used_action_space(self):
         """
@@ -298,7 +286,7 @@ class CustomDataset:
             truncations=replay_buffer["truncations"],
             episode_terminals=episode_terminals,
         )
-      
+
     @classmethod
     def random(cls, num_eps, ep_length, state_dim, act_dim):
         states = np.random.rand(num_eps * ep_length, state_dim)
