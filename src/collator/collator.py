@@ -13,8 +13,8 @@ class Collator:
     def __init__(
         self,
         custom_dataset: MinariDataset,
-        feedback: True,
-        mission: True,
+        feedback=True,
+        mission=True,
         context_length=64,
         scale=1,
         gamma=0.99,
