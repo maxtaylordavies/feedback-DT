@@ -209,7 +209,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        feedback_embeddings = feedback_embeddings.reshape(1, -1, self.hidden_size)
+        feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 
         input.states = input.states[:, -context:]
