@@ -63,7 +63,7 @@ class Visualiser:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
 
-    def _write(self):
+    def _write(self, obs=None):
         if self.active:
             frame = self.env.render()
             if self.rgb:
@@ -285,31 +285,28 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-    def _run_agent_on_env(self, agent: Agent, env: Visualiser):
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
+    def _run_agent_on_env(self, agent: Agent, env: Visualiser, target_return: float):
+        def get_state(obs):
+            img = self.collator._normalise_states(obs["image"])
+            return (
+                torch.from_numpy(img)
+                .reshape(1, self.collator.state_dim)
+                .to(device=self.device, dtype=torch.float32)
+            )
 
-        state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
-            device=self.device
-        )
-        state_std = torch.from_numpy(self.collator.state_std.astype(np.float32)).to(
-            device=self.device
-        )
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
         obs, _ = env.reset(seed=self.user_args["seed"])
         # fully_obs_env = FullyObsWrapper(env)
         # obs = fully_obs_env.observation(tmp[0])
 
-        states = (
-            torch.from_numpy(obs)
-            .reshape(1, self.collator.state_dim)
-            .to(device=self.device, dtype=torch.float32)
-        )
+        states = get_state(obs)
         actions = torch.zeros(
             (0, self.collator.act_dim), device=self.device, dtype=torch.float32
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
         returns_to_go = torch.tensor(
-            self.target_return, device=self.device, dtype=torch.float32
+            target_return, device=self.device, dtype=torch.float32
         ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
@@ -323,7 +320,7 @@ class Evaluator(TrainerCallback):
             actions[-1] = agent.get_action(
                 AgentInput(
                     mission_embeddings=self.mission_embeddings,
-                    states=(states - state_mean) / state_std,
+                    states=states,
                     actions=actions,
                     rewards=rewards,
                     returns_to_go=returns_to_go,
@@ -338,11 +335,7 @@ class Evaluator(TrainerCallback):
 
             obs, reward, done, _, _ = env.step(np.argmax(a))
             # obs = fully_obs_env.observation(obs)
-            cur_state = (
-                torch.from_numpy(obs)
-                .to(device=self.device)
-                .reshape(1, self.collator.state_dim)
-            )
+            cur_state = get_state(obs)
             states = torch.cat([states, cur_state], dim=0)
 
             rewards[-1] = reward
@@ -363,7 +356,7 @@ class Evaluator(TrainerCallback):
         return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
 
     def _run_agent_on_atari_env(
-        self, agent: Agent, env: AtariVisualiser, target_return: int, stack_size=4
+        self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
     ):
         def get_state(frames):
             frames = frames.permute(1, 2, 0)
