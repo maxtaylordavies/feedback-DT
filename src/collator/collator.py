@@ -35,6 +35,12 @@ class Collator:
             embedding_dim,
             randomise_starts,
         )
+        self.sentence_embedding_model = SentenceTransformer(
+            "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
+        )
+        self.sentence_embedding_downsampler = torch.nn.AvgPool1d(
+            int(768 / self.embedding_dim)
+        )
 
         # compute start and end timesteps for each episode
         self.episode_ends = np.where(
@@ -103,27 +109,40 @@ class Collator:
     def reset_counter(self):
         self.samples_processed = 0
 
-    def _precompute_sentence_embeddings(self, sentence):
-        model = SentenceTransformer(
-            "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
+    def _embed_sentence(self, sentence):
+        return self.sentence_embedding_downsampler(
+            self.sentence_embedding_model.encode(
+                sentence, convert_to_tensor=True, device="cpu"
+            ).reshape(1, -1)
         )
-        downsampler = torch.nn.AvgPool1d(int(768 / self.embedding_dim))
 
+    def _precompute_sentence_embeddings(self, sentences):
         # create a mapping from each unique feedback string to an embedding of shape (1, embedding_dim)
         return {
-            s: downsampler(
-                model.encode(s, convert_to_tensor=True, device="cpu").reshape(1, -1)
-            )
+            s: self._embed_sentence(s)
             for s in np.unique(
-                np.append(sentence, "")
+                np.append(sentences, "")
             )  # add empty string to ensure it has an embedding
         }
 
-    def _embed_sentence(self, sentence_embeddings_map, sentence):
-        emb = torch.zeros((len(sentence), self.embedding_dim))
-        for i in range(len(sentence)):
-            emb[i] = sentence_embeddings_map[sentence[i, 0]]
+    def _get_sentence_embeddings(self, sentence_embeddings_map, sentences):
+        emb = torch.zeros((len(sentences), self.embedding_dim))
+        for i in range(len(sentences)):
+            s = sentences[i, 0]
+            if s not in sentence_embeddings_map:
+                sentence_embeddings_map[s] = self._embed_sentence(s)
+            emb[i] = sentence_embeddings_map[s]
         return emb
+
+    def embed_feedback(self, feedback):
+        return self._get_sentence_embeddings(self._feedback_embeddings_map, feedback).reshape(
+            1, -1, self.embedding_dim
+        )
+
+    def embed_missions(self, missions):
+        return self._get_sentence_embeddings(self._mission_embeddings_map, missions).reshape(
+            1, -1, self.embedding_dim
+        )
 
     def _normalise_states(self, states):
         # return (states - self.state_mean) / self.state_std
@@ -150,11 +169,8 @@ class Collator:
         end = min(tmp, self.episode_ends[ep_idx])
 
         t = self._pad(np.arange(0, end - start + 1).reshape(1, -1))  # timesteps
-        m = self._embed_sentence(
-            self._mission_embeddings_map,
-            self._pad(self.missions[start : end + 1].reshape(1, -1, 1), val="")[0],
-        ).reshape(
-            1, -1, self.embedding_dim
+        m = self.embed_missions(
+            self._pad(self.missions[start : end + 1].reshape(1, -1, 1), val="")[0]
         )  # mission strings
         s = self._normalise_states(
             self._pad(self.observations[start : end + 1].reshape(1, -1, self.state_dim))
@@ -167,11 +183,8 @@ class Collator:
         rtg = (
             self._pad(all_rtg[: end - start + 1].reshape(1, -1, 1)) / self.scale
         )  # returns-to-go
-        f = self._embed_sentence(
-            self._feedback_embeddings_map,
+        f = self.embed_feedback(
             self._pad(self.feedback[start : end + 1].reshape(1, -1, 1), val="")[0],
-        ).reshape(
-            1, -1, self.embedding_dim
         )  # feedback strings
 
         mask = np.ones((1, end - start + 1))  # attention mask

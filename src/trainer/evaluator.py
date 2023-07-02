@@ -142,15 +142,13 @@ class Evaluator(TrainerCallback):
         }
 
         # create default missing feedback embeddings
-        self.feedback_embeddings = self.collator._embed_sentence(
-            np.array([["No feedback available."] * user_args["context_length"]]).reshape(
-                -1, 1
-            )
+        self.feedback_embeddings = self.collator.embed_feedback(
+            np.array([["No feedback available."] * user_args["context_length"]])
         ).to(self.device)
 
         # create default missing mission embeddings
-        self.mission_embeddings = self.collator._embed_sentence(
-            np.array([["No mission available."] * user_args["context_length"]]).reshape(-1, 1)
+        self.mission_embeddings = self.collator.embed_missions(
+            np.array([["No mission available."] * user_args["context_length"]])
         ).to(self.device)
 
         # create a random agent to evaluate against
