@@ -10,7 +10,7 @@ from tqdm import tqdm
 from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils.utils import log
+from src.utils.utils import log, get_minigrid_obs
 
 
 class CustomDataset:
@@ -93,32 +93,6 @@ class CustomDataset:
         else:
             return "Other"
 
-    def _get_observation(self, partial_observation, env):
-        """
-        Get the observation from the environment.
-
-        Parameters
-        ----------
-        partial_observation (np.ndarray): the partial observation from the environment.
-        env (gym.Env): the environment.
-
-        Returns
-        -------
-        np.ndarray: the observation, either as a symbolic or rgb image representation.
-        """
-        full, rgb = self.args["fully_obs"], self.args["rgb_obs"]
-        if full and rgb:
-            _env = RGBImgObsWrapper(env)
-            return _env.observation({})
-        elif full and not rgb:
-            _env = FullyObsWrapper(env)
-            return _env.observation({})
-        elif not full and rgb:
-            _env = RGBImgPartialObsWrapper(env)
-            return _env.observation({})
-        else:
-            return partial_observation
-
     def _get_used_action_space(self):
         """
         Get the used action space for the environment.
@@ -178,14 +152,13 @@ class CustomDataset:
         MinariDataset: the dataset object that was created.
         """
         env = gym.make(self.args["env_name"])
-        partial_observation, _ = env.reset(seed=self.args["seed"])
-
-        observation = self._get_observation(partial_observation, env)
+        partial_obs, _ = env.reset(seed=self.args["seed"])
+        obs = get_minigrid_obs(env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"])
 
         replay_buffer = {
             "missions": [""] * (env.max_steps * self.args["num_episodes"] + 1),
             "observations": np.array(
-                [np.zeros_like(observation["image"])]
+                [np.zeros_like(obs["image"])]
                 * (env.max_steps * self.args["num_episodes"] + 1),
                 dtype=np.uint8,
             ),
@@ -209,16 +182,18 @@ class CustomDataset:
         total_steps = 0
         terminated, truncated = False, False
         for _ in tqdm(range(self.args["num_episodes"])):
-            partial_observation, _ = env.reset(seed=self.args["seed"])
+            partial_obs, _ = env.reset(seed=self.args["seed"])
 
-            # Mission is the same for the whole episode
-            mission = partial_observation["mission"]
             # Storing mission for initial episode timestep t=0 (m_0)
+            # (mission is the same for the whole episode)
+            mission = partial_obs["mission"]
             replay_buffer["missions"][total_steps] = mission
 
             # Storing observation at initial episode timestep t=0 (o_0)
-            observation = self._get_observation(partial_observation, env)
-            replay_buffer["observations"][total_steps] = observation["image"]
+            obs = get_minigrid_obs(
+                env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+            )
+            replay_buffer["observations"][total_steps] = obs["image"]
 
             # Storing initial values for rewards, terminations, truncations and feedback
             replay_buffer["rewards"][total_steps] = np.array(0)
@@ -230,9 +205,9 @@ class CustomDataset:
             task_feedback_verifier = TaskFeedback(env)
             terminated, truncated = False, False
             while not (terminated or truncated):
-                action = self._policy(observation)
+                action = self._policy(obs)
                 rule_feedback = rule_feedback_verifier.verify_feedback(env, action)
-                partial_observation, reward, terminated, truncated, _ = env.step(action)
+                partial_obs, reward, terminated, truncated, _ = env.step(action)
 
                 # Storing action a_t taken after observing o_t
                 replay_buffer["actions"][total_steps] = np.array(action)
@@ -250,8 +225,10 @@ class CustomDataset:
 
                 # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
                 # resulting from taking a_t at o_t
-                observation = self._get_observation(partial_observation, env)
-                replay_buffer["observations"][total_steps + 1] = observation["image"]
+                obs = get_minigrid_obs(
+                    env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+                )
+                replay_buffer["observations"][total_steps + 1] = obs["image"]
                 replay_buffer["missions"][total_steps + 1] = mission
                 replay_buffer["rewards"][total_steps + 1] = np.array(reward)
                 replay_buffer["terminations"][total_steps + 1] = np.array(terminated)

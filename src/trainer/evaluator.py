@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import discounted_cumsum, log
+from src.utils.utils import discounted_cumsum, log, get_minigrid_obs
 from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
@@ -229,7 +229,7 @@ class Evaluator(TrainerCallback):
 
     def _evaluate_agent_performance(self, agent: Agent, agent_name: str):
         atari = self.user_args["env_name"].startswith("atari")
-        run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_env
+        run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
 
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for _ in range(self.num_repeats):
@@ -285,11 +285,14 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-    def _run_agent_on_env(self, agent: Agent, env: Visualiser, target_return: float):
-        def get_state(obs):
-            img = self.collator._normalise_states(obs["image"])
+    def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
+        def get_state(partial_obs):
+            obs = get_minigrid_obs(
+                env, partial_obs, self.user_args["fully_obs"], self.user_args["rgb_obs"]
+            )
+            frame = self.collator._normalise_states(obs["image"])
             return (
-                torch.from_numpy(img)
+                torch.from_numpy(frame)
                 .reshape(1, self.collator.state_dim)
                 .to(device=self.device, dtype=torch.float32)
             )
