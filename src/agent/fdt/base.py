@@ -113,7 +113,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 dim=1,
             )
             # MAX LOOKING AT THIS
-            .permute(0, 2, 1, 3).reshape(batch_size, 4 * seq_length, self.hidden_size)
+            .permute(0, 2, 1, 3).reshape(batch_size, 5 * seq_length, self.hidden_size)
         )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
@@ -130,7 +130,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 dim=1,
             )
             # MAX LOOKING AT THIS
-            .permute(0, 2, 1).reshape(batch_size, 4 * seq_length)
+            .permute(0, 2, 1).reshape(batch_size, 5 * seq_length)
         )
 
         # we feed in the input embeddings (not word indices as in NLP) to the model
@@ -218,17 +218,17 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.timesteps = input.timesteps[:, -context:]
 
         # pad all tokens to sequence length
-        padding = context - input.states.shape[1]
-        input.attention_mask = (
-            torch.cat(
-                [
-                    torch.zeros(padding, device=device),
-                    torch.ones(input.states.shape[1], device=device),
-                ]
-            )
-            .to(dtype=torch.long)
-            .reshape(1, -1)
-        )
+        # padding = context - input.states.shape[1]
+        # input.attention_mask = (
+        #     torch.cat(
+        #         [
+        #             torch.zeros(padding, device=device),
+        #             torch.ones(input.states.shape[1], device=device),
+        #         ]
+        #     )
+        #     .to(dtype=torch.long)
+        #     .reshape(1, -1)
+        # )
 
         output = self._forward(input)
         action = output.action_preds[0, -1]

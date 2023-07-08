@@ -1,5 +1,4 @@
 import os
-import shutil
 
 import gymnasium as gym
 import torch
@@ -7,7 +6,6 @@ import numpy as np
 import pandas as pd
 
 # from minigrid.wrappers import FullyObsWrapper
-import cv2
 from transformers import (
     TrainerCallback,
     TrainerControl,
@@ -25,82 +23,6 @@ from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
 sns.set_theme()
-
-
-class Visualiser:
-    def __init__(
-        self,
-        env,
-        directory,
-        filename,
-        seed,
-        auto_release=True,
-        size=None,
-        fps=30,
-        rgb=True,
-    ):
-        self.env = env
-        self.directory = directory
-        self.path = os.path.join(self.directory, f"{filename}.mp4")
-        self.auto_release = auto_release
-        self.active = True
-        self.fps = fps
-        self.rgb = rgb
-
-        if size is None:
-            self.env.reset(seed=seed)
-            self.size = self.env.render().shape[:2][::-1]
-        else:
-            self.size = size
-
-    def pause(self):
-        self.active = False
-
-    def resume(self):
-        self.active = True
-
-    def _start(self):
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
-
-    def _write(self, obs=None):
-        if self.active:
-            frame = self.env.render()
-            if self.rgb:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._writer.write(frame)
-
-    def release(self):
-        self._writer.release()
-
-    def reset(self, *args, **kwargs):
-        obs = self.env.reset(*args, **kwargs)
-        self._start()
-        self._write(obs)
-        return obs
-
-    def step(self, *args, **kwargs):
-        data = self.env.step(*args, **kwargs)
-
-        self._write()
-
-        if self.auto_release and data[2]:
-            self.release()
-
-        return data
-
-    def save_as_best(self):
-        shutil.copy(self.path, os.path.join(self.directory, "best.mp4"))
-
-
-class AtariVisualiser(Visualiser):
-    def _write(self, obs):
-        if not self.active:
-            return
-        frame = obs.numpy().reshape((self.env.window,) + self.size)[-1]
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        self._writer.write(frame)
 
 
 class Evaluator(TrainerCallback):
@@ -288,7 +210,10 @@ class Evaluator(TrainerCallback):
     def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
-                env, partial_obs, self.user_args["fully_obs"], self.user_args["rgb_obs"]
+                env.get_env(),
+                partial_obs,
+                self.user_args["fully_obs"],
+                self.user_args["rgb_obs"],
             )
             frame = self.collator._normalise_states(obs["image"])
             return (
