@@ -74,6 +74,10 @@ def to_one_hot(x, width=None):
     return res
 
 
+def normalise(x):
+    return (x - x.min()) / (x.max() - x.min())
+
+
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
 

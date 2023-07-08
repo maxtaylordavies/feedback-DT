@@ -712,9 +712,7 @@ class MinariDataset:
         self._terminations = np.hstack([self._terminations, terminations])
         if episode_terminals is None:
             episode_terminals = terminations or truncations
-        self._episode_terminals = np.hstack(
-            [self._episode_terminals, episode_terminals]
-        )
+        self._episode_terminals = np.hstack([self._episode_terminals, episode_terminals])
 
         episodes = _to_episodes(
             observation_shape=self.get_observation_shape(),
@@ -756,23 +754,20 @@ class MinariDataset:
             dataset.episode_terminals,
         )
 
-    def save(self):
+    def save(self, fname=None):
         """Saves dataset as HDF5.
 
         Args:
             fname (str): file path.
 
         """
-        datasets_path = os.environ.get("MINARI_DATASETS_PATH")
-        if datasets_path is not None:
-            file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
-        else:
-            datasets_path = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
-            file_path = os.path.join(datasets_path, f"{self._dataset_name}.hdf5")
+        fp = os.environ.get("MINARI_DATASETS_PATH")
+        if not fp:
+            fp = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
+        os.makedirs(fp, exist_ok=True)
+        fp = os.path.join(fp, f"{fname if fname else self._dataset_name}.hdf5")
 
-        os.makedirs(datasets_path, exist_ok=True)
-
-        with h5py.File(file_path, "w") as f:
+        with h5py.File(fp, "w") as f:
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("dataset_name", data=self._dataset_name)
@@ -820,16 +815,12 @@ class MinariDataset:
             fname (str): file path.
 
         """
-        datasets_path = os.environ.get("MINARI_DATASETS_PATH")
-        if datasets_path is not None:
-            file_path = os.path.join(datasets_path, f"{fname}.hdf5")
-        else:
-            datasets_path = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
-            file_path = os.path.join(datasets_path, f"{fname}.hdf5")
+        fp = os.environ.get("MINARI_DATASETS_PATH")
+        if not fp:
+            fp = os.path.join(os.path.expanduser("~"), ".minari", "datasets")
+        fp = os.path.join(fp, f"{fname}.hdf5")
 
-        os.makedirs(datasets_path, exist_ok=True)
-
-        with h5py.File(file_path, "r") as f:
+        with h5py.File(fp, "r") as f:
             level_group = str(f["level_group"][()], "utf-8")
             level_name = str(f["level_name"][()], "utf-8")
             dataset_name = str(f["dataset_name"][()], "utf-8")
@@ -854,7 +845,7 @@ class MinariDataset:
             else:
                 episode_terminals = None
 
-        dataset = cls(
+        return cls(
             level_group=level_group,
             level_name=level_name,
             dataset_name=dataset_name,
@@ -874,8 +865,6 @@ class MinariDataset:
             episode_terminals=episode_terminals,
             discrete_action=discrete_action,
         )
-
-        return dataset
 
     def build_episodes(self):
         """Builds episode objects.

@@ -4,13 +4,12 @@ import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
-from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
 
 from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils.utils import log, get_minigrid_obs
+from src.utils.utils import log, get_minigrid_obs, discounted_cumsum, to_one_hot, normalise
 
 
 class CustomDataset:
@@ -20,6 +19,7 @@ class CustomDataset:
 
     def __init__(self, args):
         self.args = args
+        self.shard = None
 
     def _get_dataset(self):
         """
@@ -33,14 +33,16 @@ class CustomDataset:
         dataset_name = name_dataset(self.args)
         print(f"Creating dataset {dataset_name}")
 
-        if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
-            log(f"Loading dataset {dataset_name} from local storage")
-            return MinariDataset.load(dataset_name)
-        else:
-            dataset = self._generate_new_dataset()
-            log(f"Created new dataset {dataset_name}, saving to local storage")
-            dataset.save()
-            return dataset
+        return self._generate_new_dataset()
+
+        # if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
+        #     log(f"Loading dataset {dataset_name} from local storage")
+        #     return MinariDataset.load(dataset_name)
+        # else:
+        #     dataset = self._generate_new_dataset()
+        #     log(f"Created new dataset {dataset_name}, saving to local storage")
+        #     dataset.save()
+        #     return dataset
 
     def _get_level(self):
         """
@@ -143,7 +145,153 @@ class CustomDataset:
             # to evaluate success for any of the tasks
             return np.random.randint(0, 6)
 
+    def _clear_buffer(self, obs_shape, num_eps=1000):
+        max_steps = self.env.max_steps
+        self.buffer = {
+            "missions": [""] * (max_steps * num_eps + 1),
+            "observations": np.array(
+                [np.zeros(obs_shape)] * (max_steps * num_eps + 1),
+                dtype=np.uint8,
+            ),
+            "actions": np.array(
+                [[0]] * (max_steps * num_eps + 1),
+                dtype=np.float32,
+            ),
+            "rewards": np.array(
+                [[0]] * (max_steps * num_eps + 1),
+                dtype=np.float32,
+            ),
+            "feedback": ["TEST"] * (max_steps * num_eps + 1),
+            "terminations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
+            "truncations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
+        }
+        self.steps = 0
+
+    def _create_episode(self):
+        partial_obs, _ = self.env.reset(seed=self.args["seed"])
+
+        # Storing mission for initial episode timestep t=0 (m_0)
+        # (mission is the same for the whole episode)
+        mission = partial_obs["mission"]
+        self.buffer["missions"][self.steps] = mission
+
+        # Storing observation at initial episode timestep t=0 (o_0)
+        obs = get_minigrid_obs(
+            self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+        )
+        self.buffer["observations"][self.steps] = obs["image"]
+
+        # Storing initial values for rewards, terminations, truncations and feedback
+        self.buffer["rewards"][self.steps] = np.array(0)
+        self.buffer["feedback"][self.steps] = "No feedback available."
+        self.buffer["terminations"][self.steps] = np.array(terminated)
+        self.buffer["truncations"][self.steps] = np.array(truncated)
+
+        terminated, truncated = False, False
+        while not (terminated or truncated):
+            action = self._policy(obs)
+            feedback = self.rule_feedback_verifier.verify_feedback(self.env, action)
+            partial_obs, reward, terminated, truncated, _ = self.env.step(action)
+
+            # Storing action a_t taken after observing o_t
+            self.buffer["actions"][self.steps] = np.array(action)
+
+            # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
+            # If no rule feedback is provided (no rules have been breached), then
+            # we set the feedback to be the task feedback, otherwise we set it to be
+            # the rule feedback
+            # (note that there should always either be rule feedback or task success feedback
+            # as task success and rule violations are mutually exclusive)
+            if feedback == "No feedback available.":
+                feedback = self.task_feedback_verifier.verify_feedback(self.env, action)
+
+            # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
+            # resulting from taking a_t at o_t
+            obs = get_minigrid_obs(
+                self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+            )
+            self.buffer["observations"][self.steps + 1] = obs["image"]
+            self.buffer["missions"][self.steps + 1] = mission
+            self.buffer["rewards"][self.steps + 1] = np.array(reward)
+            self.buffer["terminations"][self.steps + 1] = np.array(terminated)
+            self.buffer["truncations"][self.steps + 1] = np.array(truncated)
+            self.buffer["feedback"][self.steps + 1] = feedback
+
+            self.steps += 1
+
+    def _save_buffer_to_minari_file(self):
+        for key in self.buffer.keys():
+            self.buffer[key] = self.buffer[key][: self.steps + 2]
+
+        episode_terminals = (
+            self.buffer["terminations"] + self.buffer["truncations"]
+            if self.args["include_timeout"]
+            else None
+        )
+
+        md = MinariDataset(
+            level_group=self._get_category(self._get_level()),
+            level_name=self._get_level(),
+            dataset_name=name_dataset(self.args),
+            algorithm_name=self.args["policy"],
+            environment_name=self.args["env_name"],
+            seed_used=self.args["seed"],
+            code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
+            author="Sabrina McCallum",
+            author_email="s2431177@ed.ac.uk",
+            missions=self.buffer["missions"],
+            observations=self.buffer["observations"],
+            actions=self.buffer["actions"],
+            rewards=self.buffer["rewards"],
+            feedback=self.buffer["feedback"],
+            terminations=self.buffer["terminations"],
+            truncations=self.buffer["truncations"],
+            episode_terminals=episode_terminals,
+        )
+
+        fp = os.path.join(self.fp, f"{self.num_shards}.hdf5")
+        log(
+            f"writing buffer to file {fp} ({len(self.buffer['observations'])} steps)",
+            with_tqdm=True,
+        )
+        md.save(fp)
+        self.num_shards += 1
+
     def _generate_new_dataset(self):
+        # create folder to store MinariDataset files
+        fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
+            os.path.expanduser("~"), ".minari", "datasets"
+        )
+        self.fp, self.num_shards = os.path.join(fp, name_dataset(self.args)), 0
+        os.makedirs(self.fp)
+
+        # create and initialise environment
+        self.env = gym.make(self.args["env_name"])
+        partial_obs, _ = self.env.reset(seed=self.args["seed"])
+        obs = get_minigrid_obs(
+            self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+        )
+
+        # initialise buffer to store replay data
+        self._clear_buffer(obs.shape)
+
+        # feedback verifiers
+        self.rule_feedback_verifier = RuleFeedback()
+        self.task_feedback_verifier = TaskFeedback(self.env)
+
+        for ep_idx in tqdm(range(self.args["num_episodes"])):
+            # create another episode
+            self._create_episode()
+
+            # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+            if (ep_idx + 1 % 1000 == 0) or ep_idx == self.args["num_episodes"] - 1:
+                self._save_buffer_to_minari_file()
+                self._clear_buffer(obs.shape)
+
+        self.env.close()
+        self._clear_buffer(obs.shape)
+
+    def _generate_new_dataset_OLD(self):
         """
         Generate a new dataset for a given environment, seed and policy.
 
@@ -267,6 +415,93 @@ class CustomDataset:
             truncations=replay_buffer["truncations"],
             episode_terminals=episode_terminals,
         )
+
+    def load_shard(self, idx=None):
+        if not idx:
+            idx = np.random.randint(0, self.num_shards)
+        self.shard = MinariDataset.load(os.path.join(self.fp, f"{idx}.hdf5"))
+
+        # compute start and end timesteps for each episode
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
+        self.episode_lengths = self.episode_ends - self.episode_starts + 1
+        self.num_episodes = len(self.episode_starts)
+
+        # store state and action dimensions
+        self.state_dim, self.act_dim = (
+            np.prod(self.shard.observations.shape[1:]),
+            self.shard.get_action_size(),
+        )
+
+    def sample_episode_indices(self, num_eps, dist="uniform"):
+        if not self.shard:
+            raise Exception("No shard loaded")
+
+        # define a distribution over episodes in current shard
+        if dist == "length":
+            probs = self.episode_lengths
+        elif dist == "inverse_length":
+            probs = 1 / self.episode_lengths
+        else:
+            probs = np.ones(self.num_episodes)
+        probs /= np.sum(probs)
+
+        # then use this distribution to sample episode indices
+        return np.random.choice(
+            np.arange(self.num_episodes),
+            size=num_eps,
+            p=probs,
+        )
+
+    def sample_episode(
+        self, ep_idx, gamma, length=None, random_start=True, feedback=True, mission=True
+    ):
+        if not self.shard:
+            raise Exception("No shard loaded")
+
+        # optionally sample a random start timestep for this episode
+        # note: end represents the last timestep _included_ in the sequence,
+        # which means when we're using exclusive range operators like [:]
+        # or np.arange, we need to use end + 1
+        start = self.episode_starts[ep_idx]
+        if random_start:
+            start += np.random.randint(0, self.episode_lengths[ep_idx])
+        tmp = start + length if length else self.episode_ends[ep_idx]
+        end = min(tmp, self.episode_ends[ep_idx])
+
+        s = self.shard.observations[start : end + 1]
+        s = normalise(s).reshape(1, -1, self.state_dim)
+
+        a = self.shard.actions[start : end + 1]
+        a = to_one_hot(a, self.act_dim).reshape(1, -1, self.act_dim)
+
+        rtg = discounted_cumsum(
+            self.shard.rewards[start : self.episode_ends[ep_idx] + 1], gamma=gamma
+        )
+        rtg = rtg[: end - start + 1].reshape(1, -1, 1)
+
+        f = (
+            np.hstack(self.shard.feedback[start : end + 1])
+            if feedback
+            else np.array(["No feedback available."] * s.shape[1])
+        ).reshape(1, -1, 1)
+
+        m = (
+            np.hstack(self.shard.missions[start : end + 1])
+            if mission
+            else np.array(["No mission available."] * s.shape[1])
+        ).reshape(1, -1, 1)
+
+        return {
+            "timesteps": np.arange(0, end - start + 1).reshape(1, -1),
+            "mission": m,
+            "states": s,
+            "actions": a,
+            "rewards": self.shard.rewards[start : end + 1].reshape(1, -1, 1),
+            "returns_to_go": rtg,
+            "feedback": f,
+            "attention_mask": np.ones((1, end - start + 1)),
+        }
 
     @classmethod
     def get_dataset(cls, args):

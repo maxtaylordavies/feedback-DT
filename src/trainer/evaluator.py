@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import discounted_cumsum, log, get_minigrid_obs
+from src.utils.utils import discounted_cumsum, log, get_minigrid_obs, normalise
 from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
@@ -215,9 +215,8 @@ class Evaluator(TrainerCallback):
                 self.user_args["fully_obs"],
                 self.user_args["rgb_obs"],
             )
-            frame = self.collator._normalise_states(obs["image"])
             return (
-                torch.from_numpy(frame)
+                torch.from_numpy(normalise(obs["image"]))
                 .reshape(1, self.collator.state_dim)
                 .to(device=self.device, dtype=torch.float32)
             )
@@ -288,9 +287,9 @@ class Evaluator(TrainerCallback):
     ):
         def get_state(frames):
             frames = frames.permute(1, 2, 0)
-            return self.collator._normalise_states(
-                frames.reshape(1, self.collator.state_dim)
-            ).to(device=self.device, dtype=torch.float32)
+            return normalise(frames.reshape(1, self.collator.state_dim)).to(
+                device=self.device, dtype=torch.float32
+            )
 
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
 
@@ -300,8 +299,7 @@ class Evaluator(TrainerCallback):
         _start_idx = 655
         NUM_INITIAL_ACTIONS = 10
 
-        # ref_states = self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS]
-        # ref_states = self.collator._normalise_states(ref_states)
+        # ref_states = normalise(self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS])
 
         # states = get_state(obs)
         states = torch.zeros(0, device=self.device, dtype=torch.float32)
