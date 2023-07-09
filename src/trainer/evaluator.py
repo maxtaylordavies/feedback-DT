@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import discounted_cumsum, log, get_minigrid_obs, normalise
+from src.utils.utils import log, get_minigrid_obs, normalise
 from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
@@ -47,7 +47,6 @@ class Evaluator(TrainerCallback):
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.device = torch.device("cpu")
 
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
@@ -60,18 +59,24 @@ class Evaluator(TrainerCallback):
             "samples": [],
             "return": [],
             "episode length": [],
-            "eval acc": [],
+            # "eval acc": [],
         }
 
-        # create default missing feedback embeddings
-        self.feedback_embeddings = self.collator.embed_feedback(
-            np.array([["No feedback available."] * user_args["context_length"]])
-        ).to(self.device)
+        # # create default missing feedback embeddings
+        # self.feedback_embeddings = self.collator.embed_feedback(
+        #     np.array(["No feedback available."] * user_args["context_length"])
+        # ).to(self.device)
 
-        # create default missing mission embeddings
-        self.mission_embeddings = self.collator.embed_missions(
-            np.array([["No mission available."] * user_args["context_length"]])
-        ).to(self.device)
+        # # create default missing mission embeddings
+        # self.mission_embeddings = self.collator.embed_missions(
+        #     np.array(["No mission available."] * user_args["context_length"])
+        # ).to(self.device)
+        self.feedback_embeddings = (
+            torch.from_numpy(np.random.rand(1, 64, 128)).to(self.device).float()
+        )
+        self.mission_embeddings = (
+            torch.from_numpy(np.random.rand(1, 64, 128)).to(self.device).float()
+        )
 
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
@@ -99,7 +104,7 @@ class Evaluator(TrainerCallback):
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([agent, self.random_agent], ["DT", "random"]):
             self._evaluate_agent_performance(a, name)
-            self._evaluate_agent_predictions(a, name)
+            # self._evaluate_agent_predictions(a, name)
 
         self._plot_results()
         self.samples_processed = self.collator.samples_processed
@@ -224,8 +229,6 @@ class Evaluator(TrainerCallback):
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
         obs, _ = env.reset(seed=self.user_args["seed"])
-        # fully_obs_env = FullyObsWrapper(env)
-        # obs = fully_obs_env.observation(tmp[0])
 
         states = get_state(obs)
         actions = torch.zeros(
@@ -246,13 +249,13 @@ class Evaluator(TrainerCallback):
 
             actions[-1] = agent.get_action(
                 AgentInput(
-                    mission_embeddings=self.mission_embeddings,
+                    mission_embeddings=self.mission_embeddings[:, : t + 1, :],
                     states=states,
                     actions=actions,
                     rewards=rewards,
                     returns_to_go=returns_to_go,
                     timesteps=timesteps,
-                    feedback_embeddings=self.feedback_embeddings,
+                    feedback_embeddings=self.feedback_embeddings[:, : t + 1, :],
                     attention_mask=None,
                 ),
                 context=self.user_args["context_length"],
@@ -280,7 +283,8 @@ class Evaluator(TrainerCallback):
             if done:
                 break
 
-        return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
+        # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
+        return np.sum(rewards.detach().cpu().numpy()), t
 
     def _run_agent_on_atari_env(
         self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
@@ -386,18 +390,10 @@ class Evaluator(TrainerCallback):
 
     def _plot_results(self):
         df = pd.DataFrame(self.results)
-        fig, ax = plt.subplots()
 
-        sns.lineplot(x="samples", y="return", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "returns.png"))
-        plt.close(fig)
-
-        fig, ax = plt.subplots()
-        sns.lineplot(x="samples", y="episode length", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "ep-length.png"))
-        plt.close(fig)
-
-        fig, ax = plt.subplots()
-        sns.lineplot(x="samples", y="eval acc", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "eval-acc.png"))
-        plt.close(fig)
+        for k in self.results.keys():
+            if k not in ("samples", "model"):
+                fig, ax = plt.subplots()
+                sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
+                fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
+                plt.close(fig)
