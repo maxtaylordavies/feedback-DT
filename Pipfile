@@ -26,9 +26,8 @@ dopamine-rl = "*"
 sentence-transformers = "*"
 seaborn = "*"
 torch-ac = "*"
-e = "*"
 tensorboardx = "*"
-feedback-dt = {path = "."}
+feedback-dt = {editable = true, path = "."}
 
 [dev-packages]
 ipykernel = "*"

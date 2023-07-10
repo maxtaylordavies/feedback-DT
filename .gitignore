@@ -21,4 +21,5 @@ test.py
 sandpit.py
 images/
 demos/
+external_rl/storage/*
 ```

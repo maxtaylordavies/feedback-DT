@@ -48,7 +48,7 @@ def get_args():
     parser.add_argument(
         "--rgb_obs",
         type=bool,
-        default=False,
+        default=True,
         help="whether to use rgb oberservations of the environment",
     )
     parser.add_argument(

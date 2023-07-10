@@ -2,7 +2,7 @@ import os
 import sys
 import time
 
-import tensorboardX
+# import tensorboardX
 import torch_ac
 
 import external_rl.utils as utils
@@ -44,9 +44,9 @@ class PPOAgent:
             if env_name in ["BabyAI-OpenTwoDoors-v0", "BabyAI-OpenRedBlueDoors-v0"]
             else 1,
             "text": True,
-            "mem": self.args["recurrence"] > 1,
             "argmax": True,
         }
+        self.args["mem"] = self.args["recurrence"] > 1
         self.env = utils.make_env(self.args["env"], self.args["seed"])
         self.env.reset()
         self.model_dir = self._get_model_dir()
@@ -87,7 +87,7 @@ class PPOAgent:
         # Load loggers and Tensorboard writer
         txt_logger = utils.get_txt_logger(self.model_dir)
         csv_file, csv_logger = utils.get_csv_logger(self.model_dir)
-        tb_writer = tensorboardX.SummaryWriter(self.model_dir)
+        # tb_writer = tensorboardX.SummaryWriter(self.model_dir)
 
         # Log command and all script arguments
         txt_logger.info(f"{' '.join(sys.argv)}\n")
@@ -211,8 +211,8 @@ class PPOAgent:
                 csv_logger.writerow(data)
                 csv_file.flush()
 
-                for field, value in zip(header, data):
-                    tb_writer.add_scalar(field, value, num_frames)
+                # for field, value in zip(header, data):
+                #     tb_writer.add_scalar(field, value, num_frames)
 
             # Save status
             if (
