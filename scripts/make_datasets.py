@@ -18,4 +18,3 @@ args["policy"] = "ppo"
 
 dataset = CustomDataset(args)
 data = dataset.get_dataset()
-print(np.count_nonzero(np.asarray(data.terminations)))
