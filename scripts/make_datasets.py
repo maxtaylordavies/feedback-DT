@@ -5,7 +5,7 @@ from src.dataset.custom_dataset import CustomDataset
 
 args = get_args()
 
-args["load_dataset_if_exists"] = False
+args["load_dataset_if_exists"] = True
 args["seed"] = 0
 args["policy"] = "ppo"
 
@@ -15,6 +15,7 @@ args["policy"] = "ppo"
 #     data = dataset.get_dataset()
 #     print(len(data), np.max(data.actions))
 
-
-dataset = CustomDataset(args)
-data = dataset.get_dataset()
+for frames in [100000, 1000000, 10000000]:
+    args["ppo_frames"] = frames
+    dataset = CustomDataset(args)
+    data = dataset.get_dataset()

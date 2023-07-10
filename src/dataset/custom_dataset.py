@@ -22,7 +22,9 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         if "ppo" in self.args["policy"]:
-            ppo_agent = PPOAgent(self.args["env_name"], self.args["seed"], 10**6)
+            ppo_agent = PPOAgent(
+                self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
+            )
             self.ppo_model = ppo_agent.model
 
     def get_dataset(self):

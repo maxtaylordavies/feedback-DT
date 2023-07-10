@@ -56,9 +56,7 @@ class PPOAgent:
         """
         Returns the path to the directory where the model weights are saved.
         """
-        default_model_name = (
-            f"{self.args['env']}_{self.args['algo']}_seed{self.args['seed']}"
-        )
+        default_model_name = f"{self.args['env']}_{self.args['algo']}_seed{self.args['seed']}_frames{self.args['frames']}"
         model_name = self.args["model"] or default_model_name
         return os.path.join("external_rl", utils.get_model_dir(model_name))
 

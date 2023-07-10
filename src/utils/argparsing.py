@@ -146,4 +146,10 @@ def get_args():
         default=0,
         help="the index of the episode to make a demo video of.",
     )
+    parser.add_argument(
+        "--ppo_frames",
+        type=int,
+        default=10**7,
+        help="the number of frames to train the PPO agent for.",
+    )
     return vars(parser.parse_args())
