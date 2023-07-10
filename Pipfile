@@ -25,7 +25,10 @@ opencv-python = "*"
 dopamine-rl = "*"
 sentence-transformers = "*"
 seaborn = "*"
-feedback-dt = {editable = true, path = "."}
+torch-ac = "*"
+e = "*"
+tensorboardx = "*"
+feedback-dt = {path = "."}
 
 [dev-packages]
 ipykernel = "*"

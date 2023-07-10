@@ -2,7 +2,8 @@ import re
 import os
 import gymnasium as gym
 import numpy as np
-from dopamine.replay_memory import circular_replay_buffer
+
+# from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
@@ -11,7 +12,7 @@ from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import log
-
+from src.utils.ppo import PPOAgent
 
 
 class CustomDataset:
@@ -21,6 +22,9 @@ class CustomDataset:
 
     def __init__(self, args):
         self.args = args
+        if self.args["policy"] == "online_ppo":
+            ppo_agent = PPOAgent(self.args["env_name"], self.args["seed"], 10**5)
+            self.ppo_model = ppo_agent.model
 
     def get_dataset(self):
         """
@@ -157,7 +161,8 @@ class CustomDataset:
         ------
         Exception: if the policy has not been implemented yet.
         """
-        raise Exception("This policy has not been implemented yet")
+
+        return self.ppo_model.get_action(observation)
 
     def _policy(self, observation):
         """
@@ -189,6 +194,7 @@ class CustomDataset:
         -------
         MinariDataset: the dataset object that was created.
         """
+
         env = gym.make(self.args["env_name"])
         partial_observation, _ = env.reset(seed=self.args["seed"])
 
@@ -298,7 +304,7 @@ class CustomDataset:
             truncations=replay_buffer["truncations"],
             episode_terminals=episode_terminals,
         )
-      
+
     @classmethod
     def random(cls, num_eps, ep_length, state_dim, act_dim):
         states = np.random.rand(num_eps * ep_length, state_dim)
@@ -332,68 +338,69 @@ class CustomDataset:
             discrete_action=True,
         )
 
-    @classmethod
-    def from_dqn_replay(cls, data_dir, game, num_samples):
-        obs, acts, rewards, dones = [], [], [], []
 
-        buffer_idx, depleted = -1, True
-        while len(obs) < num_samples:
-            if depleted:
-                buffer_idx, depleted = buffer_idx + 1, False
-                buffer, i = load_dopamine_buffer(data_dir, game, 50 - buffer_idx), 0
+#     @classmethod
+#     def from_dqn_replay(cls, data_dir, game, num_samples):
+#         obs, acts, rewards, dones = [], [], [], []
 
-            (
-                s,
-                a,
-                r,
-                _,
-                _,
-                _,
-                terminal,
-                _,
-            ) = buffer.sample_transition_batch(batch_size=1, indices=[i])
+#         buffer_idx, depleted = -1, True
+#         while len(obs) < num_samples:
+#             if depleted:
+#                 buffer_idx, depleted = buffer_idx + 1, False
+#                 buffer, i = load_dopamine_buffer(data_dir, game, 50 - buffer_idx), 0
 
-            obs.append(s[0])
-            acts.append(a[0])
-            rewards.append(r[0])
-            dones.append(terminal[0])
+#             (
+#                 s,
+#                 a,
+#                 r,
+#                 _,
+#                 _,
+#                 _,
+#                 terminal,
+#                 _,
+#             ) = buffer.sample_transition_batch(batch_size=1, indices=[i])
 
-            i += 1
-            depleted = i == buffer._replay_capacity
+#             obs.append(s[0])
+#             acts.append(a[0])
+#             rewards.append(r[0])
+#             dones.append(terminal[0])
 
-        return cls(
-            level_group="",
-            level_name="",
-            missions=np.array([]),
-            feedback=np.array([]),
-            dataset_name=f"dqn_replay-{game}-{num_samples}",
-            algorithm_name="",
-            environment_name="",
-            environment_stack="",
-            seed_used=0,
-            code_permalink="",
-            author="",
-            author_email="",
-            observations=np.array(obs),
-            actions=np.array(acts),
-            rewards=np.array(rewards),
-            terminations=np.array(dones),
-            truncations=np.zeros_like(dones),
-            episode_terminals=None,
-            discrete_action=True,
-        )
+#             i += 1
+#             depleted = i == buffer._replay_capacity
+
+#         return cls(
+#             level_group="",
+#             level_name="",
+#             missions=np.array([]),
+#             feedback=np.array([]),
+#             dataset_name=f"dqn_replay-{game}-{num_samples}",
+#             algorithm_name="",
+#             environment_name="",
+#             environment_stack="",
+#             seed_used=0,
+#             code_permalink="",
+#             author="",
+#             author_email="",
+#             observations=np.array(obs),
+#             actions=np.array(acts),
+#             rewards=np.array(rewards),
+#             terminations=np.array(dones),
+#             truncations=np.zeros_like(dones),
+#             episode_terminals=None,
+#             discrete_action=True,
+#         )
 
 
-# helper func to load a dopamine buffer from dqn replay logs
-def load_dopamine_buffer(data_dir, game, buffer_idx):
-    replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
-        observation_shape=(84, 84),
-        stack_size=4,
-        update_horizon=1,
-        gamma=0.99,
-        observation_dtype=np.uint8,
-        batch_size=32,
-        replay_capacity=100000,
-    )
-    replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
-    return replay_buffer
+# # helper func to load a dopamine buffer from dqn replay logs
+# def load_dopamine_buffer(data_dir, game, buffer_idx):
+#     replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
+#         observation_shape=(84, 84),
+#         stack_size=4,
+#         update_horizon=1,
+#         gamma=0.99,
+#         observation_dtype=np.uint8,
+#         batch_size=32,
+#         replay_capacity=100000,
+#     )
+#     replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
+#     return replay_buffer
