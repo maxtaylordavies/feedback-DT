@@ -9,13 +9,8 @@ args["load_dataset_if_exists"] = True
 args["seed"] = 0
 args["policy"] = "ppo"
 
-# for num_eps in [100, 1000, 10000, 100000]:
-#     args["num_episodes"] = num_eps
-#     dataset = CustomDataset(args)
-#     data = dataset.get_dataset()
-#     print(len(data), np.max(data.actions))
-
-for frames in [100000, 1000000, 10000000]:
-    args["ppo_frames"] = frames
+for num_eps in [100, 1000, 10000, 100000]:
+    args["num_episodes"] = num_eps
     dataset = CustomDataset(args)
     data = dataset.get_dataset()
+    print(len(data), np.max(data.actions))
