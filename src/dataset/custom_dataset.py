@@ -1,8 +1,8 @@
 import re
-import os
 import gymnasium as gym
 import numpy as np
-from dopamine.replay_memory import circular_replay_buffer
+
+# from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
@@ -11,7 +11,7 @@ from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import log
-
+from src.utils.ppo import PPOAgent
 
 
 class CustomDataset:
@@ -21,6 +21,11 @@ class CustomDataset:
 
     def __init__(self, args):
         self.args = args
+        if "ppo" in self.args["policy"]:
+            ppo_agent = PPOAgent(
+                self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
+            )
+            self.ppo_model = ppo_agent.model
 
     def get_dataset(self):
         """
@@ -151,13 +156,13 @@ class CustomDataset:
 
         Parameters
         ----------
-        observation (np.ndarray): the observation.
+        observation (np.ndarray): the (partial symbolic) observation.
 
-        Raises
+        Reutrns
         ------
-        Exception: if the policy has not been implemented yet.
+        int: the next action.
         """
-        raise Exception("This policy has not been implemented yet")
+        return self.ppo_model.get_action(observation)
 
     def _policy(self, observation):
         """
@@ -174,8 +179,8 @@ class CustomDataset:
 
         if self.args["policy"] == "random_used_action_space_only":
             return np.random.choice(self._get_used_action_space())
-        elif self.args["policy"] == "online_ppo":
-            return self._ppo(observation["image"])
+        elif "ppo" in self.args["policy"]:
+            return self._ppo(observation)
         else:
             # Excluding the 'done' action (integer representation: 6), as by default, this is not used
             # to evaluate success for any of the tasks
@@ -189,6 +194,7 @@ class CustomDataset:
         -------
         MinariDataset: the dataset object that was created.
         """
+
         env = gym.make(self.args["env_name"])
         partial_observation, _ = env.reset(seed=self.args["seed"])
 
@@ -238,7 +244,9 @@ class CustomDataset:
             replay_buffer["truncations"][total_steps] = np.array(truncated)
             terminated, truncated = False, False
             while not (terminated or truncated):
-                action = self._policy(observation)
+                # Passing partial observation to policy (PPO) as agent was trained on this
+                # following the original implementation
+                action = self._policy(partial_observation)
                 rule_feedback = rule_feedback_verifier.verify_feedback(env, action)
                 partial_observation, reward, terminated, truncated, _ = env.step(action)
 
@@ -298,7 +306,7 @@ class CustomDataset:
             truncations=replay_buffer["truncations"],
             episode_terminals=episode_terminals,
         )
-      
+
     @classmethod
     def random(cls, num_eps, ep_length, state_dim, act_dim):
         states = np.random.rand(num_eps * ep_length, state_dim)
