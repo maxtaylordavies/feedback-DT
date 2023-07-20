@@ -5,9 +5,9 @@ from src.dataset.custom_dataset import CustomDataset
 
 args = get_args()
 
-args["load_dataset_if_exists"] = False
+args["load_dataset_if_exists"] = True
 args["seed"] = 0
-args["policy"] = "random_used_action_space_only"
+args["policy"] = "ppo"
 
 for num_eps in [100, 1000, 10000, 100000]:
     args["num_episodes"] = num_eps

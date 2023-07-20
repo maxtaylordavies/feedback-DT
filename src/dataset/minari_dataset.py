@@ -378,7 +378,9 @@ class MinariDataset:
         # validation
         assert isinstance(observations, np.ndarray), "Observations must be numpy array."
         if len(observations.shape) == 4:
-            assert observations.dtype == np.uint8, "Image observation must be uint8 array."
+            assert (
+                observations.dtype == np.uint8
+            ), "Image observation must be uint8 array."
         else:
             if observations.dtype != np.float32:
                 observations = np.asarray(observations, dtype=np.float32)
@@ -401,9 +403,9 @@ class MinariDataset:
             # if None, episode terminals match the environment terminals
             self._episode_terminals = self._terminations
         else:
-            self._episode_terminals = np.asarray(episode_terminals, dtype=np.float32).reshape(
-                -1
-            )
+            self._episode_terminals = np.asarray(
+                episode_terminals, dtype=np.float32
+            ).reshape(-1)
 
         # automatic action type detection
         if discrete_action is None:
@@ -691,7 +693,9 @@ class MinariDataset:
             ), f"Observation shape must be {self.get_observation_shape()}."
             if self.discrete_action:
                 if int(action) >= self.get_action_size():
-                    message = f"New action size is higher than" f" {self.get_action_size()}."
+                    message = (
+                        f"New action size is higher than" f" {self.get_action_size()}."
+                    )
                     warnings.warn(message)
             else:
                 assert action.shape == (
@@ -782,8 +786,8 @@ class MinariDataset:
             f.create_dataset("missions", data=np.asarray(self._missions, dtype="S"))
             f.create_dataset("observations", data=self._observations)
             f.create_dataset("actions", data=self._actions)
-            f.create_dataset("rewards", data=np.asarray(self._feedback, dtype="S"))
-            f.create_dataset("feedback", data=self._feedback)
+            f.create_dataset("rewards", data=self._rewards)
+            f.create_dataset("feedback", data=np.asarray(self._feedback, dtype="S"))
             f.create_dataset("terminations", data=self._terminations)
             f.create_dataset("truncations", data=self._truncations)
             f.create_dataset("episode_terminals", data=self._episode_terminals)
@@ -1041,7 +1045,9 @@ class Episode:
         # validation
         assert isinstance(observations, np.ndarray), "Observation must be numpy array."
         if len(observation_shape) == 3:
-            assert observations.dtype == np.uint8, "Image observation must be uint8 array."
+            assert (
+                observations.dtype == np.uint8
+            ), "Image observation must be uint8 array."
         else:
             if observations.dtype != np.float32:
                 observations = np.asarray(observations, dtype=np.float32)
