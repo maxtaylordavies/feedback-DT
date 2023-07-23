@@ -30,8 +30,8 @@ class Evaluator(TrainerCallback):
         self,
         user_args,
         collator,
-        sample_interval=1000,
-        target_returns=[90],
+        sample_interval=20000,
+        target_return=90,
         num_repeats=3,
         gamma=0.99,
     ) -> None:
@@ -40,10 +40,9 @@ class Evaluator(TrainerCallback):
         self.collator = collator
         self.sample_interval = sample_interval
         self.samples_processed = 0
-        self.target_returns = target_returns
-        self.best_return = -np.inf
-        self.best_random_return = -np.inf
-        self.best_length = 0
+        self.target_return = target_return
+        self.best_returns = {"random": -np.inf, "DT": -np.inf}
+        self.best_lengths = {"random": 0, "DT": 0}
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -81,6 +80,17 @@ class Evaluator(TrainerCallback):
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
 
+    def on_train_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        self._plot_loss(state)
+        self._run_eval_and_plot(model, state)
+
     def on_step_begin(
         self,
         args: TrainingArguments,
@@ -92,22 +102,22 @@ class Evaluator(TrainerCallback):
         self._plot_loss(state)
 
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if len(self.results["samples"]) == 0 or sample_diff >= self.sample_interval:
+        if sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state)
+            self.samples_processed = self.collator.samples_processed
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
         log(
-            f"Running {'FINAL' if final else ''} evaluation (samples: {self.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            f"running {'FINAL' if final else ''} evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
-        for a, name in zip([agent, self.random_agent], ["DT", "random"]):
+        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(a, name)
             # self._evaluate_agent_predictions(a, name)
 
         self._plot_results()
-        self.samples_processed = self.collator.samples_processed
 
     def _create_env(self, atari=False):
         env_name = self.user_args["env_name"]
@@ -125,7 +135,7 @@ class Evaluator(TrainerCallback):
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=self.user_args["seed"])
 
     def _record_return(self, env, ret, ep_length, model_name):
-        self.results["samples"].append(self.samples_processed)
+        self.results["samples"].append(self.collator.samples_processed)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["model"].append(model_name)
@@ -134,25 +144,19 @@ class Evaluator(TrainerCallback):
             env.release()
 
         if self.samples_processed == 0:
-            env.save_as("first")
+            env.save_as(f"first_{model_name}")
 
-        if model_name == "random" and ret > self.best_random_return:
-            self.best_random_return = ret
-            log(f"New best random return: {ret}", with_tqdm=True)
+        if ret > self.best_returns[model_name]:
+            self.best_returns[model_name] = ret
+            log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
-                env.save_as("best_random")
+                env.save_as(f"best_{model_name}")
 
-        if model_name != "random" and ret > self.best_return:
-            self.best_return = ret
-            log(f"New best return: {ret}", with_tqdm=True)
+        if ep_length > self.best_lengths[model_name]:
+            self.best_lengths[model_name] = ep_length
+            log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
             if self.user_args["record_video"]:
-                env.save_as("best")
-
-        if model_name != "random" and ep_length > self.best_length:
-            self.best_length = ep_length
-            log(f"New best length: {ep_length}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as("longest")
+                env.save_as(f"longest_{model_name}")
 
     def _evaluate_agent_performance(self, agent: Agent, agent_name: str):
         atari = self.user_args["env_name"].startswith("atari")
@@ -160,17 +164,16 @@ class Evaluator(TrainerCallback):
 
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for _ in range(self.num_repeats):
-            for tr in self.target_returns:
-                env = self._create_env(atari=atari)
-                ret, ep_length = run_agent(agent, env, tr)
-                self._record_return(env, ret, ep_length, f"{agent_name} ({tr})")
+            env = self._create_env(atari=atari)
+            ret, ep_length = run_agent(agent, env, self.target_return)
+            self._record_return(env, ret, ep_length, agent_name)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
 
         # log the average episode return for the current eval
         log(
-            f"Average episode return: {df[df['samples'] == self.samples_processed]['return'].mean()}",
+            f"average return ({agent_name} agent): {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
             with_tqdm=True,
         )
 
@@ -203,12 +206,12 @@ class Evaluator(TrainerCallback):
 
                 accs[rep] += int(got == target) / ns
 
-            self.results["samples"].append(self.samples_processed)
+            self.results["samples"].append(self.collator.samples_processed)
             self.results["model"].append(agent_name)
             self.results["eval acc"].append(accs[rep])
 
         log(
-            f"eval acc: {np.mean(accs)} (after {self.samples_processed} samples)",
+            f"eval acc: {np.mean(accs)} (after {self.collator.samples_processed} samples)",
             with_tqdm=True,
         )
 

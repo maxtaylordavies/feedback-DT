@@ -5,6 +5,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from src.dataset.custom_dataset import CustomDataset
+from src.utils.utils import log
 
 
 @dataclass
@@ -55,6 +56,10 @@ class Collator:
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
         self._mission_embeddings_cache = {m: null_emb for m in ["", "No mission available"]}
 
+        self.dataset.load_shard()
+        self.state_dim = self.dataset.state_dim
+        self.act_dim = self.dataset.act_dim
+
         self.reset_counter()
 
     def reset_counter(self):
@@ -69,9 +74,10 @@ class Collator:
 
     # embed sentences (with cache)
     def _get_sentence_embeddings(self, embeddings_cache, sentences):
+        sentences = sentences.flatten()
         emb = torch.zeros((len(sentences), self.embedding_dim))
         for i in range(len(sentences)):
-            s = sentences[i, 0]
+            s = sentences[i]
             if s not in embeddings_cache:
                 embeddings_cache[s] = self._compute_sentence_embedding(s)
             emb[i] = embeddings_cache[s]
@@ -137,10 +143,6 @@ class Collator:
                     v = self._pad(v)
                 batch[k].append(v)
 
-            # if we're in training mode, update the sample counter
-            if train:
-                self.samples_processed += ep["timesteps"].shape[1]
-
         # convert batch to (concatenated) tensors
         for k, v in batch.items():
             if "embeddings" in k:
@@ -148,6 +150,10 @@ class Collator:
             else:
                 batch[k] = torch.from_numpy(np.concatenate(v, axis=0))
                 batch[k] = batch[k].long() if k == "timesteps" else batch[k].float()
+
+        # if we're in training mode, update the sample counter
+        if train:
+            self.samples_processed += np.prod(batch["timesteps"].shape)
 
         return batch
 

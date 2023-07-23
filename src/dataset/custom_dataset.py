@@ -1,5 +1,6 @@
 import re
 import os
+import shutil
 
 import gymnasium as gym
 import numpy as np
@@ -17,7 +18,10 @@ from src.utils.utils import (
     to_one_hot,
     normalise,
 )
-from src.utils.ppo import PPOAgent
+
+# from src.utils.ppo import PPOAgent
+
+EPS_PER_SHARD = 100
 
 
 class CustomDataset:
@@ -28,11 +32,11 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
-        if "ppo" in self.args["policy"]:
-            ppo_agent = PPOAgent(
-                self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
-            )
-            self.ppo_model = ppo_agent.model
+        # if "ppo" in self.args["policy"]:
+        #     ppo_agent = PPOAgent(
+        #         self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
+        #     )
+        #     self.ppo_model = ppo_agent.model
 
     def _get_dataset(self):
         """
@@ -46,7 +50,8 @@ class CustomDataset:
         dataset_name = name_dataset(self.args)
         print(f"Creating dataset {dataset_name}")
 
-        return self._generate_new_dataset()
+        self._generate_new_dataset()
+        return self
 
         # if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
         #     log(f"Loading dataset {dataset_name} from local storage")
@@ -122,19 +127,19 @@ class CustomDataset:
         category = self._get_category(level)
         return metadata["levels"][category][level]["used_action_space"]
 
-    def _ppo(self, observation):
-        """
-        Get the next action from the PPO policy.
+    # def _ppo(self, observation):
+    #     """
+    #     Get the next action from the PPO policy.
 
-        Parameters
-        ----------
-        observation (np.ndarray): the (partial symbolic) observation.
+    #     Parameters
+    #     ----------
+    #     observation (np.ndarray): the (partial symbolic) observation.
 
-        Reutrns
-        ------
-        int: the next action.
-        """
-        return self.ppo_model.get_action(observation)
+    #     Reutrns
+    #     ------
+    #     int: the next action.
+    #     """
+    #     return self.ppo_model.get_action(observation)
 
     def _policy(self, observation):
         """
@@ -152,13 +157,14 @@ class CustomDataset:
         if self.args["policy"] == "random_used_action_space_only":
             return np.random.choice(self._get_used_action_space())
         elif "ppo" in self.args["policy"]:
-            return self._ppo(observation)
+            raise NotImplementedError
+            # return self._ppo(observation)
         else:
             # Excluding the 'done' action (integer representation: 6), as by default, this is not used
             # to evaluate success for any of the tasks
             return np.random.randint(0, 6)
 
-    def _clear_buffer(self, obs_shape, num_eps=1000):
+    def _clear_buffer(self, obs_shape, num_eps=EPS_PER_SHARD):
         max_steps = self.env.max_steps
         self.buffer = {
             "missions": [""] * (max_steps * num_eps + 1),
@@ -194,13 +200,14 @@ class CustomDataset:
         )
         self.buffer["observations"][self.steps] = obs["image"]
 
+        terminated, truncated = False, False
+
         # Storing initial values for rewards, terminations, truncations and feedback
         self.buffer["rewards"][self.steps] = np.array(0)
         self.buffer["feedback"][self.steps] = "No feedback available."
         self.buffer["terminations"][self.steps] = np.array(terminated)
         self.buffer["truncations"][self.steps] = np.array(truncated)
 
-        terminated, truncated = False, False
         while not (terminated or truncated):
             action = self._policy(obs)
             feedback = self.rule_feedback_verifier.verify_feedback(self.env, action)
@@ -262,9 +269,9 @@ class CustomDataset:
             episode_terminals=episode_terminals,
         )
 
-        fp = os.path.join(self.fp, f"{self.num_shards}.hdf5")
+        fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp} ({len(self.buffer['observations'])} steps)",
+            f"writing buffer to file {fp}.hdf5 ({len(self.buffer['observations'])} steps)",
             with_tqdm=True,
         )
         md.save(fp)
@@ -276,6 +283,8 @@ class CustomDataset:
             os.path.expanduser("~"), ".minari", "datasets"
         )
         self.fp, self.num_shards = os.path.join(fp, name_dataset(self.args)), 0
+        if os.path.exists(self.fp):
+            shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
         # create and initialise environment
@@ -283,7 +292,9 @@ class CustomDataset:
         partial_obs, _ = self.env.reset(seed=self.args["seed"])
         obs = get_minigrid_obs(
             self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-        )
+        )["image"]
+
+        self.state_dim = np.prod(obs.shape)
 
         # initialise buffer to store replay data
         self._clear_buffer(obs.shape)
@@ -297,7 +308,7 @@ class CustomDataset:
             self._create_episode()
 
             # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-            if (ep_idx + 1 % 1000 == 0) or ep_idx == self.args["num_episodes"] - 1:
+            if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args["num_episodes"] - 1:
                 self._save_buffer_to_minari_file()
                 self._clear_buffer(obs.shape)
 
@@ -315,9 +326,7 @@ class CustomDataset:
 
         env = gym.make(self.args["env_name"])
         partial_obs, _ = env.reset(seed=self.args["seed"])
-        obs = get_minigrid_obs(
-            env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-        )
+        obs = get_minigrid_obs(env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"])
 
         replay_buffer = {
             "missions": [""] * (env.max_steps * self.args["num_episodes"] + 1),
@@ -437,12 +446,10 @@ class CustomDataset:
     def load_shard(self, idx=None):
         if not idx:
             idx = np.random.randint(0, self.num_shards)
-        self.shard = MinariDataset.load(os.path.join(self.fp, f"{idx}.hdf5"))
+        self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(
-            self.shard.terminations + self.shard.truncations == 1
-        )[0]
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -480,48 +487,58 @@ class CustomDataset:
             raise Exception("No shard loaded")
 
         # optionally sample a random start timestep for this episode
-        # note: end represents the last timestep _included_ in the sequence,
-        # which means when we're using exclusive range operators like [:]
-        # or np.arange, we need to use end + 1
         start = self.episode_starts[ep_idx]
         if random_start:
             start += np.random.randint(0, self.episode_lengths[ep_idx])
         tmp = start + length if length else self.episode_ends[ep_idx]
         end = min(tmp, self.episode_ends[ep_idx])
 
-        s = self.shard.observations[start : end + 1]
+        s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
 
-        a = self.shard.actions[start : end + 1]
+        a = self.shard.actions[start:end]
         a = to_one_hot(a, self.act_dim).reshape(1, -1, self.act_dim)
 
         rtg = discounted_cumsum(
-            self.shard.rewards[start : self.episode_ends[ep_idx] + 1], gamma=gamma
+            self.shard.rewards[start : self.episode_ends[ep_idx]], gamma=gamma
         )
-        rtg = rtg[: end - start + 1].reshape(1, -1, 1)
+        rtg = rtg[: end - start].reshape(1, -1, 1)
 
         f = (
-            np.hstack(self.shard.feedback[start : end + 1])
+            np.hstack(self.shard.feedback[start:end])
             if feedback
             else np.array(["No feedback available."] * s.shape[1])
         ).reshape(1, -1, 1)
 
         m = (
-            np.hstack(self.shard.missions[start : end + 1])
+            np.hstack(self.shard.missions[start:end])
             if mission
             else np.array(["No mission available."] * s.shape[1])
         ).reshape(1, -1, 1)
 
         return {
-            "timesteps": np.arange(0, end - start + 1).reshape(1, -1),
+            "timesteps": np.arange(0, end - start).reshape(1, -1),
             "mission": m,
             "states": s,
             "actions": a,
-            "rewards": self.shard.rewards[start : end + 1].reshape(1, -1, 1),
+            "rewards": self.shard.rewards[start:end].reshape(1, -1, 1),
             "returns_to_go": rtg,
             "feedback": f,
-            "attention_mask": np.ones((1, end - start + 1)),
+            "attention_mask": np.ones((1, end - start)),
         }
+
+    def __len__(self):
+        return self.args["num_episodes"]
+
+    # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
+
+    def __getitem__(self, idx):
+        return idx
+
+    def __getitems__(self, idxs):
+        return idxs
+
+    # -------------------------------------------------------------------------------------------
 
     @classmethod
     def get_dataset(cls, args):
