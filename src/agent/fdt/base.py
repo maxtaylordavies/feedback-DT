@@ -76,7 +76,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         if input.attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            input.attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            input.attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long, device=input.states.device
+            )
 
         # embed each modality with a different head
         time_embeddings = self.embed_timestep(input.timesteps)
@@ -113,7 +115,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 dim=1,
             )
             # MAX LOOKING AT THIS
-            .permute(0, 2, 1, 3).reshape(batch_size, 4 * seq_length, self.hidden_size)
+            .permute(0, 2, 1, 3).reshape(batch_size, 5 * seq_length, self.hidden_size)
         )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
@@ -130,7 +132,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 dim=1,
             )
             # MAX LOOKING AT THIS
-            .permute(0, 2, 1).reshape(batch_size, 4 * seq_length)
+            .permute(0, 2, 1).reshape(batch_size, 5 * seq_length)
         )
 
         # we feed in the input embeddings (not word indices as in NLP) to the model
@@ -151,11 +153,10 @@ class FDTAgent(Agent, DecisionTransformerModel):
         # MAX LOOKING AT THIS
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(
+        x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(
             0, 2, 1, 3
-        )  # shape (batch_size, 4, seq_length, hidden_size)
+        )  # shape (batch_size, 5, seq_length, hidden_size)
 
-        # TO-DO CHANGE THIS TO ACCOUNT FOR MISSIONS
         _s, _a, _f, _m = x[:, 1], x[:, 2], x[:, 3], x[:, 4]
         if self.use_feedback:
             _s = torch.cat([_s, _f], axis=2)
@@ -191,7 +192,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         preds, targets = torch.argmax(action_preds, dim=1), torch.argmax(
             action_targets, dim=1
         )
-        acc = torch.mean((preds == targets).float())
+        # acc = torch.mean((preds == targets).float())
         # log(f"train acc: {acc}", with_tqdm=True)
 
         return torch.mean((action_preds - action_targets) ** 2)
@@ -205,11 +206,11 @@ class FDTAgent(Agent, DecisionTransformerModel):
     ):
         device = input.states.device
 
-        mission_embeddings = input.mission_embeddings.reshape(1, -1, self.self.hidden_size)
+        input.mission_embeddings = input.mission_embeddings.reshape(1, -1, self.hidden_size)
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        feedback_embeddings = feedback_embeddings.reshape(1, -1, self.self.hidden_size)
+        input.feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 
         input.states = input.states[:, -context:]
@@ -218,17 +219,17 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.timesteps = input.timesteps[:, -context:]
 
         # pad all tokens to sequence length
-        padding = context - input.states.shape[1]
-        input.attention_mask = (
-            torch.cat(
-                [
-                    torch.zeros(padding, device=device),
-                    torch.ones(input.states.shape[1], device=device),
-                ]
-            )
-            .to(dtype=torch.long)
-            .reshape(1, -1)
-        )
+        # padding = context - input.states.shape[1]
+        # input.attention_mask = (
+        #     torch.cat(
+        #         [
+        #             torch.zeros(padding, device=device),
+        #             torch.ones(input.states.shape[1], device=device),
+        #         ]
+        #     )
+        #     .to(dtype=torch.long)
+        #     .reshape(1, -1)
+        # )
 
         output = self._forward(input)
         action = output.action_preds[0, -1]

@@ -1,5 +1,4 @@
 import os
-import shutil
 
 import gymnasium as gym
 import torch
@@ -7,7 +6,6 @@ import numpy as np
 import pandas as pd
 
 # from minigrid.wrappers import FullyObsWrapper
-import cv2
 from transformers import (
     TrainerCallback,
     TrainerControl,
@@ -20,87 +18,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import discounted_cumsum, log
+from src.utils.utils import log, get_minigrid_obs, normalise
 from .atari_env import AtariEnv
 from .visualiser import Visualiser, AtariVisualiser
 
 sns.set_theme()
-
-
-class Visualiser:
-    def __init__(
-        self,
-        env,
-        directory,
-        filename,
-        seed,
-        auto_release=True,
-        size=None,
-        fps=30,
-        rgb=True,
-    ):
-        self.env = env
-        self.directory = directory
-        self.path = os.path.join(self.directory, f"{filename}.mp4")
-        self.auto_release = auto_release
-        self.active = True
-        self.fps = fps
-        self.rgb = rgb
-
-        if size is None:
-            self.env.reset(seed=seed)
-            self.size = self.env.render().shape[:2][::-1]
-        else:
-            self.size = size
-
-    def pause(self):
-        self.active = False
-
-    def resume(self):
-        self.active = True
-
-    def _start(self):
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        self._writer = cv2.VideoWriter(self.path, fourcc, self.fps, self.size)
-
-    def _write(self):
-        if self.active:
-            frame = self.env.render()
-            if self.rgb:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._writer.write(frame)
-
-    def release(self):
-        self._writer.release()
-
-    def reset(self, *args, **kwargs):
-        obs = self.env.reset(*args, **kwargs)
-        self._start()
-        self._write(obs)
-        return obs
-
-    def step(self, *args, **kwargs):
-        data = self.env.step(*args, **kwargs)
-
-        self._write()
-
-        if self.auto_release and data[2]:
-            self.release()
-
-        return data
-
-    def save_as_best(self):
-        shutil.copy(self.path, os.path.join(self.directory, "best.mp4"))
-
-
-class AtariVisualiser(Visualiser):
-    def _write(self, obs):
-        if not self.active:
-            return
-        frame = obs.numpy().reshape((self.env.window,) + self.size)[-1]
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        self._writer.write(frame)
 
 
 class Evaluator(TrainerCallback):
@@ -108,8 +30,8 @@ class Evaluator(TrainerCallback):
         self,
         user_args,
         collator,
-        sample_interval=1000,
-        target_returns=[90],
+        sample_interval=20000,
+        target_return=90,
         num_repeats=3,
         gamma=0.99,
     ) -> None:
@@ -118,14 +40,12 @@ class Evaluator(TrainerCallback):
         self.collator = collator
         self.sample_interval = sample_interval
         self.samples_processed = 0
-        self.target_returns = target_returns
-        self.best_return = -np.inf
-        self.best_random_return = -np.inf
-        self.best_length = 0
+        self.target_return = target_return
+        self.best_returns = {"random": -np.inf, "DT": -np.inf}
+        self.best_lengths = {"random": 0, "DT": 0}
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.device = torch.device("cpu")
 
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
@@ -138,23 +58,38 @@ class Evaluator(TrainerCallback):
             "samples": [],
             "return": [],
             "episode length": [],
-            "eval acc": [],
+            # "eval acc": [],
         }
 
-        # create default missing feedback embeddings
-        self.feedback_embeddings = self.collator._embed_sentence(
-            np.array([["No feedback available."] * user_args["context_length"]]).reshape(
-                -1, 1
-            )
-        ).to(self.device)
+        # # create default missing feedback embeddings
+        # self.feedback_embeddings = self.collator.embed_feedback(
+        #     np.array(["No feedback available."] * user_args["context_length"])
+        # ).to(self.device)
 
-        # create default missing mission embeddings
-        self.mission_embeddings = self.collator._embed_sentence(
-            np.array([["No mission available."] * user_args["context_length"]]).reshape(-1, 1)
-        ).to(self.device)
+        # # create default missing mission embeddings
+        # self.mission_embeddings = self.collator.embed_missions(
+        #     np.array(["No mission available."] * user_args["context_length"])
+        # ).to(self.device)
+        self.feedback_embeddings = (
+            torch.from_numpy(np.random.rand(1, 64, 128)).to(self.device).float()
+        )
+        self.mission_embeddings = (
+            torch.from_numpy(np.random.rand(1, 64, 128)).to(self.device).float()
+        )
 
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
+
+    def on_train_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        self._plot_loss(state)
+        self._run_eval_and_plot(model, state)
 
     def on_step_begin(
         self,
@@ -167,22 +102,22 @@ class Evaluator(TrainerCallback):
         self._plot_loss(state)
 
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if len(self.results["samples"]) == 0 or sample_diff >= self.sample_interval:
+        if sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state)
+            self.samples_processed = self.collator.samples_processed
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
         log(
-            f"Running {'FINAL' if final else ''} evaluation (samples: {self.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            f"running {'FINAL' if final else ''} evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
-        for a, name in zip([agent, self.random_agent], ["DT", "random"]):
+        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(a, name)
-            self._evaluate_agent_predictions(a, name)
+            # self._evaluate_agent_predictions(a, name)
 
         self._plot_results()
-        self.samples_processed = self.collator.samples_processed
 
     def _create_env(self, atari=False):
         env_name = self.user_args["env_name"]
@@ -200,7 +135,7 @@ class Evaluator(TrainerCallback):
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=self.user_args["seed"])
 
     def _record_return(self, env, ret, ep_length, model_name):
-        self.results["samples"].append(self.samples_processed)
+        self.results["samples"].append(self.collator.samples_processed)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["model"].append(model_name)
@@ -209,43 +144,36 @@ class Evaluator(TrainerCallback):
             env.release()
 
         if self.samples_processed == 0:
-            env.save_as("first")
+            env.save_as(f"first_{model_name}")
 
-        if model_name == "random" and ret > self.best_random_return:
-            self.best_random_return = ret
-            log(f"New best random return: {ret}", with_tqdm=True)
+        if ret > self.best_returns[model_name]:
+            self.best_returns[model_name] = ret
+            log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
-                env.save_as("best_random")
+                env.save_as(f"best_{model_name}")
 
-        if model_name != "random" and ret > self.best_return:
-            self.best_return = ret
-            log(f"New best return: {ret}", with_tqdm=True)
+        if ep_length > self.best_lengths[model_name]:
+            self.best_lengths[model_name] = ep_length
+            log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
             if self.user_args["record_video"]:
-                env.save_as("best")
-
-        if model_name != "random" and ep_length > self.best_length:
-            self.best_length = ep_length
-            log(f"New best length: {ep_length}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as("longest")
+                env.save_as(f"longest_{model_name}")
 
     def _evaluate_agent_performance(self, agent: Agent, agent_name: str):
         atari = self.user_args["env_name"].startswith("atari")
-        run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_env
+        run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
 
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for _ in range(self.num_repeats):
-            for tr in self.target_returns:
-                env = self._create_env(atari=atari)
-                ret, ep_length = run_agent(agent, env, tr)
-                self._record_return(env, ret, ep_length, f"{agent_name} ({tr})")
+            env = self._create_env(atari=atari)
+            ret, ep_length = run_agent(agent, env, self.target_return)
+            self._record_return(env, ret, ep_length, agent_name)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
 
         # log the average episode return for the current eval
         log(
-            f"Average episode return: {df[df['samples'] == self.samples_processed]['return'].mean()}",
+            f"average return ({agent_name} agent): {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
             with_tqdm=True,
         )
 
@@ -278,40 +206,40 @@ class Evaluator(TrainerCallback):
 
                 accs[rep] += int(got == target) / ns
 
-            self.results["samples"].append(self.samples_processed)
+            self.results["samples"].append(self.collator.samples_processed)
             self.results["model"].append(agent_name)
             self.results["eval acc"].append(accs[rep])
 
         log(
-            f"eval acc: {np.mean(accs)} (after {self.samples_processed} samples)",
+            f"eval acc: {np.mean(accs)} (after {self.collator.samples_processed} samples)",
             with_tqdm=True,
         )
 
-    def _run_agent_on_env(self, agent: Agent, env: Visualiser):
+    def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
+        def get_state(partial_obs):
+            obs = get_minigrid_obs(
+                env.get_env(),
+                partial_obs,
+                self.user_args["fully_obs"],
+                self.user_args["rgb_obs"],
+            )
+            return (
+                torch.from_numpy(normalise(obs["image"]))
+                .reshape(1, self.collator.state_dim)
+                .to(device=self.device, dtype=torch.float32)
+            )
+
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
 
-        state_mean = torch.from_numpy(self.collator.state_mean.astype(np.float32)).to(
-            device=self.device
-        )
-        state_std = torch.from_numpy(self.collator.state_std.astype(np.float32)).to(
-            device=self.device
-        )
-
         obs, _ = env.reset(seed=self.user_args["seed"])
-        # fully_obs_env = FullyObsWrapper(env)
-        # obs = fully_obs_env.observation(tmp[0])
 
-        states = (
-            torch.from_numpy(obs)
-            .reshape(1, self.collator.state_dim)
-            .to(device=self.device, dtype=torch.float32)
-        )
+        states = get_state(obs)
         actions = torch.zeros(
             (0, self.collator.act_dim), device=self.device, dtype=torch.float32
         )
         rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
         returns_to_go = torch.tensor(
-            self.target_return, device=self.device, dtype=torch.float32
+            target_return, device=self.device, dtype=torch.float32
         ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
@@ -324,13 +252,13 @@ class Evaluator(TrainerCallback):
 
             actions[-1] = agent.get_action(
                 AgentInput(
-                    mission_embeddings=self.mission_embeddings,
-                    states=(states - state_mean) / state_std,
+                    mission_embeddings=self.mission_embeddings[:, : t + 1, :],
+                    states=states,
                     actions=actions,
                     rewards=rewards,
                     returns_to_go=returns_to_go,
                     timesteps=timesteps,
-                    feedback_embeddings=self.feedback_embeddings,
+                    feedback_embeddings=self.feedback_embeddings[:, : t + 1, :],
                     attention_mask=None,
                 ),
                 context=self.user_args["context_length"],
@@ -340,11 +268,7 @@ class Evaluator(TrainerCallback):
 
             obs, reward, done, _, _ = env.step(np.argmax(a))
             # obs = fully_obs_env.observation(obs)
-            cur_state = (
-                torch.from_numpy(obs)
-                .to(device=self.device)
-                .reshape(1, self.collator.state_dim)
-            )
+            cur_state = get_state(obs)
             states = torch.cat([states, cur_state], dim=0)
 
             rewards[-1] = reward
@@ -362,16 +286,17 @@ class Evaluator(TrainerCallback):
             if done:
                 break
 
-        return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0]
+        # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
+        return np.sum(rewards.detach().cpu().numpy()), t
 
     def _run_agent_on_atari_env(
-        self, agent: Agent, env: AtariVisualiser, target_return: int, stack_size=4
+        self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
     ):
         def get_state(frames):
             frames = frames.permute(1, 2, 0)
-            return self.collator._normalise_states(
-                frames.reshape(1, self.collator.state_dim)
-            ).to(device=self.device, dtype=torch.float32)
+            return normalise(frames.reshape(1, self.collator.state_dim)).to(
+                device=self.device, dtype=torch.float32
+            )
 
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
 
@@ -381,8 +306,7 @@ class Evaluator(TrainerCallback):
         _start_idx = 655
         NUM_INITIAL_ACTIONS = 10
 
-        # ref_states = self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS]
-        # ref_states = self.collator._normalise_states(ref_states)
+        # ref_states = normalise(self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS])
 
         # states = get_state(obs)
         states = torch.zeros(0, device=self.device, dtype=torch.float32)
@@ -469,18 +393,10 @@ class Evaluator(TrainerCallback):
 
     def _plot_results(self):
         df = pd.DataFrame(self.results)
-        fig, ax = plt.subplots()
 
-        sns.lineplot(x="samples", y="return", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "returns.png"))
-        plt.close(fig)
-
-        fig, ax = plt.subplots()
-        sns.lineplot(x="samples", y="episode length", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "ep-length.png"))
-        plt.close(fig)
-
-        fig, ax = plt.subplots()
-        sns.lineplot(x="samples", y="eval acc", hue="model", data=df, ax=ax)
-        fig.savefig(os.path.join(self.output_dir, "eval-acc.png"))
-        plt.close(fig)
+        for k in self.results.keys():
+            if k not in ("samples", "model"):
+                fig, ax = plt.subplots()
+                sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
+                fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
+                plt.close(fig)

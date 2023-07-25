@@ -98,6 +98,12 @@ def get_args():
         help="how many training steps between logging output (default: 10)",
     )
     parser.add_argument(
+        "--record_video",
+        type=bool,
+        default=False,
+        help="Whether to record videos of evaluation episodes",
+    )
+    parser.add_argument(
         "--wandb_mode",
         type=str,
         default="offline",

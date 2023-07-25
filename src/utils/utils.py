@@ -4,6 +4,7 @@ import os
 import socket
 
 import numpy as np
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 import torch
 from tqdm import tqdm
 
@@ -73,9 +74,39 @@ def to_one_hot(x, width=None):
     return res
 
 
+def normalise(x):
+    return (x - x.min()) / (x.max() - x.min())
+
+
 def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
 
 
 def name_dataset(args):
     return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
+
+
+def get_minigrid_obs(env, partial_obs, fully_obs=False, rgb_obs=False):
+    """
+    Get the observation from the environment.
+
+    Parameters
+    ----------
+    partial_observation (np.ndarray): the partial observation from the environment.
+    env (gym.Env): the environment.
+
+    Returns
+    -------
+    np.ndarray: the observation, either as a symbolic or rgb image representation.
+    """
+    if fully_obs and rgb_obs:
+        _env = RGBImgObsWrapper(env)
+        return _env.observation({})
+    elif fully_obs and not rgb_obs:
+        _env = FullyObsWrapper(env)
+        return _env.observation({})
+    elif not fully_obs and rgb_obs:
+        _env = RGBImgPartialObsWrapper(env)
+        return _env.observation({})
+    else:
+        return partial_obs

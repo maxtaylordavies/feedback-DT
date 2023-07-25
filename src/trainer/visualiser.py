@@ -54,6 +54,9 @@ class Visualiser:
         self._write(obs)
         return obs
 
+    def get_env(self):
+        return self.env
+
     def step(self, *args, **kwargs):
         data = self.env.step(*args, **kwargs)
 
