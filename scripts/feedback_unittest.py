@@ -365,7 +365,7 @@ class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You've completed a part of your task by going to a correct object."
+            == "You've completed your task by going to a correct object."
         )
 
 
@@ -548,29 +548,20 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         # "go to a key"
         for step in [1, 2]:
             self.env.step(step)
-        feedback_1 = feedback_verifier.verify_feedback(self.env, 2)
-        cond_1 = (
-            feedback_1
+
+        assert (
+            feedback_verifier.verify_feedback(self.env, 2)
             == "You've completed a part of your task by going to a correct object."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 2)
-        #     == "You've completed a part of your task by going to a correct object."
-        # )
 
         # "pick up a key"
         for step in [3]:
             self.env.step(step)
 
-        feedback_2 = feedback_verifier.verify_feedback(self.env, 3)
-        cond_2 = (
-            feedback_2
+        assert (
+            feedback_verifier.verify_feedback(self.env, 3)
             == "You've completed a part of your task by picking up a correct object."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 3)
-        #     == "You've completed a part of your task by picking up a correct object."
-        # )
 
         # "go to the yellow box"
         for step in [
@@ -614,15 +605,10 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        feedback_3 = feedback_verifier.verify_feedback(self.env, 2)
-        cond_3 = (
-            feedback_3
+        assert (
+            feedback_verifier.verify_feedback(self.env, 2)
             == "You've completed a part of your task by going to the correct object."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 2)
-        #     == "You've completed a part of your task by going to the correct object."
-        # )
 
         # "put the red box next to a grey door"
 
@@ -666,29 +652,19 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        feedback_4 = feedback_verifier.verify_feedback(self.env, 2)
-        cond_4 = (
-            feedback_4
+        assert (
+            feedback_verifier.verify_feedback(self.env, 2)
             == "You've completed a part of your task by going to the correct object."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 2)
-        #     == "You've completed a part of your task by going to the correct object."
-        # )
 
         # "pick up the red box"
         for step in [3]:
             self.env.step(step)
 
-        feedback_5 = feedback_verifier.verify_feedback(self.env, 3)
-        cond_5 = (
-            feedback_5
+        assert (
+            feedback_verifier.verify_feedback(self.env, 3)
             == "You've completed a part of your task by picking up the correct object."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 3)
-        #     == "You've completed a part of your task by picking up the correct object."
-        # )
 
         # "put next to grey door"
         for step in [
@@ -723,15 +699,10 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        feedback_6 = feedback_verifier.verify_feedback(self.env, 4)
-        cond_6 = (
-            feedback_6
+        assert (
+            feedback_verifier.verify_feedback(self.env, 4)
             == "You've completed a part of your task by putting the correct move object next to a correct door."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 4)
-        #     == "You've completed a part of your task by putting the correct move object next to a correct door."
-        # )
 
         # "and open a purple door"
 
@@ -746,15 +717,10 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        feedback_7 = feedback_verifier.verify_feedback(self.env, 2)
-        cond_7 = (
-            feedback_7
+        assert (
+            feedback_verifier.verify_feedback(self.env, 2)
             == "You've completed a part of your task by going to a correct door."
         )
-        # assert (
-        #     feedback_verifier.verify_feedback(self.env, 2)
-        #     == "You've completed a part of your task by going to a correct door."
-        # )
 
         # "open a purple door"
         for step in [
@@ -763,8 +729,6 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        feedback_8 = feedback_verifier.verify_feedback(self.env, 5)
-        cond_8 = feedback_8 == "You've completed your task by opening a correct door."
         assert (
             feedback_verifier.verify_feedback(self.env, 5)
             == "You've completed your task by opening a correct door."
