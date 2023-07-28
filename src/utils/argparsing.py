@@ -119,21 +119,18 @@ def get_args():
         default="/disk/scratch/feedback-DT/output",
         help="Path to the " "directory to write output to",
     )
-    # Dataset deletion arguments (use with delete_datasets.py)
     parser.add_argument(
         "--del_all",
         type=bool,
         default=False,
         help="Whether to delete all local datasets",
     )
-    # Feedback arguments (use with feedback.py)
     parser.add_argument(
         "--use_feedback",
         type=bool,
         default=True,
         help="whether to use feedback during training",
     )
-    # Demo arguments (use with make_demo_with_feedback.py)
     parser.add_argument(
         "--demo",
         type=str,
@@ -157,5 +154,17 @@ def get_args():
         type=int,
         default=10**7,
         help="the number of frames to train the PPO agent for.",
+    )
+    parser.add_argument(
+        "--feedback_mode",
+        type=str,
+        default="all",
+        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', or 'random'.",
+    )
+    parser.add_argument(
+        "--random_text_type",
+        type=str,
+        default="lorem_ipsum",
+        help="the type of random text to use for random feedback; can be either 'lorem_ipsum' or 'random_sentence'.",
     )
     return vars(parser.parse_args())

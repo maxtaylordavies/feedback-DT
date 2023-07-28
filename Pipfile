@@ -28,6 +28,8 @@ seaborn = "*"
 torch-ac = "*"
 tensorboardx = "*"
 feedback-dt = {editable = true, path = "."}
+essential-generators = "*"
+lorem-text = "*"
 
 [dev-packages]
 ipykernel = "*"

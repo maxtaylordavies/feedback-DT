@@ -1,7 +1,13 @@
+import re
 from abc import ABC, abstractmethod
 
+from essential_generators import DocumentGenerator
+from lorem_text import lorem
+from minigrid.core.constants import COLOR_NAMES
 from minigrid.core.world_object import Box, Door, Key, Wall
 from minigrid.envs.babyai.core.verifier import (
+    LOC_NAMES,
+    OBJ_TYPES,
     AfterInstr,
     AndInstr,
     BeforeInstr,
@@ -13,6 +19,10 @@ from minigrid.envs.babyai.core.verifier import (
     SeqInstr,
     pos_next_to,
 )
+
+SEQUENCE_CONSTRUCTORS = ["and", ", then", "after you"]
+
+ACTION_WORDS = ["go to", "open", "pick up", "put"]
 
 
 class Feedback(ABC):
@@ -552,3 +562,28 @@ class TaskFeedback(Feedback):
         self.carrying = self.env.carrying
 
         return self._get_task_feedback()
+
+
+class RandomFeedback(Feedback):
+    """
+    Class for generating random feedback (for ablations)
+    """
+
+    def __init__(self, random_type):
+        self.random_type = random_type
+        self.babyai_words = (
+            OBJ_TYPES + LOC_NAMES + COLOR_NAMES + ACTION_WORDS + SEQUENCE_CONSTRUCTORS
+        )
+
+    def verify_feedback(self):
+        if self.random_type == "lorem_ipsum":
+            sentence = lorem.sentence()
+            while len(sentence) > 150:
+                sentence = lorem.sentence()
+            return sentence
+        generator = DocumentGenerator()
+        word_list = self.babyai_words
+        while any(word in self.babyai_words for word in word_list):
+            sentence = generator.sentence()
+            word_list = set(re.sub(r"\W+", " ", sentence).lower().split())
+        return sentence

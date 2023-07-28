@@ -8,7 +8,11 @@ from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 from tqdm import tqdm
 
-from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
+from src.dataset.custom_feedback_verifier import (
+    RuleFeedback,
+    TaskFeedback,
+    RandomFeedback,
+)
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.utils.utils import (
@@ -19,7 +23,7 @@ from src.utils.utils import (
     normalise,
 )
 
-# from src.utils.ppo import PPOAgent
+from src.utils.ppo import PPOAgent
 
 EPS_PER_SHARD = 100
 
@@ -32,11 +36,11 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
-        # if "ppo" in self.args["policy"]:
-        #     ppo_agent = PPOAgent(
-        #         self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
-        #     )
-        #     self.ppo_model = ppo_agent.model
+        if "ppo" in self.args["policy"]:
+            ppo_agent = PPOAgent(
+                self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
+            )
+            self.ppo_model = ppo_agent.model
 
     def _get_dataset(self):
         """
@@ -127,19 +131,19 @@ class CustomDataset:
         category = self._get_category(level)
         return metadata["levels"][category][level]["used_action_space"]
 
-    # def _ppo(self, observation):
-    #     """
-    #     Get the next action from the PPO policy.
+    def _ppo(self, observation):
+        """
+        Get the next action from the PPO policy.
 
-    #     Parameters
-    #     ----------
-    #     observation (np.ndarray): the (partial symbolic) observation.
+        Parameters
+        ----------
+        observation (np.ndarray): the (partial symbolic) observation.
 
-    #     Reutrns
-    #     ------
-    #     int: the next action.
-    #     """
-    #     return self.ppo_model.get_action(observation)
+        Reutrns
+        ------
+        int: the next action.
+        """
+        return self.ppo_model.get_action(observation)
 
     def _policy(self, observation):
         """
@@ -156,18 +160,47 @@ class CustomDataset:
 
         if self.args["policy"] == "random_used_action_space_only":
             return np.random.choice(self._get_used_action_space())
-        elif "ppo" in self.args["policy"]:
-            raise NotImplementedError
-            # return self._ppo(observation)
-        else:
-            # Excluding the 'done' action (integer representation: 6), as by default, this is not used
-            # to evaluate success for any of the tasks
-            return np.random.randint(0, 6)
+        if "ppo" in self.args["policy"]:
+            return self._ppo(observation)
+        # Excluding the 'done' action (integer representation: 6), as by default, this is not used
+        # to evaluate success for any of the tasks
+        return np.random.randint(0, 6)
+
+    def _get_feedback_constant(self):
+        if (
+            self.args["feedback_mode"] == "random"
+            and self.args["random_feedback"] == "lorem_ipsum"
+        ):
+            return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+        return "No feedback available."
+
+    def _get_feedback(self, rule_feedback, task_feedback):
+        """
+        Get the feedback for a given action.
+
+        Parameters
+        ----------
+        action (int): the action.
+
+        Returns
+        -------
+        str: the feedback.
+        """
+        if self.args["feedback_mode"] == "random":
+            return self.random_feedback_verifier.verify_feedback()
+        if self.args["feedback_mode"] == "rule_only":
+            return rule_feedback
+        if self.args["feedback_mode"] == "task_only":
+            return task_feedback
+        if self.args["feedback_mode"] == "all":
+            if rule_feedback == "No feedback available.":
+                return task_feedback
+            return rule_feedback
 
     def _clear_buffer(self, obs_shape, num_eps=EPS_PER_SHARD):
         max_steps = self.env.max_steps
         self.buffer = {
-            "missions": [""] * (max_steps * num_eps + 1),
+            "missions": [self.env.descr.surface(self.env)] * (max_steps * num_eps + 1),
             "observations": np.array(
                 [np.zeros(obs_shape)] * (max_steps * num_eps + 1),
                 dtype=np.uint8,
@@ -180,7 +213,7 @@ class CustomDataset:
                 [[0]] * (max_steps * num_eps + 1),
                 dtype=np.float32,
             ),
-            "feedback": ["TEST"] * (max_steps * num_eps + 1),
+            "feedback": [self._get_feedback_constant()] * (max_steps * num_eps + 1),
             "terminations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
             "truncations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
         }
@@ -188,42 +221,31 @@ class CustomDataset:
 
     def _create_episode(self):
         partial_obs, _ = self.env.reset(seed=self.args["seed"])
-
-        # Storing mission for initial episode timestep t=0 (m_0)
-        # (mission is the same for the whole episode)
-        mission = partial_obs["mission"]
-        self.buffer["missions"][self.steps] = mission
-
         # Storing observation at initial episode timestep t=0 (o_0)
         obs = get_minigrid_obs(
             self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
         )
         self.buffer["observations"][self.steps] = obs["image"]
-
         terminated, truncated = False, False
-
-        # Storing initial values for rewards, terminations, truncations and feedback
-        self.buffer["rewards"][self.steps] = np.array(0)
-        self.buffer["feedback"][self.steps] = "No feedback available."
-        self.buffer["terminations"][self.steps] = np.array(terminated)
-        self.buffer["truncations"][self.steps] = np.array(truncated)
-
         while not (terminated or truncated):
-            action = self._policy(obs)
-            feedback = self.rule_feedback_verifier.verify_feedback(self.env, action)
-            partial_obs, reward, terminated, truncated, _ = self.env.step(action)
+            # Passing partial observation to policy (PPO) as agent was trained on this
+            # following the original implementation
+            action = self._policy(partial_obs)
 
+            rule_feedback = (
+                self.rule_feedback_verifier.verify_feedback(self.env, action)
+                if self.args["feedback_mode"] in ["all", "rule_only"]
+                else None
+            )
+
+            partial_obs, reward, terminated, truncated, _ = self.env.step(action)
+            task_feedback = (
+                self.task_feedback_verifier.verify_feedback(self.env, action)
+                if self.args["feedback_mode"] in ["all", "task_only"]
+                else None
+            )
             # Storing action a_t taken after observing o_t
             self.buffer["actions"][self.steps] = np.array(action)
-
-            # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
-            # If no rule feedback is provided (no rules have been breached), then
-            # we set the feedback to be the task feedback, otherwise we set it to be
-            # the rule feedback
-            # (note that there should always either be rule feedback or task success feedback
-            # as task success and rule violations are mutually exclusive)
-            if feedback == "No feedback available.":
-                feedback = self.task_feedback_verifier.verify_feedback(self.env, action)
 
             # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
             # resulting from taking a_t at o_t
@@ -231,11 +253,12 @@ class CustomDataset:
                 self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
             )
             self.buffer["observations"][self.steps + 1] = obs["image"]
-            self.buffer["missions"][self.steps + 1] = mission
             self.buffer["rewards"][self.steps + 1] = np.array(reward)
             self.buffer["terminations"][self.steps + 1] = np.array(terminated)
             self.buffer["truncations"][self.steps + 1] = np.array(truncated)
-            self.buffer["feedback"][self.steps + 1] = feedback
+            self.buffer["feedback"][self.steps + 1] = self._get_feedback(
+                rule_feedback, task_feedback
+            )
 
             self.steps += 1
 
@@ -302,146 +325,21 @@ class CustomDataset:
         # feedback verifiers
         self.rule_feedback_verifier = RuleFeedback()
         self.task_feedback_verifier = TaskFeedback(self.env)
+        self.random_feedback_verifier = RandomFeedback(self.args["random_text_type"])
 
         for ep_idx in tqdm(range(self.args["num_episodes"])):
             # create another episode
             self._create_episode()
 
             # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-            if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args["num_episodes"] - 1:
+            if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args[
+                "num_episodes"
+            ] - 1:
                 self._save_buffer_to_minari_file()
                 self._clear_buffer(obs.shape)
 
         self.env.close()
         self._clear_buffer(obs.shape)
-
-    def _generate_new_dataset_OLD(self):
-        """
-        Generate a new dataset for a given environment, seed and policy.
-
-        Returns
-        -------
-        MinariDataset: the dataset object that was created.
-        """
-
-        env = gym.make(self.args["env_name"])
-        partial_obs, _ = env.reset(seed=self.args["seed"])
-        obs = get_minigrid_obs(env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"])
-
-        replay_buffer = {
-            "missions": [""] * (env.max_steps * self.args["num_episodes"] + 1),
-            "observations": np.array(
-                [np.zeros_like(obs["image"])]
-                * (env.max_steps * self.args["num_episodes"] + 1),
-                dtype=np.uint8,
-            ),
-            "actions": np.array(
-                [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
-                dtype=np.float32,
-            ),
-            "rewards": np.array(
-                [[0]] * (env.max_steps * self.args["num_episodes"] + 1),
-                dtype=np.float32,
-            ),
-            "feedback": ["TEST"] * (env.max_steps * self.args["num_episodes"] + 1),
-            "terminations": np.array(
-                [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
-            ),
-            "truncations": np.array(
-                [[0]] * (env.max_steps * self.args["num_episodes"] + 1), dtype=bool
-            ),
-        }
-
-        total_steps = 0
-        terminated, truncated = False, False
-        for _ in tqdm(range(self.args["num_episodes"])):
-            partial_obs, _ = env.reset(seed=self.args["seed"])
-
-            # Storing mission for initial episode timestep t=0 (m_0)
-            # (mission is the same for the whole episode)
-            mission = partial_obs["mission"]
-            replay_buffer["missions"][total_steps] = mission
-
-            # Storing observation at initial episode timestep t=0 (o_0)
-            obs = get_minigrid_obs(
-                env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-            )
-            replay_buffer["observations"][total_steps] = obs["image"]
-
-            # Storing initial values for rewards, terminations, truncations and feedback
-            replay_buffer["rewards"][total_steps] = np.array(0)
-            replay_buffer["feedback"][total_steps] = "No feedback available."
-            replay_buffer["terminations"][total_steps] = np.array(terminated)
-            replay_buffer["truncations"][total_steps] = np.array(truncated)
-
-            rule_feedback_verifier = RuleFeedback()
-            task_feedback_verifier = TaskFeedback(env)
-            terminated, truncated = False, False
-            while not (terminated or truncated):
-                # Passing partial observation to policy (PPO) as agent was trained on this
-                # following the original implementation
-                action = self._policy(partial_obs)
-                rule_feedback = rule_feedback_verifier.verify_feedback(env, action)
-                partial_obs, reward, terminated, truncated, _ = env.step(action)
-
-                # Storing action a_t taken after observing o_t
-                replay_buffer["actions"][total_steps] = np.array(action)
-
-                # Generating and storing feedback f_t+1 resulting from taking a_t at o_t
-                # If no rule feedback is provided (no rules have been breached), then
-                # we set the feedback to be the task feedback, otherwise we set it to be
-                # the rule feedback
-                # (note that there should always either be rule feedback or task success feedback
-                # as task success and rule violations are mutually exclusive)
-                if rule_feedback == "No feedback available.":
-                    feedback = task_feedback_verifier.verify_feedback(env, action)
-                else:
-                    feedback = rule_feedback
-
-                # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
-                # resulting from taking a_t at o_t
-                obs = get_minigrid_obs(
-                    env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-                )
-                replay_buffer["observations"][total_steps + 1] = obs["image"]
-                replay_buffer["missions"][total_steps + 1] = mission
-                replay_buffer["rewards"][total_steps + 1] = np.array(reward)
-                replay_buffer["terminations"][total_steps + 1] = np.array(terminated)
-                replay_buffer["truncations"][total_steps + 1] = np.array(truncated)
-                replay_buffer["feedback"][total_steps + 1] = feedback
-
-                total_steps += 1
-
-        env.close()
-
-        for key in replay_buffer.keys():
-            replay_buffer[key] = replay_buffer[key][: total_steps + 2]
-
-        episode_terminals = (
-            replay_buffer["terminations"] + replay_buffer["truncations"]
-            if self.args["include_timeout"]
-            else None
-        )
-
-        return MinariDataset(
-            level_group=self._get_category(self._get_level()),
-            level_name=self._get_level(),
-            dataset_name=name_dataset(self.args),
-            algorithm_name=self.args["policy"],
-            environment_name=self.args["env_name"],
-            seed_used=self.args["seed"],
-            code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
-            author="Sabrina McCallum",
-            author_email="s2431177@ed.ac.uk",
-            missions=replay_buffer["missions"],
-            observations=replay_buffer["observations"],
-            actions=replay_buffer["actions"],
-            rewards=replay_buffer["rewards"],
-            feedback=replay_buffer["feedback"],
-            terminations=replay_buffer["terminations"],
-            truncations=replay_buffer["truncations"],
-            episode_terminals=episode_terminals,
-        )
 
     def load_shard(self, idx=None):
         if not idx:
@@ -449,7 +347,9 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_ends = np.where(
+            self.shard.terminations + self.shard.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)

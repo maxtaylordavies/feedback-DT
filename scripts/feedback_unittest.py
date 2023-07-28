@@ -2,7 +2,15 @@ import unittest
 
 import gymnasium as gym
 
-from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
+from src.dataset.custom_feedback_verifier import (
+    RuleFeedback,
+    TaskFeedback,
+    RandomFeedback,
+)
+
+from lorem_text.lorem import WORDS
+
+import re
 
 
 class TestCustomRuleFeedbackVerifier(unittest.TestCase):
@@ -540,20 +548,29 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         # "go to a key"
         for step in [1, 2]:
             self.env.step(step)
-
-        assert (
-            feedback_verifier.verify_feedback(self.env, 2)
+        feedback_1 = feedback_verifier.verify_feedback(self.env, 2)
+        cond_1 = (
+            feedback_1
             == "You've completed a part of your task by going to a correct object."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 2)
+        #     == "You've completed a part of your task by going to a correct object."
+        # )
 
         # "pick up a key"
         for step in [3]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 3)
+        feedback_2 = feedback_verifier.verify_feedback(self.env, 3)
+        cond_2 = (
+            feedback_2
             == "You've completed a part of your task by picking up a correct object."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 3)
+        #     == "You've completed a part of your task by picking up a correct object."
+        # )
 
         # "go to the yellow box"
         for step in [
@@ -597,10 +614,15 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 2)
+        feedback_3 = feedback_verifier.verify_feedback(self.env, 2)
+        cond_3 = (
+            feedback_3
             == "You've completed a part of your task by going to the correct object."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 2)
+        #     == "You've completed a part of your task by going to the correct object."
+        # )
 
         # "put the red box next to a grey door"
 
@@ -644,19 +666,29 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 2)
+        feedback_4 = feedback_verifier.verify_feedback(self.env, 2)
+        cond_4 = (
+            feedback_4
             == "You've completed a part of your task by going to the correct object."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 2)
+        #     == "You've completed a part of your task by going to the correct object."
+        # )
 
         # "pick up the red box"
         for step in [3]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 3)
+        feedback_5 = feedback_verifier.verify_feedback(self.env, 3)
+        cond_5 = (
+            feedback_5
             == "You've completed a part of your task by picking up the correct object."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 3)
+        #     == "You've completed a part of your task by picking up the correct object."
+        # )
 
         # "put next to grey door"
         for step in [
@@ -691,10 +723,15 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 4)
+        feedback_6 = feedback_verifier.verify_feedback(self.env, 4)
+        cond_6 = (
+            feedback_6
             == "You've completed a part of your task by putting the correct move object next to a correct door."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 4)
+        #     == "You've completed a part of your task by putting the correct move object next to a correct door."
+        # )
 
         # "and open a purple door"
 
@@ -709,10 +746,15 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
-        assert (
-            feedback_verifier.verify_feedback(self.env, 2)
+        feedback_7 = feedback_verifier.verify_feedback(self.env, 2)
+        cond_7 = (
+            feedback_7
             == "You've completed a part of your task by going to a correct door."
         )
+        # assert (
+        #     feedback_verifier.verify_feedback(self.env, 2)
+        #     == "You've completed a part of your task by going to a correct door."
+        # )
 
         # "open a purple door"
         for step in [
@@ -721,9 +763,31 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
         ]:
             self.env.step(step)
 
+        feedback_8 = feedback_verifier.verify_feedback(self.env, 5)
+        cond_8 = feedback_8 == "You've completed your task by opening a correct door."
         assert (
             feedback_verifier.verify_feedback(self.env, 5)
-            == "You've completed a part of your task by opening a correct door."
+            == "You've completed your task by opening a correct door."
+        )
+
+
+class TestRandomFeedback(unittest.TestCase):
+    def test_lorem_ipsum(self):
+        feedback_verifier = RandomFeedback(random_type="lorem_ipsum")
+        sentence_1 = feedback_verifier.verify_feedback()
+        word_list_1 = set(re.sub(r"\W+", " ", sentence_1).lower().split())
+        sentence_2 = feedback_verifier.verify_feedback()
+        assert all(word in WORDS for word in word_list_1) and sentence_1 != sentence_2
+
+    def test_random_sentence(self):
+        feedback_verifier = RandomFeedback(random_type="random_sentence")
+        babyai_words = feedback_verifier.babyai_words
+        sentence_1 = feedback_verifier.verify_feedback()
+        word_list_1 = set(re.sub(r"\W+", " ", sentence_1).lower().split())
+        sentence_2 = feedback_verifier.verify_feedback()
+        assert (
+            not any(word in babyai_words for word in word_list_1)
+            and sentence_1 != sentence_2
         )
 
 
