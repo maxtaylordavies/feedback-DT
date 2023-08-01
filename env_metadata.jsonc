@@ -267,7 +267,7 @@
                     "location": false,
                     "sequence": false
                 },
-                "distractors": false,
+                "distractors": true,
                 "size": true,
                 "maze": true,
                 "unlock": false,
@@ -288,28 +288,65 @@
                     "BabyAI-GoTo-v0": {},
                     "BabyAI-GoToOpen-v0": {
                         "doors_open": true
-                    },
+                    }
+                }
+            },
+            "GoToObjMaze": {
+                "description": "Go to an object, the object may be in another room. No distractors. {color} is the color of the object. Can be 'red', 'green', 'blue', 'purple', 'yellow' or 'grey'. {type} is the type of the object. Can be 'ball', 'box' or 'key'.",
+                "mission_space": {
+                    "action_mission_space": [
+                        "go to the {color} {type}"
+                    ],
+                    "color": true,
+                    "type": true,
+                    "location": false,
+                    "sequence": false
+                },
+                "distractors": false,
+                "size": true,
+                "maze": true,
+                "unlock": false,
+                "unlock_implicit": false,
+                "unblock": false,
+                "goto": true,
+                "open": false,
+                "pickup": false,
+                "putnext": false,
+                "used_action_space": [
+                    0,
+                    1,
+                    2,
+                    5
+                ],
+                "original_task": true,
+                "registered_configs": {
                     "BabyAI-GoToObjMaze-v0": {
                         "num_dists": 1
                     },
                     "BabyAI-GoToObjMazeOpen-v0": {
+                        "num_dists": 1,
                         "doors_open": true
                     },
                     "BabyAI-GoToObjMazeS4R2-v0": {
+                        "num_dists": 1,
                         "room_size": 4,
                         "num_rows": 2,
                         "num_cols": 2
                     },
                     "BabyAI-GoToObjMazeS4-v0": {
+                        "num_dists": 1,
                         "room_size": 4
                     },
                     "BabyAI-GoToObjMazeS5-v0": {
+                        "num_dists": 1,
                         "room_size": 5
                     },
                     "BabyAI-GoToObjMazeS6-v0": {
+                        "num_dists": 1,
                         "room_size": 6
                     },
                     "BabyAI-GoToObjMazeS7-v0": {
+                        "num_dists": 1,
                         "room_size": 7
                     }
                 }
@@ -1478,6 +1515,7 @@
                     4,
                     5
                 ],
+                "original_task": true,
                 "registered_configs": {
                     "BabyAI-Synth-v0": {},
                     "BabyAI-SynthS5R2-v0": {
@@ -1667,7 +1705,7 @@
                     4,
                     5
                 ],
-                "original_task": true,
+                "original_task": false,
                 "registered_configs": {
                     "BabyAI-BossLevelNoUnlock-v0": {}
                 }

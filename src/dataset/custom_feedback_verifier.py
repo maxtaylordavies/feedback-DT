@@ -351,7 +351,7 @@ class RuleFeedback(Feedback):
         """
         self.env = env
         self.front_pos = self.env.front_pos
-        self.front_cell = self.env.grid.get(*self.front_pos)
+        self.front_cell = self.env.unwrapped.grid.get(*self.front_pos)
         self.carrying = self.env.carrying
         self.action = action
 
@@ -363,7 +363,7 @@ class TaskFeedback(Feedback):
         self.env = env
         self.tasks = self._get_tasks()
         self.subtasks = self._get_subtasks()
-        self.agent_pos = self.env.agent_pos
+        self.agent_pos = self.env.unwrapped.agent_pos
         if test_mode:
             self.pop_from = -1
         else:
@@ -373,15 +373,15 @@ class TaskFeedback(Feedback):
     # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
 
     def _task_is_sequence(self):
-        return isinstance(self.env.instrs, SeqInstr)
+        return isinstance(self.env.unwrapped.instrs, SeqInstr)
 
     # Instructions for AfterInst are sequences linked by inst_a 'after you' inst_b
     def _task_is_after(self):
-        return isinstance(self.env.instrs, AfterInstr)
+        return isinstance(self.env.unwrapped.instrs, AfterInstr)
 
     # Instructions for BeforeInst are sequences linked by inst_a ', then' inst_b
     def _task_is_before(self):
-        return isinstance(self.env.instrs, BeforeInstr)
+        return isinstance(self.env.unwrapped.instrs, BeforeInstr)
 
     def _task_is_and(self, instrs):
         return isinstance(instrs, AndInstr)
@@ -394,7 +394,7 @@ class TaskFeedback(Feedback):
 
     def _task_is_unlock(self, instrs):
         door_pos = instrs.desc.obj_poss[0]
-        door = self.env.grid.get(*door_pos)
+        door = self.env.unwrapped.grid.get(*door_pos)
         return self._task_is_open(instrs) and door.is_locked
 
     def _task_is_pickup(self, instrs):
@@ -413,17 +413,17 @@ class TaskFeedback(Feedback):
     def _get_tasks(self):
         if self._task_is_before():
             return [
-                *self._decompose_and_instrs(self.env.instrs.instr_a),
-                *self._decompose_and_instrs(self.env.instrs.instr_b),
+                *self._decompose_and_instrs(self.env.unwrapped.instrs.instr_a),
+                *self._decompose_and_instrs(self.env.unwrapped.instrs.instr_b),
             ]
         if self._task_is_after():
             return [
-                *self._decompose_and_instrs(self.env.instrs.instr_b),
-                *self._decompose_and_instrs(self.env.instrs.instr_a),
+                *self._decompose_and_instrs(self.env.unwrapped.instrs.instr_b),
+                *self._decompose_and_instrs(self.env.unwrapped.instrs.instr_a),
             ]
-        if self._task_is_and(self.env.instrs):
-            return [*self._decompose_and_instrs(self.env.instrs)]
-        return [self.env.instrs]
+        if self._task_is_and(self.env.unwrapped.instrs):
+            return [*self._decompose_and_instrs(self.env.unwrapped.instrs)]
+        return [self.env.unwrapped.instrs]
 
     def _decompose_open_instrs(self, instrs):
         return GoToInstr(instrs.desc), instrs
@@ -447,6 +447,7 @@ class TaskFeedback(Feedback):
         return (
             GoToInstr(instrs.desc_move),
             PickupInstr(instrs.desc_move),
+            GoToInstr(instrs.desc_fixed),
             instrs,
         )
 
@@ -558,7 +559,7 @@ class TaskFeedback(Feedback):
         self.env = env
         self.action = action
         self.front_pos = self.env.front_pos
-        self.front_cell = self.env.grid.get(*self.front_pos)
+        self.front_cell = self.env.unwrapped.grid.get(*self.front_pos)
         self.carrying = self.env.carrying
 
         return self._get_task_feedback()

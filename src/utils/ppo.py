@@ -18,7 +18,7 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seed, n_frames):
+    def __init__(self, env_name, seed, n_frames, medium=True):
         self.args = {
             "algo": "ppo",
             "env": env_name,
@@ -51,6 +51,7 @@ class PPOAgent:
         self.env.reset()
         self.model_dir = self._get_model_dir()
         self.model = self._get_model()
+        self.medium = medium
 
     def _get_model_dir(self):
         """
@@ -64,7 +65,11 @@ class PPOAgent:
         """
         Returns the model instance for the env and trained weights.
         """
-        if not os.path.exists(os.path.join(self.model_dir, "status.pt")):
+        if not os.path.exists(
+            os.path.join(
+                self.model_dir, f"status_{'medium' if self.medium else 'expert'}.pt"
+            )
+        ):
             self._train_agent()
 
         return utils.Agent(
@@ -85,7 +90,7 @@ class PPOAgent:
         # Load loggers and Tensorboard writer
         txt_logger = utils.get_txt_logger(self.model_dir)
         csv_file, csv_logger = utils.get_csv_logger(self.model_dir)
-        # tb_writer = tensorboardX.SummaryWriter(self.model_dir)
+        tb_writer = tensorboardX.SummaryWriter(self.model_dir)
 
         # Log command and all script arguments
         txt_logger.info(f"{' '.join(sys.argv)}\n")
@@ -209,8 +214,8 @@ class PPOAgent:
                 csv_logger.writerow(data)
                 csv_file.flush()
 
-                # for field, value in zip(header, data):
-                #     tb_writer.add_scalar(field, value, num_frames)
+                for field, value in zip(header, data):
+                    tb_writer.add_scalar(field, value, num_frames)
 
             # Save status
             if (
