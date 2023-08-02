@@ -32,7 +32,7 @@ class Evaluator(TrainerCallback):
         collator,
         sample_interval=20000,
         target_return=90,
-        num_repeats=3,
+        num_repeats=5,
         gamma=0.99,
     ) -> None:
         super().__init__()
@@ -58,6 +58,7 @@ class Evaluator(TrainerCallback):
             "samples": [],
             "return": [],
             "episode length": [],
+            "success": [],
             # "eval acc": [],
         }
 
@@ -134,11 +135,12 @@ class Evaluator(TrainerCallback):
         _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=self.user_args["seed"])
 
-    def _record_return(self, env, ret, ep_length, model_name):
+    def _record_result(self, env, model_name, ret, ep_length, success):
         self.results["samples"].append(self.collator.samples_processed)
+        self.results["model"].append(model_name)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
-        self.results["model"].append(model_name)
+        self.results["success"].append(success)
 
         if self.user_args["record_video"]:
             env.release()
@@ -165,8 +167,8 @@ class Evaluator(TrainerCallback):
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for _ in range(self.num_repeats):
             env = self._create_env(atari=atari)
-            ret, ep_length = run_agent(agent, env, self.target_return)
-            self._record_return(env, ret, ep_length, agent_name)
+            ret, ep_length, success = run_agent(agent, env, self.target_return)
+            self._record_result(env, agent_name, ret, ep_length, success)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
@@ -229,8 +231,7 @@ class Evaluator(TrainerCallback):
                 .to(device=self.device, dtype=torch.float32)
             )
 
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
-
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
         obs, _ = env.reset(seed=self.user_args["seed"])
 
         states = get_state(obs)
@@ -286,8 +287,8 @@ class Evaluator(TrainerCallback):
             if done:
                 break
 
-        # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
-        return np.sum(rewards.detach().cpu().numpy()), t
+        success = done and reward > 0
+        return np.sum(rewards.detach().cpu().numpy()), t, success
 
     def _run_agent_on_atari_env(
         self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
@@ -393,10 +394,13 @@ class Evaluator(TrainerCallback):
 
     def _plot_results(self):
         df = pd.DataFrame(self.results)
+        for k in set(self.results.keys()).difference({"samples", "model"}):
+            # for success, we want the percentage success rate, which we
+            # can get by taking the mean of the success column multiplied by 100
+            if k == "success":
+                df[k] = df[k] * 100
 
-        for k in self.results.keys():
-            if k not in ("samples", "model"):
-                fig, ax = plt.subplots()
-                sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
-                fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
-                plt.close(fig)
+            fig, ax = plt.subplots()
+            sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
+            fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
+            plt.close(fig)
