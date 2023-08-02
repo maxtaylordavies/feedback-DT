@@ -151,12 +151,9 @@ class SeedFinder:
             "object_task": self._check_object_task,
             "task_task": self._check_task_task,
         }
-        self.seeds_filename = "seeds.json"
-        self.seed_log = (
-            json.load(open(self.seeds_filename, "r+"))
-            if os.path.exists(self.seeds_filename)
-            else {}
-        )
+        self.seeds_dir = "seeds"
+        if not os.path.exists(self.seeds_dir):
+            os.mkdir(self.seeds_dir)
 
     def _pick_random_colors(self):
         """
@@ -657,8 +654,18 @@ class SeedFinder:
     def _can_contain_putnext(self, level):
         return self._get_metadata_value(level, "putnext")
 
-    def _save_seeds(self):
-        json.dump(self.seed_log, open(self.seeds_filename, "w"))
+    def load_seeds(self, config_filename):
+        """
+        Load the seeds for all levels and configs as a dict from the json file they are stored in.
+
+        Returns
+        -------
+            dict: dictionary of dictionaries with ood seeds and info about the number of 'safe' iid seeds.
+        """
+        return json.load(open(config_filename, "r+"))
+
+    def _save_seeds(self, seed_log, config_filename):
+        json.dump(seed_log, open(config_filename, "w"))
 
     def find_seeds(self):
         """
@@ -674,20 +681,26 @@ class SeedFinder:
         """
         n_seeds_stop_search_early = 10**3
         for level, configs in self.levels_configs.items():
-            if level not in self.seed_log:
-                self.seed_log[level] = {}
+            level_path = os.path.join(self.seeds_dir, level)
+            if not os.path.exists(level_path):
+                os.mkdir(level_path)
             for config in configs:
-                if config not in self.seed_log[level]:
-                    self.seed_log[level][config] = {
+                config_path = os.path.join(level_path, config)
+                config_filename = config_path + ".json"
+                if os.path.exists(config_filename):
+                    seed_log = self.load_seeds(config_filename)
+                else:
+                    seed_log = {
                         ood_type: {"test_seeds": []} for ood_type in self.ood_types
                     }
-                    self.seed_log[level][config]["last_seed_tested"] = 0
-                    self.seed_log[level][config]["n_train_seeds"] = 0
+                    seed_log["validation_seeds"] = []
+                    seed_log["last_seed_tested"] = 0
+                    seed_log["n_train_seeds"] = 0
                 for seed in range(
-                    self.seed_log[level][config]["last_seed_tested"],
-                    int(self.n_train_seeds_required * 1.5),
+                    seed_log["last_seed_tested"],
+                    int(self.n_train_seeds_required * 2),
                 ):
-                    if self.seed_log[level][config]["n_train_seeds"] == (
+                    if seed_log["n_train_seeds"] == (
                         self.n_train_seeds_required + self.n_validation_seeds_required
                     ):
                         break
@@ -695,17 +708,14 @@ class SeedFinder:
                         if ood_type == "object_task" and not self._can_contain_putnext(
                             level
                         ):
-                            break
+                            continue
                         if ood_type == "task_task" and not self._can_contain_seq(level):
-                            break
+                            continue
                         if (
                             seed >= n_seeds_stop_search_early
-                            and len(
-                                self.seed_log[level][config][ood_type]["test_seeds"]
-                            )
-                            == 0
+                            and len(seed_log[ood_type]["test_seeds"]) == 0
                         ):
-                            break
+                            continue
                         env = gym.make(config)
                         try:
                             env.reset(seed=seed)
@@ -715,25 +725,17 @@ class SeedFinder:
                         if ood_type_check(env):
                             if ood_type == "agent_loc" and self.ood_types["size"](env):
                                 continue
-                            self.seed_log[level][config][ood_type]["test_seeds"].append(
-                                seed
-                            )
-                    if not self.is_ood_seed(level, config, seed):
-                        self.seed_log[level][config]["n_train_seeds"] += 1
-                    self.seed_log[level][config]["last_seed_tested"] = seed
-                    self._save_seeds()
-
-                self.seed_log[level][config]["validation_seeds"] = []
-                for seed in range(0, self.seed_log[level][config]["last_seed_tested"]):
-                    if not self.is_ood_seed(level, config, seed):
-                        if len(self.seed_log[level][config]["validation_seeds"]) == (
+                            seed_log[ood_type]["test_seeds"].append(seed)
+                    if not self.is_ood_seed(seed_log, seed):
+                        if len(seed_log["validation_seeds"]) < (
                             self.n_validation_seeds_required
                         ):
-                            break
-                        self.seed_log[level][config]["validation_seeds"].append(seed)
-                        self.seed_log[level][config]["n_train_seeds"] -= 1
+                            seed_log["validation_seeds"].append(seed)
+                        seed_log["n_train_seeds"] += 1
+                    seed_log["last_seed_tested"] = seed
+                    self._save_seeds(seed_log, config_filename)
 
-    def is_ood_seed(self, level, config, seed):
+    def is_ood_seed(self, seed_log, seed):
         """
         Check if a seed is in the list of OOD seeds for a given level and config.
 
@@ -750,11 +752,11 @@ class SeedFinder:
         """
 
         for ood_type in self.ood_types:
-            if seed in self.seed_log[level][config][ood_type]["test_seeds"]:
+            if seed in seed_log[ood_type]["test_seeds"]:
                 return True
         return False
 
-    def is_validation_seed(self, level, config, seed):
+    def is_validation_seed(self, seed_log, seed):
         """
         Check if a seed is in the list of validation seeds for a given level and config.
 
@@ -768,16 +770,4 @@ class SeedFinder:
         -------
             bool: True if the seed is in the list of validation seeds, False otherwise.
         """
-        return seed in self.seed_log[level][config]["validation_seeds"]
-
-    def load_seeds(
-        self,
-    ):
-        """
-        Load the seeds for all levels and configs as a dict from the json file they are stored in.
-
-        Returns
-        -------
-            dict: dictionary of dictionaries with ood seeds and info about the number of 'safe' iid seeds.
-        """
-        return json.load(open(self.seeds_filename, "r+"))
+        return seed in seed_log["validation_seeds"]

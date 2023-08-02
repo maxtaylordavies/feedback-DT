@@ -167,11 +167,20 @@ class CustomDataset:
         return np.random.randint(0, 6)
 
     def _get_feedback_constant(self):
+        """
+        Get the constant feedback string depending on the feedback mode.
+
+        Returns
+        -------
+            str: the constant feedback string.
+        """
         if (
             self.args["feedback_mode"] == "random"
             and self.args["random_feedback"] == "lorem_ipsum"
         ):
             return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+        if self.args["feedback_mode"] == "numerical_reward":
+            return np.array(0, dtype=np.float32)
         return "No feedback available."
 
     def _get_feedback(self, rule_feedback, task_feedback):
@@ -180,11 +189,11 @@ class CustomDataset:
 
         Parameters
         ----------
-        action (int): the action.
+            action (int): the action.
 
         Returns
         -------
-        str: the feedback.
+            str: the feedback.
         """
         if self.args["feedback_mode"] == "random":
             return self.random_feedback_verifier.verify_feedback()
@@ -192,6 +201,12 @@ class CustomDataset:
             return rule_feedback
         if self.args["feedback_mode"] == "task_only":
             return task_feedback
+        if self.args["feedback_mode"] == "numerical_reward":
+            if task_feedback != "No feedback available.":
+                return np.array(1)
+            if rule_feedback != "No feedback available.":
+                return np.array(-1)
+            return np.array(0)
         if self.args["feedback_mode"] == "all":
             if rule_feedback == "No feedback available.":
                 return task_feedback
@@ -259,6 +274,10 @@ class CustomDataset:
             self.buffer["feedback"][self.steps + 1] = self._get_feedback(
                 rule_feedback, task_feedback
             )
+            if self.args["feedback_mode"] == "numerical_reward":
+                self.buffer["rewards"][self.steps + 1] = self.buffer["feedback"][
+                    self.steps + 1
+                ]
 
             self.steps += 1
 
