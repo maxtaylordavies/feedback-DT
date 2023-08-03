@@ -11,6 +11,8 @@ from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, Op
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
+import threading
+
 LEVELS_CONFIGS = {
     "original_tasks": {
         "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
@@ -686,7 +688,69 @@ class SeedFinder:
             level (str): name of the level.
             config (str): name of the config.
         """
-        json.dump(seed_log, open(self._get_config_fn(level, config), "w"))
+        json.dump(seed_log, open(self._get_config_fn(level, config) + "_new", "w"))
+        os.remove(self._get_config_fn(level, config))
+        os.rename(
+            self._get_config_fn(level, config) + "_new",
+            self._get_config_fn(level, config),
+        )
+
+    def _create_seed_log(self, level, config):
+        n_seeds_stop_search_early = 10**3
+
+        if os.path.exists(self._get_config_fn(level, config) + "_new"):
+            if os.path.exists(self._get_config_fn(level, config)):
+                os.remove(self._get_config_fn(level, config))
+            os.rename(
+                self._get_config_fn(level, config) + "_new",
+                self._get_config_fn(level, config),
+            )
+        if os.path.exists(self._get_config_fn(level, config)):
+            seed_log = self.load_seeds(level, config)
+        else:
+            seed_log = {ood_type: {"test_seeds": []} for ood_type in self.ood_types}
+            seed_log["validation_seeds"] = []
+            seed_log["last_seed_tested"] = 0
+            seed_log["n_train_seeds"] = 0
+        for seed in range(
+            seed_log["last_seed_tested"],
+            int(self.n_train_seeds_required * 2),
+        ):
+            if seed_log["n_train_seeds"] == (
+                self.n_train_seeds_required + self.n_validation_seeds_required
+            ):
+                break
+            for ood_type, ood_type_check in self.ood_types.items():
+                if ood_type == "rel_loc" and not self._can_contain_rel_loc(level):
+                    continue
+                if ood_type == "object_task" and not self._can_contain_putnext(level):
+                    continue
+                if ood_type == "task_task" and not self._can_contain_seq(level):
+                    continue
+                if (
+                    seed >= n_seeds_stop_search_early
+                    and len(seed_log[ood_type]["test_seeds"]) == 0
+                ):
+                    continue
+                env = gym.make(config)
+                try:
+                    env.reset(seed=seed)
+                    _ = env.unwrapped.instrs.surface(env)
+                except:
+                    continue
+                if ood_type_check(env):
+                    if ood_type == "agent_loc" and self.ood_types["size"](env):
+                        continue
+                    seed_log[ood_type]["test_seeds"].append(seed)
+            if not self.is_test_seed(seed_log, seed):
+                if len(seed_log["validation_seeds"]) < (
+                    self.n_validation_seeds_required
+                ):
+                    seed_log["validation_seeds"].append(seed)
+                seed_log["n_train_seeds"] += 1
+            seed_log["last_seed_tested"] = seed
+            if seed % 50 == 0:
+                self._save_seeds(seed_log, level, config)
 
     def find_seeds(self, level=None):
         """
@@ -700,61 +764,20 @@ class SeedFinder:
         - rel-loc: seeds that involve an unseen goal location relative to the agent.
         - task-task: seeds (and levels/configs) that involve unseen task combinations in sequence tasks.
         """
-        n_seeds_stop_search_early = 10**3
-
+        threads = []
         for l, configs in self.LEVELS_CONFIGS.items():
             if level and l != level:
                 continue
             for config in configs:
-                if os.path.exists(self._get_config_fn(l, config)):
-                    seed_log = self.load_seeds(l, config)
-                else:
-                    seed_log = {
-                        ood_type: {"test_seeds": []} for ood_type in self.ood_types
-                    }
-                    seed_log["validation_seeds"] = []
-                    seed_log["last_seed_tested"] = 0
-                    seed_log["n_train_seeds"] = 0
-                for seed in range(
-                    seed_log["last_seed_tested"],
-                    int(self.n_train_seeds_required * 2),
-                ):
-                    if seed_log["n_train_seeds"] == (
-                        self.n_train_seeds_required + self.n_validation_seeds_required
-                    ):
-                        break
-                    for ood_type, ood_type_check in self.ood_types.items():
-                        if ood_type == "rel_loc" and not self._can_contain_rel_loc(l):
-                            continue
-                        if ood_type == "object_task" and not self._can_contain_putnext(
-                            l
-                        ):
-                            continue
-                        if ood_type == "task_task" and not self._can_contain_seq(l):
-                            continue
-                        if (
-                            seed >= n_seeds_stop_search_early
-                            and len(seed_log[ood_type]["test_seeds"]) == 0
-                        ):
-                            continue
-                        env = gym.make(config)
-                        try:
-                            env.reset(seed=seed)
-                            _ = env.unwrapped.instrs.surface(env)
-                        except:
-                            continue
-                        if ood_type_check(env):
-                            if ood_type == "agent_loc" and self.ood_types["size"](env):
-                                continue
-                            seed_log[ood_type]["test_seeds"].append(seed)
-                    if not self.is_test_seed(seed_log, seed):
-                        if len(seed_log["validation_seeds"]) < (
-                            self.n_validation_seeds_required
-                        ):
-                            seed_log["validation_seeds"].append(seed)
-                        seed_log["n_train_seeds"] += 1
-                    seed_log["last_seed_tested"] = seed
-                    self._save_seeds(seed_log, l, config)
+                print(f"Main    : create and start thread for {config}.")
+                x = threading.Thread(target=self._create_seed_log, args=(l, config))
+                threads.append(x)
+                x.start()
+
+        for thread in threads:
+            print(f"Main    : before joining thread for {config}.")
+            thread.join()
+            print(f"Main    : thread for {config} done")
 
     def is_test_seed(self, seed_log, seed):
         """

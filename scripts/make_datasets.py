@@ -19,7 +19,7 @@ for policy in ("random", "ppo"):
         "numerical_reward",
     ]:
         args["feedback_mode"] = feedback_mode
-        for level in LEVELS_CONFIGS:
+        for level in LEVELS_CONFIGS["original_tasks"]:
             args["level"] = level
         dataset = CustomDataset(args)
         data = dataset.get_dataset(args)
