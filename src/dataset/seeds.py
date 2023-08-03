@@ -689,7 +689,8 @@ class SeedFinder:
             config (str): name of the config.
         """
         json.dump(seed_log, open(self._get_config_fn(level, config) + "_new", "w"))
-        os.remove(self._get_config_fn(level, config))
+        if os.path.exists(self._get_config_fn(level, config)):
+            os.remove(self._get_config_fn(level, config))
         os.rename(
             self._get_config_fn(level, config) + "_new",
             self._get_config_fn(level, config),
