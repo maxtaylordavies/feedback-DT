@@ -688,11 +688,23 @@ class SeedFinder:
             level (str): name of the level.
             config (str): name of the config.
         """
-        json.dump(seed_log, open(self._get_config_fn(level, config), "w"))
+        json.dump(seed_log, open(self._get_config_fn(level, config) + "_new", "w"))
+        os.remove(self._get_config_fn(level, config))
+        os.rename(
+            self._get_config_fn(level, config) + "_new",
+            self._get_config_fn(level, config),
+        )
 
     def _create_seed_log(self, level, config):
         n_seeds_stop_search_early = 10**3
 
+        if os.path.exists(self._get_config_fn(level, config) + "_new"):
+            if os.path.exists(self._get_config_fn(level, config)):
+                os.remove(self._get_config_fn(level, config))
+            os.rename(
+                self._get_config_fn(level, config) + "_new",
+                self._get_config_fn(level, config),
+            )
         if os.path.exists(self._get_config_fn(level, config)):
             seed_log = self.load_seeds(level, config)
         else:
@@ -737,7 +749,8 @@ class SeedFinder:
                     seed_log["validation_seeds"].append(seed)
                 seed_log["n_train_seeds"] += 1
             seed_log["last_seed_tested"] = seed
-            self._save_seeds(seed_log, level, config)
+            if seed % 50 == 0:
+                self._save_seeds(seed_log, level, config)
 
     def find_seeds(self, level=None):
         """
@@ -755,16 +768,16 @@ class SeedFinder:
         for l, configs in self.LEVELS_CONFIGS.items():
             if level and l != level:
                 continue
-            for i, config in enumerate(configs):
-                print(f"Main    : create and start thread {i+1}.")
+            for config in configs:
+                print(f"Main    : create and start thread for {config}.")
                 x = threading.Thread(target=self._create_seed_log, args=(l, config))
                 threads.append(x)
                 x.start()
 
-        for j, thread in enumerate(threads):
-            print(f"Main    : before joining thread {i+1}.")
+        for thread in threads:
+            print(f"Main    : before joining thread for {config}.")
             thread.join()
-            print(f"Main    : thread {j+1} done")
+            print(f"Main    : thread for {config} done")
 
     def is_test_seed(self, seed_log, seed):
         """
