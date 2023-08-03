@@ -720,6 +720,7 @@ class SeedFinder:
             if seed_log["n_train_seeds"] == (
                 self.n_train_seeds_required + self.n_validation_seeds_required
             ):
+                self._save_seeds(seed_log, level, config)
                 break
             for ood_type, ood_type_check in self.ood_types.items():
                 if ood_type == "rel_loc" and not self._can_contain_rel_loc(level):
