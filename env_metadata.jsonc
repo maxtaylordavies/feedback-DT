@@ -69,6 +69,8 @@
                     2
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 5.81,
+                "demo_std_n_steps": 3.29,
                 "registered_configs": {
                     "BabyAI-GoToRedBallGrey-v0": {
                         "num_dists": 7
@@ -102,6 +104,8 @@
                     2
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 5.38,
+                "demo_std_n_steps": 3.13,
                 "registered_configs": {
                     "BabyAI-GoToRedBall-v0": {
                         "num_dists": 7
@@ -166,6 +170,8 @@
                     2
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 5.18,
+                "demo_std_n_steps": 2.38,
                 "registered_configs": {
                     "BabyAI-GoToObj-v0": {},
                     "BabyAI-GoToObjS4-v0": {
@@ -208,6 +214,8 @@
                     2
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 5.04,
+                "demo_std_n_steps": 2.76,
                 "registered_configs": {
                     "BabyAI-GoToLocal-v0": {
                         "num_dists": 8
@@ -284,6 +292,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 56.8,
+                "demo_std_n_steps": 46.7,
                 "registered_configs": {
                     "BabyAI-GoTo-v0": {},
                     "BabyAI-GoToOpen-v0": {
@@ -319,6 +329,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 70.8,
+                "demo_std_n_steps": 48.9,
                 "registered_configs": {
                     "BabyAI-GoToObjMaze-v0": {
                         "num_dists": 1
@@ -379,6 +391,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 110,
+                "demo_std_n_steps": 81.9,
                 "registered_configs": {
                     "BabyAI-GoToImpUnlock-v0": {
                         "num_dists": 16
@@ -412,6 +426,8 @@
                     2
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 72.7,
+                "demo_std_n_steps": 52.2,
                 "registered_configs": {
                     "BabyAI-GoToSeq-v0": {},
                     "BabyAI-GoToSeqS5R2-v0": {
@@ -553,6 +569,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 31.5,
+                "demo_std_n_steps": 30.5,
                 "registered_configs": {
                     "BabyAI-Open-v0": {}
                 }
@@ -711,6 +729,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 57.8,
+                "demo_std_n_steps": 46.7,
                 "registered_configs": {
                     "BabyAI-Pickup-v0": {}
                 }
@@ -743,6 +763,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 57.2,
+                "demo_std_n_steps": 50,
                 "registered_configs": {
                     "BabyAI-UnblockPickup-v0": {
                         "num_dists": 20
@@ -776,6 +798,8 @@
                     3
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 6.13,
+                "demo_std_n_steps": 2.97,
                 "registered_configs": {
                     "BabyAI-PickupLoc-v0": {
                         "num_dists": 8
@@ -885,6 +909,8 @@
                     4
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 12.4,
+                "demo_std_n_steps": 4.54,
                 "registered_configs": {
                     "BabyAI-PutNextLocal-v0": {
                         "num_dists": 6 // = n_obj - 2 
@@ -929,6 +955,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 89.9,
+                "demo_std_n_steps": 49.6,
                 "registered_configs": {
                     "BabyAI-PutNextS4N1-v0": {
                         "room_size": 4,
@@ -1040,6 +1068,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 81.6,
+                "demo_std_n_steps": 61.1,
                 "registered_configs": {
                     "BabyAI-Unlock-v0": {
                         "num_dists": 24
@@ -1516,6 +1546,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 50.4,
+                "demo_std_n_steps": 49.3,
                 "registered_configs": {
                     "BabyAI-Synth-v0": {},
                     "BabyAI-SynthS5R2-v0": {
@@ -1557,6 +1589,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 47.9,
+                "demo_std_n_steps": 47.9,
                 "registered_configs": {
                     "BabyAI-SynthLoc-v0": {}
                 }
@@ -1593,6 +1627,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 81.8,
+                "demo_std_n_steps": 61.3,
                 "registered_configs": {
                     "BabyAI-SynthSeq-v0": {}
                 }
@@ -1670,6 +1706,8 @@
                     5
                 ],
                 "original_task": true,
+                "demo_mean_n_steps": 84.3,
+                "demo_std_n_steps": 64.5,
                 "registered_configs": {
                     "BabyAI-BossLevel-v0": {}
                 }
