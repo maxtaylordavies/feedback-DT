@@ -12,6 +12,8 @@ import numpy as np
 class Transition:
     def __init__(
         self,
+        configs: np.ndarray,
+        seeds: np.ndarray,
         observation_shape: Sequence[int],
         action_size: int,
         mission: np.ndarray,
@@ -35,6 +37,14 @@ class Transition:
 
     @property
     def is_discrete(self) -> bool:
+        ...
+
+    @property
+    def configs(self) -> np.ndarray:
+        ...
+
+    @property
+    def seeds(self) -> np.ndarray:
         ...
 
     @property
@@ -173,6 +183,8 @@ def _safe_size(array):
 
 
 def _to_episodes(
+    configs,
+    seeds,
     observation_shape,
     action_size,
     missions,
@@ -189,6 +201,8 @@ def _to_episodes(
     for i in range(_safe_size(observations)):
         if episode_terminals[i]:
             episode = Episode(
+                configs=configs[head_index : i + 1],
+                seeds=seeds[head_index : i + 1],
                 observation_shape=observation_shape,
                 action_size=action_size,
                 missions=missions[head_index : i + 1],
@@ -205,6 +219,8 @@ def _to_episodes(
 
 
 def _to_transitions(
+    configs,
+    seeds,
     observation_shape,
     action_size,
     observations,
@@ -219,6 +235,8 @@ def _to_transitions(
     num_data = _safe_size(observations)
     prev_transition = None
     for i in range(num_data):
+        configs = configs[i]
+        seeds = seeds[i]
         mission = missions[i]
         observation = observations[i]
         action = actions[i]
@@ -236,6 +254,8 @@ def _to_transitions(
             next_observation = observations[i + 1]
 
         transition = Transition(
+            configs=configs,
+            seeds=seeds,
             observation_shape=observation_shape,
             action_size=action_size,
             mission=mission,
@@ -332,9 +352,10 @@ class MinariDataset:
         level_group,
         level_name,
         dataset_name,
-        algorithm_name,
-        environment_name,
-        seed_used,
+        policy,
+        feedback_mode,
+        configs,
+        seeds,
         code_permalink,
         author,
         author_email,
@@ -351,9 +372,8 @@ class MinariDataset:
         self._level_group = level_group
         self._level_name = level_name
         self._dataset_name = dataset_name
-        self._algorithm_name = algorithm_name
-        self._environment_name = environment_name
-        self._seed_used = seed_used
+        self._policy = policy
+        self._feedback_mode = feedback_mode
         self._code_permalink = code_permalink
         self._author = author
         self._author_email = author_email
@@ -392,6 +412,8 @@ class MinariDataset:
         assert np.all(np.logical_not(np.isnan(terminations)))
         assert np.all(np.logical_not(np.isnan(truncations)))
 
+        self._configs = configs
+        self._seeds = seeds
         self._missions = missions
         self._observations = observations
         self._rewards = np.asarray(rewards, dtype=np.float32).reshape(-1)
@@ -432,16 +454,20 @@ class MinariDataset:
         return self._dataset_name
 
     @property
-    def algorithm_name(self):
-        return self._algorithm_name
+    def policy(self):
+        return self._policy
 
     @property
-    def environment_name(self):
-        return self._environment_name
+    def feedback_mode(self):
+        return self._feedback_mode
 
     @property
-    def seed_used(self):
-        return self._seed_used
+    def configs(self):
+        return self._configs
+
+    @property
+    def seeds(self):
+        return self._seeds
 
     @property
     def code_permalink(self):
@@ -665,6 +691,8 @@ class MinariDataset:
 
     def append(
         self,
+        configs,
+        seeds,
         missions,
         observations,
         actions,
@@ -702,6 +730,10 @@ class MinariDataset:
                     self.get_action_size(),
                 ), f"Action size must be {self.get_action_size()}."
 
+        self._configs = np.hstack([self._configs, configs])
+
+        self._seeds = np.hstack([self._seeds, seeds])
+
         self._missions = np.hstack([self._missions, missions])
 
         self._observations = np.vstack([self._observations, observations])
@@ -716,9 +748,13 @@ class MinariDataset:
         self._terminations = np.hstack([self._terminations, terminations])
         if episode_terminals is None:
             episode_terminals = terminations or truncations
-        self._episode_terminals = np.hstack([self._episode_terminals, episode_terminals])
+        self._episode_terminals = np.hstack(
+            [self._episode_terminals, episode_terminals]
+        )
 
         episodes = _to_episodes(
+            configs=self._configs,
+            seeds=self._seeds,
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
             missions=self._missions,
@@ -748,6 +784,8 @@ class MinariDataset:
         ), f"Observation shape must be {self.get_observation_shape()}"
 
         self.append(
+            dataset.configs,
+            dataset.seeds,
             dataset.missions,
             dataset.observations,
             dataset.actions,
@@ -775,9 +813,10 @@ class MinariDataset:
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
             f.create_dataset("dataset_name", data=self._dataset_name)
-            f.create_dataset("algorithm_name", data=self._algorithm_name)
-            f.create_dataset("environment_name", data=self._environment_name)
-            f.create_dataset("seed_used", data=self._seed_used)
+            f.create_dataset("policy", data=self._policy)
+            f.create_dataset("feedback_mode", data=self._feedback_mode)
+            f.create_dataset("configs", data=np.asarray(self._configs, dtype="S"))
+            f.create_dataset("seeds", data=np.asarray(self._seeds, dtype="S"))
             f.create_dataset(
                 "code_permalink", data=str(self._code_permalink)
             )  # allows saving of NoneType
@@ -828,9 +867,10 @@ class MinariDataset:
             level_group = str(f["level_group"][()], "utf-8")
             level_name = str(f["level_name"][()], "utf-8")
             dataset_name = str(f["dataset_name"][()], "utf-8")
-            algorithm_name = str(f["algorithm_name"][()], "utf-8")
-            environment_name = str(f["environment_name"][()], "utf-8")
-            seed_used = int(f["seed_used"][()])
+            policy = str(f["policy"][()], "utf-8")
+            feedback_mode = str(f["feedback_mode"][()], "utf-8")
+            configs = np.char.decode(f["configs"][()])
+            seeds = np.char.decode(f["seeds"][()])
             code_permalink = str(f["code_permalink"][()], "utf-8")
             author = str(f["author"][()], "utf-8")
             author_email = str(f["author_email"][()], "utf-8")
@@ -853,9 +893,10 @@ class MinariDataset:
             level_group=level_group,
             level_name=level_name,
             dataset_name=dataset_name,
-            algorithm_name=algorithm_name,
-            environment_name=environment_name,
-            seed_used=seed_used,
+            policy=policy,
+            feedback_mode=feedback_mode,
+            configs=configs,
+            seeds=seeds,
             code_permalink=code_permalink,
             author=author,
             author_email=author_email,
@@ -878,6 +919,8 @@ class MinariDataset:
 
         """
         self._episodes = _to_episodes(
+            configs=self._configs,
+            seeds=self._seeds,
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
             missions=self._missions,
@@ -904,18 +947,19 @@ class MinariDataset:
         return cls(
             level_group="",
             level_name="",
-            missions=np.array([]),
-            feedback=np.array([]),
             dataset_name="",
-            algorithm_name="",
-            environment_name="",
-            seed_used=0,
+            policy="",
+            feedback_mode="",
+            configs=np.array([]),
+            seeds=np.array([]),
             code_permalink="",
             author="",
             author_email="",
+            missions=np.array([]),
             observations=states,
             actions=actions,
             rewards=rewards,
+            feedback=np.array([]),
             terminations=terminations,
             truncations=truncations,
             episode_terminals=None,
@@ -955,15 +999,15 @@ class MinariDataset:
             level_group="",
             level_name="",
             dataset_name=f"dqn_replay-{game}-{num_samples}",
-            algorithm_name="",
-            environment_name="",
-            environment_stack="",
-            seed_used=0,
+            policy="",
+            feedback_mode="",
+            configs=np.array([]),
+            seeds=np.array([]),
             code_permalink="",
             author="",
             author_email="",
-            observations=np.array(obs),
             missions=np.array([]),
+            observations=np.array(obs),
             actions=np.array(acts),
             rewards=np.array(rewards),
             feedback=np.array([]),
@@ -1032,6 +1076,8 @@ class Episode:
 
     def __init__(
         self,
+        configs,
+        seeds,
         observation_shape,
         action_size,
         missions,
@@ -1058,6 +1104,8 @@ class Episode:
         else:
             actions = np.asarray(actions, dtype=np.float32)
 
+        self._configs = configs
+        self._seeds = seeds
         self.observation_shape = observation_shape
         self.action_size = action_size
         self._missions = missions
@@ -1068,6 +1116,24 @@ class Episode:
         self._termination = termination
         self._truncation = truncation
         self._transitions = None
+
+    @property
+    def configs(self):
+        """Returns the configs.
+
+        Returns:
+            numpy.ndarray: array of configs.
+        """
+        return self._configs
+
+    @property
+    def seeds(self):
+        """Returns the seeds.
+
+        Returns:
+            numpy.ndarray: array of seeds.
+        """
+        return self._seeds
 
     @property
     def missions(self):
@@ -1160,6 +1226,8 @@ class Episode:
 
         """
         self._transitions = _to_transitions(
+            configs=self.configs,
+            seeds=self.seeds,
             observation_shape=self.observation_shape,
             action_size=self.action_size,
             missions=self._missions,

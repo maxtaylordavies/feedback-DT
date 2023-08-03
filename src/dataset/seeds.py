@@ -11,7 +11,7 @@ from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, Op
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
-levels_configs = {
+LEVELS_CONFIGS = {
     "original_tasks": {
         "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
         "GoToRedBall": ["BabyAI-GoToRedBall-v0"],
@@ -128,10 +128,10 @@ class SeedFinder:
         """
         self.n_validation_seeds_required = 512
         self.n_train_seeds_required = n_train_seeds_required
-        self.levels_configs = (
-            levels_configs["original_tasks"]
+        self.LEVELS_CONFIGS = (
+            LEVELS_CONFIGS["original_tasks"]
             if original_tasks_only
-            else {**levels_configs["original_tasks"], **levels_configs["new_tasks"]}
+            else {**LEVELS_CONFIGS["original_tasks"], **LEVELS_CONFIGS["new_tasks"]}
         )
         random.seed(42)
         self.random_colors = self._pick_random_colors()
@@ -648,26 +648,47 @@ class SeedFinder:
                         return level_info["mission_space"][key]
                     return level_info[key]
 
+    def _can_contain_rel_loc(self, level):
+        return self._get_metadata_value(level, "location", mission_space=True)
+
     def _can_contain_seq(self, level):
         return self._get_metadata_value(level, "sequence", mission_space=True)
 
     def _can_contain_putnext(self, level):
         return self._get_metadata_value(level, "putnext")
 
-    def load_seeds(self, config_filename):
+    def _get_config_fn(self, level, config):
+        level_path = os.path.join(self.seeds_dir, level)
+        if not os.path.exists(level_path):
+            os.mkdir(level_path)
+        config_path = os.path.join(level_path, config)
+        return config_path + ".json"
+
+    def load_seeds(self, level, config):
         """
         Load the seeds for all levels and configs as a dict from the json file they are stored in.
 
         Returns
         -------
-            dict: dictionary of dictionaries with ood seeds and info about the number of 'safe' iid seeds.
+            dict: dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
         """
-        return json.load(open(config_filename, "r+"))
+        if not os.path.exists(self._get_config_fn(level, config)):
+            self.find_seeds()
+        return json.load(open(self._get_config_fn(level, config), "r+"))
 
-    def _save_seeds(self, seed_log, config_filename):
-        json.dump(seed_log, open(config_filename, "w"))
+    def _save_seeds(self, seed_log, level, config):
+        """
+        Save the seeds for a given level and config from a dict to a json file.
 
-    def find_seeds(self):
+        Parameters
+        ----------
+            seed_log (dict): dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
+            level (str): name of the level.
+            config (str): name of the config.
+        """
+        json.dump(seed_log, open(self._get_config_fn(level, config), "w"))
+
+    def find_seeds(self, level=None):
         """
         Find and save OOD seeds for the given level and config. IID seeds are implicitly found by ruling out that a seeds is OOD.
 
@@ -680,15 +701,13 @@ class SeedFinder:
         - task-task: seeds (and levels/configs) that involve unseen task combinations in sequence tasks.
         """
         n_seeds_stop_search_early = 10**3
-        for level, configs in self.levels_configs.items():
-            level_path = os.path.join(self.seeds_dir, level)
-            if not os.path.exists(level_path):
-                os.mkdir(level_path)
+
+        for l, configs in self.LEVELS_CONFIGS.items():
+            if level and l != level:
+                continue
             for config in configs:
-                config_path = os.path.join(level_path, config)
-                config_filename = config_path + ".json"
-                if os.path.exists(config_filename):
-                    seed_log = self.load_seeds(config_filename)
+                if os.path.exists(self._get_config_fn(l, config)):
+                    seed_log = self.load_seeds(l, config)
                 else:
                     seed_log = {
                         ood_type: {"test_seeds": []} for ood_type in self.ood_types
@@ -705,11 +724,13 @@ class SeedFinder:
                     ):
                         break
                     for ood_type, ood_type_check in self.ood_types.items():
+                        if ood_type == "rel_loc" and not self._can_contain_rel_loc(l):
+                            continue
                         if ood_type == "object_task" and not self._can_contain_putnext(
-                            level
+                            l
                         ):
                             continue
-                        if ood_type == "task_task" and not self._can_contain_seq(level):
+                        if ood_type == "task_task" and not self._can_contain_seq(l):
                             continue
                         if (
                             seed >= n_seeds_stop_search_early
@@ -726,16 +747,16 @@ class SeedFinder:
                             if ood_type == "agent_loc" and self.ood_types["size"](env):
                                 continue
                             seed_log[ood_type]["test_seeds"].append(seed)
-                    if not self.is_ood_seed(seed_log, seed):
+                    if not self.is_test_seed(seed_log, seed):
                         if len(seed_log["validation_seeds"]) < (
                             self.n_validation_seeds_required
                         ):
                             seed_log["validation_seeds"].append(seed)
                         seed_log["n_train_seeds"] += 1
                     seed_log["last_seed_tested"] = seed
-                    self._save_seeds(seed_log, config_filename)
+                    self._save_seeds(seed_log, l, config)
 
-    def is_ood_seed(self, seed_log, seed):
+    def is_test_seed(self, seed_log, seed):
         """
         Check if a seed is in the list of OOD seeds for a given level and config.
 

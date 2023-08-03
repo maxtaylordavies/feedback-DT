@@ -159,12 +159,12 @@ def get_args():
         "--feedback_mode",
         type=str,
         default="all",
-        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', or 'random'.",
+        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'random', 'random_lorem_ipsum, or 'numerical_reward'.",
     )
     parser.add_argument(
-        "--random_text_type",
+        "--level",
         type=str,
-        default="lorem_ipsum",
-        help="the type of random text to use for random feedback; can be either 'lorem_ipsum' or 'random_sentence'.",
+        default="GoToRedBallGrey",
+        help="the name of the level to train on.",
     )
     return vars(parser.parse_args())

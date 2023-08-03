@@ -1,4 +1,3 @@
-import re
 import os
 import shutil
 
@@ -6,24 +5,23 @@ import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
-from tqdm import tqdm
 
 from src.dataset.custom_feedback_verifier import (
+    RandomFeedback,
     RuleFeedback,
     TaskFeedback,
-    RandomFeedback,
 )
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.utils.utils import (
-    log,
-    get_minigrid_obs,
-    discounted_cumsum,
-    to_one_hot,
-    normalise,
-)
-
+from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
 from src.utils.ppo import PPOAgent
+from src.utils.utils import (
+    discounted_cumsum,
+    get_minigrid_obs,
+    log,
+    normalise,
+    to_one_hot,
+)
 
 EPS_PER_SHARD = 100
 
@@ -36,11 +34,25 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
-        if "ppo" in self.args["policy"]:
-            ppo_agent = PPOAgent(
-                self.args["env_name"], self.args["seed"], self.args["ppo_frames"]
-            )
-            self.ppo_model = ppo_agent.model
+        self.seed_finder = SeedFinder(self.args["num_episodes"])
+        self.configs = self._get_configs()
+
+    def _get_configs(self):
+        """
+        Get the configs for the given level that are suitable for training.
+
+        Check, for each possible config for the level, if the number of safe train seeds is non-zero and include only those.
+
+        Returns
+        -------
+            list: the configs.
+        """
+        configs = []
+        for config in LEVELS_CONFIGS[self.args["level"]]:
+            seed_log = self.seed_finder.load_seeds(self.args["level"], config)
+            if seed_log["num_train_seeds"]:
+                configs.append(config)
+        return configs
 
     def _get_dataset(self):
         """
@@ -66,56 +78,19 @@ class CustomDataset:
         #     dataset.save()
         #     return dataset
 
-    def _get_level(self):
+    def _get_category(self):
         """
-        Get the level name from the environment name.
-
-        Returns
-        -------
-        str: the level name.
-        """
-        temp_level = re.sub(r"([SRN]\d).*", r"", self.args["env_name"].split("-")[1])
-        if temp_level.startswith("GoTo"):
-            level = re.sub(r"(Open|ObjMaze|ObjMazeOpen)", r"", temp_level)
-        elif temp_level.startswith("Open"):
-            if "RedBlue" in temp_level:
-                level = re.sub(r"(RedBlue)", r"Two", temp_level)
-            else:
-                level = re.sub(r"(Color|Loc)", r"", temp_level)
-        elif temp_level.startswith("Unlock"):
-            level = re.sub(r"(Dist)", r"", temp_level)
-        elif temp_level.startswith("Pickup"):
-            level = re.sub(r"(Dist)", r"", temp_level)
-        else:
-            level = temp_level
-        return level
-
-    def _get_category(self, level):
-        """
-        Get the category from the level name.
+        Get the category from the level.
 
         Returns
         -------
         str: the category.
         """
-        if level.startswith("GoTo"):
-            return "GoTo"
-        elif level.startswith("Open"):
-            return "Open"
-        elif level.startswith("Pickup") or level.startswith("UnblockPickup"):
-            return "Pickup"
-        elif level.startswith("PutNext"):
-            return "PutNext"
-        elif (
-            level.startswith("Unlock")
-            or level.startswith("KeyInBox")
-            or level.startswith("BlockedUnlockPickup")
-        ):
-            return "Unlock"
-        elif level.startswith("Synth") or "Boss" in level:
-            return "Synth"
-        else:
-            return "Other"
+        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
+        metadata = JsoncParser.parse_file(metadata_path)["levels"]
+        for level_group, levels in metadata.items():
+            if self.args["level"] in levels:
+                return level_group
 
     def _get_used_action_space(self):
         """
@@ -125,25 +100,10 @@ class CustomDataset:
         -------
         list: the used action space.
         """
-        file_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
-        metadata = JsoncParser.parse_file(file_path)
-        level = self._get_level()
-        category = self._get_category(level)
-        return metadata["levels"][category][level]["used_action_space"]
-
-    def _ppo(self, observation):
-        """
-        Get the next action from the PPO policy.
-
-        Parameters
-        ----------
-        observation (np.ndarray): the (partial symbolic) observation.
-
-        Reutrns
-        ------
-        int: the next action.
-        """
-        return self.ppo_model.get_action(observation)
+        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
+        metadata = JsoncParser.parse_file(metadata_path)["levels"]
+        category = self._get_category()
+        return metadata[category][self.args["level"]]["used_action_space"]
 
     def _policy(self, observation):
         """
@@ -161,7 +121,7 @@ class CustomDataset:
         if self.args["policy"] == "random_used_action_space_only":
             return np.random.choice(self._get_used_action_space())
         if "ppo" in self.args["policy"]:
-            return self._ppo(observation)
+            raise NotImplementedError
         # Excluding the 'done' action (integer representation: 6), as by default, this is not used
         # to evaluate success for any of the tasks
         return np.random.randint(0, 6)
@@ -174,10 +134,7 @@ class CustomDataset:
         -------
             str: the constant feedback string.
         """
-        if (
-            self.args["feedback_mode"] == "random"
-            and self.args["random_feedback"] == "lorem_ipsum"
-        ):
+        if self.args["feedback_mode"] == "random_lorem_ipsum":
             return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
         if self.args["feedback_mode"] == "numerical_reward":
             return np.array(0, dtype=np.float32)
@@ -212,9 +169,11 @@ class CustomDataset:
                 return task_feedback
             return rule_feedback
 
-    def _clear_buffer(self, obs_shape, num_eps=EPS_PER_SHARD):
+    def _clear_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self.env.max_steps
         self.buffer = {
+            "configs": [config] * (max_steps * num_eps + 1),
+            "seeds": [[0]] * (max_steps * num_eps + 1),
             "missions": [self.env.descr.surface(self.env)] * (max_steps * num_eps + 1),
             "observations": np.array(
                 [np.zeros(obs_shape)] * (max_steps * num_eps + 1),
@@ -234,8 +193,8 @@ class CustomDataset:
         }
         self.steps = 0
 
-    def _create_episode(self):
-        partial_obs, _ = self.env.reset(seed=self.args["seed"])
+    def _create_episode(self, config, seed):
+        partial_obs, _ = self.env.reset(seed=seed)
         # Storing observation at initial episode timestep t=0 (o_0)
         obs = get_minigrid_obs(
             self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
@@ -278,6 +237,8 @@ class CustomDataset:
                 self.buffer["rewards"][self.steps + 1] = self.buffer["feedback"][
                     self.steps + 1
                 ]
+            self.buffer["configs"][self.steps + 1] = config
+            self.buffer["seeds"][self.steps + 1] = seed
 
             self.steps += 1
 
@@ -292,12 +253,13 @@ class CustomDataset:
         )
 
         md = MinariDataset(
-            level_group=self._get_category(self._get_level()),
-            level_name=self._get_level(),
+            level_group=self._get_category(self.args["level"]),
+            level_name=self.args["level"],
             dataset_name=name_dataset(self.args),
-            algorithm_name=self.args["policy"],
-            environment_name=self.args["env_name"],
-            seed_used=self.args["seed"],
+            policy=self.args["policy"],
+            feedback_mode=self.args["feedback_mode"],
+            configs=self.buffer["configs"],
+            seeds=self.buffer["seeds"],
             code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
             author="Sabrina McCallum",
             author_email="s2431177@ed.ac.uk",
@@ -329,33 +291,64 @@ class CustomDataset:
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
-        # create and initialise environment
-        self.env = gym.make(self.args["env_name"])
-        partial_obs, _ = self.env.reset(seed=self.args["seed"])
-        obs = get_minigrid_obs(
-            self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-        )["image"]
+        episodes_per_config = self.args["num_episodes"] // len(self.configs)
 
-        self.state_dim = np.prod(obs.shape)
+        ep_idx = 0
+        for config in self.configs:
+            seed_log = self.seed_finder.load_seeds(self.args["level"], config)
 
-        # initialise buffer to store replay data
-        self._clear_buffer(obs.shape)
+            while ep_idx < episodes_per_config:
+                for seed in range(seed_log["last_seed_tested"] + 1):
+                    if not self.seed_finder.is_test_seed(
+                        seed_log, seed
+                    ) and not self.seed_finder.is_validation_seed(seed_log, seed):
+                        # create and initialise environment
+                        self.env = gym.make(config)
+                        partial_obs, _ = self.env.reset(seed=seed)
+                        obs = get_minigrid_obs(
+                            self.env,
+                            partial_obs,
+                            self.args["fully_obs"],
+                            self.args["rgb_obs"],
+                        )["image"]
 
-        # feedback verifiers
-        self.rule_feedback_verifier = RuleFeedback()
-        self.task_feedback_verifier = TaskFeedback(self.env)
-        self.random_feedback_verifier = RandomFeedback(self.args["random_text_type"])
+                        self.state_dim = np.prod(obs.shape)
 
-        for ep_idx in tqdm(range(self.args["num_episodes"])):
-            # create another episode
-            self._create_episode()
+                        # initialise buffer to store replay data
+                        if ep_idx == 0:
+                            self._clear_buffer(obs.shape, config)
 
-            # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-            if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args[
-                "num_episodes"
-            ] - 1:
-                self._save_buffer_to_minari_file()
-                self._clear_buffer(obs.shape)
+                        # feedback verifiers
+                        self.rule_feedback_verifier = RuleFeedback()
+                        self.task_feedback_verifier = TaskFeedback(self.env)
+                        self.random_feedback_verifier = RandomFeedback(
+                            "lorem_ipsum"
+                            if "lorem_ipsum" in self.args["feedback_mode"]
+                            else "random_sentence"
+                        )
+
+                        # create another episode
+                        self._create_episode(config, seed)
+                        ep_idx = +1
+
+                        # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+                        if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args[
+                            "num_episodes"
+                        ] - 1:
+                            self._save_buffer_to_minari_file()
+                            self._clear_buffer(obs.shape, config)
+
+                        if (
+                            ep_idx == episodes_per_config
+                            or seed == seed_log["last_seed_tested"]
+                            # the second condition is here in case we want to use the same set of training seeds multiple times
+                            # e.g. if we want to create really big random dataset
+                            # and likely this will be necessary to train a PPO agent to convergence for harder levels
+                            # this should not result in duplicate trajectories despite the same seeds being used multiple times
+                            # when used with random policy, and even when used with the PPO agent as the agent will be at different
+                            # model checkpoints at the time the seeds get repeated
+                        ):
+                            break
 
         self.env.close()
         self._clear_buffer(obs.shape)
@@ -478,19 +471,19 @@ class CustomDataset:
         return cls(
             level_group="",
             level_name="",
-            missions=np.array([]),
-            feedback=np.array([]),
             dataset_name="",
-            algorithm_name="",
-            environment_name="",
-            environment_stack="",
-            seed_used=0,
+            policy="",
+            feedback_mode="",
+            configs=np.array([]),
+            seeds=np.array([]),
             code_permalink="",
             author="",
             author_email="",
+            missions=np.array([]),
             observations=states,
             actions=actions,
             rewards=rewards,
+            feedback=np.array([]),
             terminations=terminations,
             truncations=truncations,
             episode_terminals=None,
@@ -529,19 +522,19 @@ class CustomDataset:
         return cls(
             level_group="",
             level_name="",
-            missions=np.array([]),
-            feedback=np.array([]),
             dataset_name=f"dqn_replay-{game}-{num_samples}",
-            algorithm_name="",
-            environment_name="",
-            environment_stack="",
-            seed_used=0,
+            policy="",
+            feedback_mode="",
+            configs=np.array([]),
+            seeds=np.array([]),
             code_permalink="",
             author="",
             author_email="",
+            missions=np.array([]),
             observations=np.array(obs),
             actions=np.array(acts),
             rewards=np.array(rewards),
+            feedback=np.array([]),
             terminations=np.array(dones),
             truncations=np.zeros_like(dones),
             episode_terminals=None,
