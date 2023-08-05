@@ -25,13 +25,9 @@ def list_local_datasets():
 
 
 def name_dataset(args):
-    env = f"{args['env_name']}"
+    level = f"{args['level']}"
     size = f"{args['num_episodes']}-eps"
-    obs = f"{'full' if args['fully_obs'] else 'partial'}_{'symbolic' if args['rgb_obs'] else 'rgb'}"
-    pi = f"{args['policy'].replace('_', '-')}"
-    timeout = f"{'incl' if args['include_timeout'] else 'excl'}-timeout"
-
-    return env + "_" + size + "_" + obs + "_" + pi + "_" + timeout
+    return level + "_" + size + "_" + args["policy"] + "_" + args["feedback_mode"]
 
 
 def delete_dataset(dataset_name):

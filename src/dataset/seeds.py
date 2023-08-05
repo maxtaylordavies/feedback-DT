@@ -5,127 +5,144 @@ from itertools import combinations_with_replacement
 
 import gymnasium as gym
 import numpy as np
+from jsonc_parser.parser import JsoncParser
 from minigrid.core.constants import COLOR_NAMES
 from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, OpenInstr
-from tqdm import tqdm
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
-ENVS_CONFIGS = {
-    "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
-    "GoToRedBall": ["BabyAI-GoToRedBall-v0"],
-    "GoToRedBallNoDists": ["BabyAI-GoToRedBallNoDists-v0"],
-    "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0"],
-    "GoToLocal": [
-        "BabyAI-GoToLocal-v0",
-        "BabyAI-GoToLocalS5N2-v0",
-        "BabyAI-GoToLocalS6N2-v0",
-        "BabyAI-GoToLocalS6N3-v0",
-        "BabyAI-GoToLocalS6N4-v0",
-        "BabyAI-GoToLocalS7N4-v0",
-        "BabyAI-GoToLocalS7N5-v0",
-        "BabyAI-GoToLocalS8N2-v0",
-        "BabyAI-GoToLocalS8N3-v0",
-        "BabyAI-GoToLocalS8N4-v0",
-        "BabyAI-GoToLocalS8N5-v0",
-        "BabyAI-GoToLocalS8N6-v0",
-        "BabyAI-GoToLocalS8N7-v0",
-    ],
-    "GoTo": [
-        "BabyAI-GoTo-v0",
-        "BabyAI-GoToOpen-v0",
-        "BabyAI-GoToObjMaze-v0",
-        "BabyAI-GoToObjMazeOpen-v0",
-        "BabyAI-GoToObjMazeS4R2-v0",
-        "BabyAI-GoToObjMazeS4-v0",
-        "BabyAI-GoToObjMazeS5-v0",
-        "BabyAI-GoToObjMazeS6-v0",
-        "BabyAI-GoToObjMazeS7-v0",
-    ],
-    "GoToImpUnlock": ["BabyAI-GoToImpUnlock-v0"],
-    "GoToSeq": ["BabyAI-GoToSeq-v0", "BabyAI-GoToSeqS5R2-v0"],
-    "GoToRedBlueBall": ["BabyAI-GoToRedBlueBall-v0"],
-    "GoToDoor": ["BabyAI-GoToDoor-v0"],
-    "GoToObjDoor": ["BabyAI-GoToObjDoor-v0"],
-    "Open": ["BabyAI-Open-v0"],
-    "OpenDoor": [
-        "BabyAI-OpenDoor-v0",
-        "BabyAI-OpenDoorColor-v0",
-        "BabyAI-OpenDoorLoc-v0",
-    ],
-    "OpenTwoDoors": ["BabyAI-OpenTwoDoors-v0", "BabyAI-OpenRedBlueDoors-v0"],
-    "OpenDoorsOrder": ["BabyAI-OpenDoorsOrderN2-v0", "BabyAI-OpenDoorsOrderN4-v0"],
-    "Pickup": ["BabyAI-Pickup-v0"],
-    "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
-    "PickupLoc": ["BabyAI-PickupLoc-v0"],
-    "PickuDist": ["BabyAI-PickupDist-v0"],
-    "PickupAbove": ["BabyAI-PickupAbove-v0"],
-    "PutNextLocal": [
-        "BabyAI-PutNextLocal-v0",
-        "BabyAI-PutNextLocalS5N3-v0",
-        "BabyAI-PutNextLocalS6N4-v0",
-    ],
-    "PutNext": [
-        "BabyAI-PutNextS4N1-v0",
-        "BabyAI-PutNextS5N1-v0",
-        "BabyAI-PutNextS5N2-v0",
-        "BabyAI-PutNextS6N3-v0",
-        "BabyAI-PutNextS7N4-v0",
-    ],
-    "Unlock": ["BabyAI-Unlock-v0"],
-    "UnlockLocal": ["BabyAI-UnlockLocal-v0", "BabyAI-UnlockLocalDist-v0"],
-    "KeyInBox": ["BabyAI-KeyInBox-v0"],
-    "UnlockPickup": ["BabyAI-UnlockPickup-v0", "BabyAI-UnlockPickupDist-v0"],
-    "BlockedUnlockPickup": ["BabyAI-BlockedUnlockPickup-v0"],
-    "UnlockToUnlock": ["BabyAI-UnlockToUnlock-v0"],
-    "ActionObjDoor": ["BabyAI-ActionObjDoor-v0"],
-    "FindObj": ["BabyAI-FindObjS5-v0", "BabyAI-FindObjS6-v0", "BabyAI-FindObjS7-v0"],
-    "KeyCorridor": [
-        "BabyAI-KeyCorridor-v0",
-        "BabyAI-KeyCorridorS3R1-v0",
-        "BabyAI-KeyCorridorS3R2-v0",
-        "BabyAI-KeyCorridorS3R3-v0",
-        "BabyAI-KeyCorridorS4R3-v0",
-        "BabyAI-KeyCorridorS5R3-v0",
-    ],
-    "OneRoom": [
-        "BabyAI-OneRoomS8-v0",
-        "BabyAI-OneRoomS12-v0",
-        "BabyAI-OneRoomS16-v0",
-        "BabyAI-OneRoomS20-v0",
-    ],
-    "MoveTwoAcross": ["BabyAI-MoveTwoAcrossS5N2-v0", "BabyAI-MoveTwoAcrossS8N9-v0"],
-    "Synth": [
-        "BabyAI-Synth-v0",
-    ],
-    "SynthLoc": ["BabyAI-SynthLoc-v0"],
-    "SynthSeq": ["BabyAI-SynthSeq-v0"],
-    "MiniBossLevel": ["BabyAI-MiniBossLevel-v0"],
-    "BossLevel": ["BabyAI-BossLevel-v0"],
-    "BossLevelNoUnlock": ["BabyAI-BossLevelNoUnlock-v0"],
+import threading
+
+LEVELS_CONFIGS = {
+    "original_tasks": {
+        "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
+        "GoToRedBall": ["BabyAI-GoToRedBall-v0"],
+        "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0"],
+        "GoToObjMaze": [
+            "BabyAI-GoToObjMaze-v0",
+            "BabyAI-GoToObjMazeOpen-v0",
+            "BabyAI-GoToObjMazeS4R2-v0",
+            "BabyAI-GoToObjMazeS4-v0",
+            "BabyAI-GoToObjMazeS5-v0",
+            "BabyAI-GoToObjMazeS6-v0",
+            "BabyAI-GoToObjMazeS7-v0",
+        ],
+        "GoToLocal": [
+            "BabyAI-GoToLocal-v0",
+            "BabyAI-GoToLocalS5N2-v0",
+            "BabyAI-GoToLocalS6N2-v0",
+            "BabyAI-GoToLocalS6N3-v0",
+            "BabyAI-GoToLocalS6N4-v0",
+            "BabyAI-GoToLocalS7N4-v0",
+            "BabyAI-GoToLocalS7N5-v0",
+            "BabyAI-GoToLocalS8N2-v0",
+            "BabyAI-GoToLocalS8N3-v0",
+            "BabyAI-GoToLocalS8N4-v0",
+            "BabyAI-GoToLocalS8N5-v0",
+            "BabyAI-GoToLocalS8N6-v0",
+            "BabyAI-GoToLocalS8N7-v0",
+        ],
+        "GoTo": [
+            "BabyAI-GoTo-v0",
+            "BabyAI-GoToOpen-v0",
+        ],
+        "GoToImpUnlock": ["BabyAI-GoToImpUnlock-v0"],
+        "GoToSeq": ["BabyAI-GoToSeq-v0", "BabyAI-GoToSeqS5R2-v0"],
+        "Open": ["BabyAI-Open-v0"],
+        "Pickup": ["BabyAI-Pickup-v0"],
+        "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
+        "PickupLoc": ["BabyAI-PickupLoc-v0"],
+        "PutNextLocal": [
+            "BabyAI-PutNextLocal-v0",
+            "BabyAI-PutNextLocalS5N3-v0",
+            "BabyAI-PutNextLocalS6N4-v0",
+        ],
+        "PutNext": [
+            "BabyAI-PutNextS4N1-v0",
+            "BabyAI-PutNextS5N1-v0",
+            "BabyAI-PutNextS5N2-v0",
+            "BabyAI-PutNextS6N3-v0",
+            "BabyAI-PutNextS7N4-v0",
+        ],
+        "Unlock": ["BabyAI-Unlock-v0"],
+        "Synth": ["BabyAI-Synth-v0"],
+        "SynthLoc": ["BabyAI-SynthLoc-v0"],
+        "SynthSeq": ["BabyAI-SynthSeq-v0"],
+        "BossLevel": ["BabyAI-BossLevel-v0"],
+    },
+    "new_tasks": {
+        "GoToRedBallNoDists": ["BabyAI-GoToRedBallNoDists-v0"],
+        "GoToRedBlueBall": ["BabyAI-GoToRedBlueBall-v0"],
+        "GoToDoor": ["BabyAI-GoToDoor-v0"],
+        "GoToObjDoor": ["BabyAI-GoToObjDoor-v0"],
+        "OpenDoor": [
+            "BabyAI-OpenDoor-v0",
+            "BabyAI-OpenDoorColor-v0",
+            "BabyAI-OpenDoorLoc-v0",
+        ],
+        "OpenTwoDoors": ["BabyAI-OpenTwoDoors-v0", "BabyAI-OpenRedBlueDoors-v0"],
+        "OpenDoorsOrder": ["BabyAI-OpenDoorsOrderN2-v0", "BabyAI-OpenDoorsOrderN4-v0"],
+        "PickuDist": ["BabyAI-PickupDist-v0"],
+        "PickupAbove": ["BabyAI-PickupAbove-v0"],
+        "UnlockLocal": ["BabyAI-UnlockLocal-v0", "BabyAI-UnlockLocalDist-v0"],
+        "KeyInBox": ["BabyAI-KeyInBox-v0"],
+        "UnlockPickup": ["BabyAI-UnlockPickup-v0", "BabyAI-UnlockPickupDist-v0"],
+        "BlockedUnlockPickup": ["BabyAI-BlockedUnlockPickup-v0"],
+        "UnlockToUnlock": ["BabyAI-UnlockToUnlock-v0"],
+        "ActionObjDoor": ["BabyAI-ActionObjDoor-v0"],
+        "FindObj": [
+            "BabyAI-FindObjS5-v0",
+            "BabyAI-FindObjS6-v0",
+            "BabyAI-FindObjS7-v0",
+        ],
+        "KeyCorridor": [
+            "BabyAI-KeyCorridor-v0",
+            "BabyAI-KeyCorridorS3R1-v0",
+            "BabyAI-KeyCorridorS3R2-v0",
+            "BabyAI-KeyCorridorS3R3-v0",
+            "BabyAI-KeyCorridorS4R3-v0",
+            "BabyAI-KeyCorridorS5R3-v0",
+        ],
+        "OneRoom": [
+            "BabyAI-OneRoomS8-v0",
+            "BabyAI-OneRoomS12-v0",
+            "BabyAI-OneRoomS16-v0",
+            "BabyAI-OneRoomS20-v0",
+        ],
+        "MoveTwoAcross": ["BabyAI-MoveTwoAcrossS5N2-v0", "BabyAI-MoveTwoAcrossS8N9-v0"],
+        "MiniBossLevel": ["BabyAI-MiniBossLevel-v0"],
+        "BossLevelNoUnlock": ["BabyAI-BossLevelNoUnlock-v0"],
+    },
 }
 
 
 class SeedFinder:
     """
-    Class to find in-domain and ood seeds for a given environment and config.
+    Class to find in-domain and ood seeds for a given level and config.
 
-    In some cases, this involves all seeds for a given environment or config.
-    In other cases, this involves a subset of seeds for a given environment or config.
+    In some cases, this involves all seeds for a given level or config.
+    In other cases, this involves a subset of seeds for a given level or config.
     """
 
-    def __init__(self):
+    def __init__(self, n_train_seeds_required=10**6, original_tasks_only=True):
         """
         Initialise the SeedFinder class.
         """
+        self.n_validation_seeds_required = 512
+        self.n_train_seeds_required = n_train_seeds_required
+        self.LEVELS_CONFIGS = (
+            LEVELS_CONFIGS["original_tasks"]
+            if original_tasks_only
+            else {**LEVELS_CONFIGS["original_tasks"], **LEVELS_CONFIGS["new_tasks"]}
+        )
         random.seed(42)
         self.random_colors = self._pick_random_colors()
         self.random_types = self._pick_random_types()
         self.random_rel_loc = self._pick_random_rel_location()
-        self.in_domain_room_size_min = 6
-        self.in_domain_room_size_max = 8
-        self.in_domain_num_cols = 3
-        self.in_domain_num_rows = 3
+        self.iid_room_size_min = 6
+        self.iid_room_size_max = 8
+        self.iid_num_cols = 3
+        self.iid_num_rows = 3
         self.random_room_quadrant = self._pick_random_room_quadrant()
         self.random_maze_quadrant = self._pick_random_maze_quadrant()
         self.ood_types = {
@@ -136,8 +153,9 @@ class SeedFinder:
             "object_task": self._check_object_task,
             "task_task": self._check_task_task,
         }
-        self.in_domain_filename = "in_domain_seeds.json"
-        self.ood_filename = "ood_seeds.json"
+        self.seeds_dir = "seeds"
+        if not os.path.exists(self.seeds_dir):
+            os.mkdir(self.seeds_dir)
 
     def _pick_random_colors(self):
         """
@@ -171,7 +189,7 @@ class SeedFinder:
         """
         Pick a random relative goal location from the list of possible descriptions.
 
-        This applies to Loc environments only.
+        This applies to Loc levels only.
 
         Returns
         -------
@@ -181,15 +199,15 @@ class SeedFinder:
 
     def _get_task_list(self, env):
         """
-        Get the list of mission tasks for a given environment.
+        Get the list of mission tasks for a given level.
 
-        If this is a Sequence type environment, then the list of tasks is a list of up to four subtasks.
+        If this is a Sequence type level, then the list of tasks is a list of up to four subtasks.
 
-        If this is not a Sequence type environment, then the list of tasks consists of a single task.
+        If this is not a Sequence type level, then the list of tasks consists of a single task.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -199,17 +217,17 @@ class SeedFinder:
 
     def _is_maze(self, env):
         """
-        Check if the environment is a maze.
+        Check if the level is a maze.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
-            bool: True if the environment is a maze, False otherwise.
+            bool: True if the level is a maze, False otherwise.
         """
-        return env.num_rows > 1 or env.num_cols > 1
+        return env.unwrapped.num_rows > 1 or env.unwrapped.num_cols > 1
 
     def _get_all_positions(self, size, n):
         """
@@ -217,7 +235,7 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
             size (int): size of the room.
             n (int): number of rows or columns in the grid.
 
@@ -287,18 +305,26 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
             tuple: tuple of x and y coordinates of the quadrant of the room.
 
         """
-        all_positions_x = self._get_all_positions(env.room_size, env.num_cols)
-        all_positions_y = self._get_all_positions(env.room_size, env.num_rows)
+        all_positions_x = self._get_all_positions(
+            env.unwrapped.room_size, env.unwrapped.num_cols
+        )
+        all_positions_y = self._get_all_positions(
+            env.unwrapped.room_size, env.unwrapped.num_rows
+        )
 
-        room_positions_x = self._split_positions_by_room(all_positions_x, env.num_cols)
-        room_positions_y = self._split_positions_by_room(all_positions_y, env.num_rows)
+        room_positions_x = self._split_positions_by_room(
+            all_positions_x, env.unwrapped.num_cols
+        )
+        room_positions_y = self._split_positions_by_room(
+            all_positions_y, env.unwrapped.num_rows
+        )
 
         quadrant_positions_x = self._split_rooms_into_quadrants(room_positions_x)
         quadrant_positions_y = self._split_rooms_into_quadrants(room_positions_y)
@@ -309,7 +335,10 @@ class SeedFinder:
             for y_quadrant, y_positions in self._get_quadrant_lookup(
                 quadrant_positions_y
             ).items():
-                if env.agent_pos[0] in x_positions and env.agent_pos[1] in y_positions:
+                if (
+                    env.unwrapped.agent_pos[0] in x_positions
+                    and env.unwrapped.agent_pos[1] in y_positions
+                ):
                     return x_quadrant, y_quadrant
 
     def _agent_pos_to_maze_quadrant(self, env):
@@ -318,22 +347,33 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
             tuple: tuple of x and y coordinates of the quadrant of the maze.
         """
 
-        all_positions_x = self._get_all_positions(env.room_size, env.num_cols)
-        all_positions_y = self._get_all_positions(env.room_size, env.num_rows)
+        all_positions_x = self._get_all_positions(
+            env.unwrapped.room_size, env.unwrapped.num_cols
+        )
+        all_positions_y = self._get_all_positions(
+            env.unwrapped.room_size, env.unwrapped.num_rows
+        )
 
-        room_positions_x = self._split_positions_by_room(all_positions_x, env.num_cols)
-        room_positions_y = self._split_positions_by_room(all_positions_y, env.num_rows)
+        room_positions_x = self._split_positions_by_room(
+            all_positions_x, env.unwrapped.num_cols
+        )
+        room_positions_y = self._split_positions_by_room(
+            all_positions_y, env.unwrapped.num_rows
+        )
 
         for x_room, x_positions in enumerate(room_positions_x):
             for y_room, y_positions in enumerate(room_positions_y):
-                if env.agent_pos[0] in x_positions and env.agent_pos[1] in y_positions:
+                if (
+                    env.unwrapped.agent_pos[0] in x_positions
+                    and env.unwrapped.agent_pos[1] in y_positions
+                ):
                     return x_room, y_room
 
     def _get_agent_quadrants(self, env):
@@ -342,7 +382,7 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -360,7 +400,7 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -374,7 +414,7 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -383,7 +423,7 @@ class SeedFinder:
         return [
             q
             for q in combinations_with_replacement(
-                [self.in_domain_num_cols, self.in_domain_num_rows], 2
+                [self.iid_num_cols, self.iid_num_rows], 2
             )
         ]
 
@@ -421,7 +461,7 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
             task: instance of the subtask for the env that is to be checked.
 
         Returns
@@ -429,7 +469,7 @@ class SeedFinder:
             bool: True if any of the goal doors are locked, False otherwise.
         """
         for pos in task.desc.obj_poss:
-            cell = env.grid.get(*pos)
+            cell = env.unwrapped.grid.get(*pos)
             if cell and cell.type == "door" and cell.is_locked:
                 return True
         return False
@@ -440,11 +480,11 @@ class SeedFinder:
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
-            bool: True if the environment has two goal doors to unlock, False otherwise.
+            bool: True if the level has two goal doors to unlock, False otherwise.
         """
         if len(self._get_task_list(env)) > 1:
             door_count = 0
@@ -464,11 +504,11 @@ class SeedFinder:
 
     def _check_size(self, env):
         """
-        Check if the environment contains the unseen size of the room or maze.
+        Check if the level contains the unseen size of the room or maze.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -476,23 +516,23 @@ class SeedFinder:
         """
         if self._is_maze(env):
             return (
-                env.room_size < self.in_domain_room_size_min
-                or env.room_size > self.in_domain_room_size_max
-                or env.num_cols != 3
-                or env.num_rows != 3
+                env.unwrapped.room_size < self.iid_room_size_min
+                or env.unwrapped.room_size > self.iid_room_size_max
+                or env.unwrapped.num_cols != 3
+                or env.unwrapped.num_rows != 3
             )
         return (
-            env.room_size < self.in_domain_room_size_min
-            or env.room_size > self.in_domain_room_size_max
+            env.unwrapped.room_size < self.iid_room_size_min
+            or env.unwrapped.room_size > self.iid_room_size_max
         )
 
     def _check_color_type(self, env):
         """
-        Check if the environment contains the unseen color-type combinations for goal objects.
+        Check if the level contains the unseen color-type combinations for goal objects.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -518,11 +558,11 @@ class SeedFinder:
 
     def _check_agent_loc(self, env):
         """
-        Check if the environment contains an agent starting position in an unseen room (and for mazes, maze) quadrant(s).
+        Check if the level contains an agent starting position in an unseen room (and for mazes, maze) quadrant(s).
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -537,13 +577,13 @@ class SeedFinder:
 
     def _check_object_task(self, env):
         """
-        Check if the environment contains the unseen object-task combination.
+        Check if the level contains the unseen object-task combination.
 
         The object color-type combination is different from the one used in self._check_color_type.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -562,13 +602,13 @@ class SeedFinder:
 
     def _check_rel_loc(self, env):
         """
-        Check if the environment contains the unseen goal location description.
+        Check if the level contains the unseen goal location description.
 
-        This applies to Loc environments only and refers to the loc attribute of goal objects, which for most envs is None.
+        This applies to Loc levels only and refers to the loc attribute of goal objects, which for most envs is None.
 
         Parameters
         ----------
-            env (str): instance of the environment made using a seed.
+            env (str): instance of the level made using a seed.
 
         Returns
         -------
@@ -587,11 +627,11 @@ class SeedFinder:
 
     def _check_task_task(self, env):
         """
-        Check if the environment contains the unseen task-task combination.
+        Check if the level contains the unseen task-task combination.
 
         Parameters
         ----------
-            env: instance of the environment made using a seed.
+            env: instance of the level made using a seed.
 
         Returns
         -------
@@ -599,148 +639,181 @@ class SeedFinder:
         """
         return self._has_two_doors_unlock(env)
 
-    def _find_in_domain_seeds(self, config):
+    def _get_metadata_value(self, level, key, mission_space=False):
+        metadata = JsoncParser.parse_file(
+            os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
+        )["levels"]
+        for levels in metadata.values():
+            for l, level_info in levels.items():
+                if l == level:
+                    if mission_space:
+                        return level_info["mission_space"][key]
+                    return level_info[key]
+
+    def _can_contain_rel_loc(self, level):
+        return self._get_metadata_value(level, "location", mission_space=True)
+
+    def _can_contain_seq(self, level):
+        return self._get_metadata_value(level, "sequence", mission_space=True)
+
+    def _can_contain_putnext(self, level):
+        return self._get_metadata_value(level, "putnext")
+
+    def _get_config_fn(self, level, config):
+        level_path = os.path.join(self.seeds_dir, level)
+        if not os.path.exists(level_path):
+            os.mkdir(level_path)
+        config_path = os.path.join(level_path, config)
+        return config_path + ".json"
+
+    def load_seeds(self, level, config):
         """
-        Find in-domain seeds for the given environment and config.
-
-        Seeds are in-domain with respect all of the below;
-        - size: seeds that involve an seen room or maze size.
-        - color-type: seeds that involve an seen combination of color and type of object.
-        - agent-loc: seeds that involve an seen agent start position in the room or maze.
-        - object-task: seeds that involve an seen combination of object and task.
-        - rel-loc: seeds that involve an seen goal location relative to the agent.
-        - task-task: seeds (and envs/configs) that involve seen task combinations in sequence tasks.
-
-        Parameters
-        ----------
-            config (str): environment configuration name.
+        Load the seeds for all levels and configs as a dict from the json file they are stored in.
 
         Returns
         -------
-            list: list of seeds for a given environment configuration.
+            dict: dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
         """
+        if not os.path.exists(self._get_config_fn(level, config)):
+            self.find_seeds()
+        return json.load(open(self._get_config_fn(level, config), "r+"))
 
-        n_seeds = 100
-        seed_list = []
-        for seed in tqdm(range(0, 1000)):
-            env = gym.make(config)
-            try:
-                env.reset(seed=seed)
-                _ = env.instrs.surface(env)
-            except:
-                continue
-            if (
-                not self._check_size(env)
-                and not self._check_color_type(env)
-                and not self._check_object_task(env)
-                and not self._check_agent_loc(env)
-                and not self._check_rel_loc(env)
-                and not self._check_task_task(env)
+    def _save_seeds(self, seed_log, level, config):
+        """
+        Save the seeds for a given level and config from a dict to a json file.
+
+        Parameters
+        ----------
+            seed_log (dict): dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
+            level (str): name of the level.
+            config (str): name of the config.
+        """
+        json.dump(seed_log, open(self._get_config_fn(level, config) + "_new", "w"))
+        if os.path.exists(self._get_config_fn(level, config)):
+            os.remove(self._get_config_fn(level, config))
+        os.rename(
+            self._get_config_fn(level, config) + "_new",
+            self._get_config_fn(level, config),
+        )
+
+    def _create_seed_log(self, level, config):
+        n_seeds_stop_search_early = 10**3
+
+        if os.path.exists(self._get_config_fn(level, config) + "_new"):
+            if os.path.exists(self._get_config_fn(level, config)):
+                os.remove(self._get_config_fn(level, config))
+            os.rename(
+                self._get_config_fn(level, config) + "_new",
+                self._get_config_fn(level, config),
+            )
+        if os.path.exists(self._get_config_fn(level, config)):
+            seed_log = self.load_seeds(level, config)
+        else:
+            seed_log = {ood_type: {"test_seeds": []} for ood_type in self.ood_types}
+            seed_log["validation_seeds"] = []
+            seed_log["last_seed_tested"] = 0
+            seed_log["n_train_seeds"] = 0
+        for seed in range(
+            seed_log["last_seed_tested"],
+            int(self.n_train_seeds_required * 2),
+        ):
+            if seed_log["n_train_seeds"] == (
+                self.n_train_seeds_required + self.n_validation_seeds_required
             ):
-                seed_list.append(seed)
-                if len(seed_list) == n_seeds:
-                    break
+                self._save_seeds(seed_log, level, config)
+                break
+            for ood_type, ood_type_check in self.ood_types.items():
+                if ood_type == "rel_loc" and not self._can_contain_rel_loc(level):
+                    continue
+                if ood_type == "object_task" and not self._can_contain_putnext(level):
+                    continue
+                if ood_type == "task_task" and not self._can_contain_seq(level):
+                    continue
+                if (
+                    seed >= n_seeds_stop_search_early
+                    and len(seed_log[ood_type]["test_seeds"]) == 0
+                ):
+                    continue
+                env = gym.make(config)
+                try:
+                    env.reset(seed=seed)
+                    _ = env.unwrapped.instrs.surface(env)
+                except:
+                    continue
+                if ood_type_check(env):
+                    if ood_type == "agent_loc" and self.ood_types["size"](env):
+                        continue
+                    seed_log[ood_type]["test_seeds"].append(seed)
+            if not self.is_test_seed(seed_log, seed):
+                if len(seed_log["validation_seeds"]) < (
+                    self.n_validation_seeds_required
+                ):
+                    seed_log["validation_seeds"].append(seed)
+                seed_log["n_train_seeds"] += 1
+            seed_log["last_seed_tested"] = seed
+            if seed % 50 == 0:
+                self._save_seeds(seed_log, level, config)
 
-        return seed_list
-
-    def _find_ood_seeds(self, config):
+    def find_seeds(self, level=None):
         """
-        Find in-domain and ood seeds for the given environment and config.
+        Find and save OOD seeds for the given level and config. IID seeds are implicitly found by ruling out that a seeds is OOD.
 
-        Seeds are out-of-domain with respect any or all of the below:
+        Seeds are OOD with respect any or all of the below:
         - size: seeds that involve an unseen room or maze size.
         - color-type: seeds that involve an unseen combination of color and type of object.
         - object-task: seeds that involve an unseen combination of object and task.
         - agent-loc: seeds that involve an unseen agent start position in the room or maze.
         - rel-loc: seeds that involve an unseen goal location relative to the agent.
-        - task-task: seeds (and envs/configs) that involve unseen task combinations in sequence tasks.
+        - task-task: seeds (and levels/configs) that involve unseen task combinations in sequence tasks.
+        """
+        threads = []
+        for l, configs in self.LEVELS_CONFIGS.items():
+            if level and l != level:
+                continue
+            for config in configs:
+                print(f"Main    : create and start thread for {config}.")
+                x = threading.Thread(target=self._create_seed_log, args=(l, config))
+                threads.append(x)
+                x.start()
+
+        for thread in threads:
+            print(f"Main    : before joining thread for {config}.")
+            thread.join()
+            print(f"Main    : thread for {config} done")
+
+    def is_test_seed(self, seed_log, seed):
+        """
+        Check if a seed is in the list of OOD seeds for a given level and config.
 
         Parameters
         ----------
-            config (str): environment configuration name.
-            num_configs (int): number of configs that exist for a given environment.
+            level (str): name of the level.
+            config (str): name of the config.
+            seed (int): seed to check.
 
         Returns
         -------
-            list: list of seeds for a given environment configuration.
-        """
-        seed_lists = {ood_type: [] for ood_type in self.ood_types.keys()}
-        n_seeds = 10
-        for ood_type, seed_list in seed_lists.items():
-            if ood_type in ["object_task", "task_task"]:
-                max_seeds_to_check = 1000
-            else:
-                max_seeds_to_check = 100
-            for seed in tqdm(range(0, 10000)):
-                if seed >= max_seeds_to_check and len(seed_list) == 0:
-                    break
-                env = gym.make(config)
-                try:
-                    env.reset(seed=seed)
-                    _ = env.instrs.surface(env)
-                except:
-                    continue
-                if self.ood_types[ood_type](env) and len(seed_list) < n_seeds:
-                    if ood_type == "agent_loc" and self.ood_types["size"](env):
-                        continue
-                    seed_list.append(seed)
-        return seed_lists
-
-    def save_in_domain_seeds(self):
-        """
-        Find and save in domain seeds for all (missing) environments and configs.
+            bool: True if the seed is in the list of OOD seeds, False otherwise.
 
         """
 
-        if os.path.exists(self.in_domain_filename):
-            seed_dict = json.load(open(self.in_domain_filename, "r+"))
-        else:
-            seed_dict = {}
-        for env, configs in ENVS_CONFIGS.items():
-            if env not in seed_dict.keys():
-                seed_dict[env] = {}
-            for config in configs:
-                if config not in seed_dict[env].keys():
-                    seed_dict[env][config] = self._find_in_domain_seeds(config)
-                    json.dump(seed_dict, open(self.in_domain_filename, "w"))
+        for ood_type in self.ood_types:
+            if seed in seed_log[ood_type]["test_seeds"]:
+                return True
+        return False
 
-    def save_ood_seeds(self):
+    def is_validation_seed(self, seed_log, seed):
         """
-        Find and save ood seeds for all (missing) environments and configs.
+        Check if a seed is in the list of validation seeds for a given level and config.
 
-        """
-        if os.path.exists(self.ood_filename):
-            seed_dict = json.load(open(self.ood_filename, "r+"))
-        else:
-            seed_dict = {}
-        for env, configs in ENVS_CONFIGS.items():
-            if env not in seed_dict.keys():
-                seed_dict[env] = {}
-            for config in configs:
-                if config not in seed_dict[env].keys():
-                    seed_dict[env][config] = self._find_ood_seeds(config)
-                    json.dump(seed_dict, open(self.ood_filename, "w"))
-
-    def load_in_domain_seeds(self):
-        """
-        Get the in-domain and ood seeds for all environments and configs.
+        Parameters
+        ----------
+            level (str): name of the level.
+            config (str): name of the config.
+            seed (int): seed to check.
 
         Returns
         -------
-            tuple: tuple of dictionary of lists of in-domain and ood seeds.
+            bool: True if the seed is in the list of validation seeds, False otherwise.
         """
-        if not os.path.exists(self.in_domain_filename):
-            self.save_in_domain_seeds()
-        return json.load(open(self.in_domain_filename, "r+"))
-
-    def load_ood_seeds(self):
-        """
-        Get the in-domain and ood seeds for all environments and configs.
-
-        Returns
-        -------
-            tuple: tuple of dictionary of lists of in-domain and ood seeds.
-        """
-        if not os.path.exists(self.ood_filename):
-            self.save_ood_seeds()
-        return json.load(open(self.ood_filename, "r+"))
+        return seed in seed_log["validation_seeds"]

@@ -2,7 +2,15 @@ import unittest
 
 import gymnasium as gym
 
-from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
+from src.dataset.custom_feedback_verifier import (
+    RuleFeedback,
+    TaskFeedback,
+    RandomFeedback,
+)
+
+from lorem_text.lorem import WORDS
+
+import re
 
 
 class TestCustomRuleFeedbackVerifier(unittest.TestCase):
@@ -357,7 +365,7 @@ class TestCustomTaskGoToFeedbackVerifier(unittest.TestCase):
         feedback_verifier = TaskFeedback(self.env, test_mode=True)
         assert (
             feedback_verifier.verify_feedback(self.env, action)
-            == "You've completed a part of your task by going to a correct object."
+            == "You've completed your task by going to a correct object."
         )
 
 
@@ -723,7 +731,27 @@ class TestCustomTaskSequenceFeedbackVerifier(unittest.TestCase):
 
         assert (
             feedback_verifier.verify_feedback(self.env, 5)
-            == "You've completed a part of your task by opening a correct door."
+            == "You've completed your task by opening a correct door."
+        )
+
+
+class TestRandomFeedback(unittest.TestCase):
+    def test_lorem_ipsum(self):
+        feedback_verifier = RandomFeedback(random_type="lorem_ipsum")
+        sentence_1 = feedback_verifier.verify_feedback()
+        word_list_1 = set(re.sub(r"\W+", " ", sentence_1).lower().split())
+        sentence_2 = feedback_verifier.verify_feedback()
+        assert all(word in WORDS for word in word_list_1) and sentence_1 != sentence_2
+
+    def test_random_sentence(self):
+        feedback_verifier = RandomFeedback(random_type="random_sentence")
+        babyai_words = feedback_verifier.babyai_words
+        sentence_1 = feedback_verifier.verify_feedback()
+        word_list_1 = set(re.sub(r"\W+", " ", sentence_1).lower().split())
+        sentence_2 = feedback_verifier.verify_feedback()
+        assert (
+            not any(word in babyai_words for word in word_list_1)
+            and sentence_1 != sentence_2
         )
 
 

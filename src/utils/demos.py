@@ -274,7 +274,7 @@ class Demo:
         env = gym.make(config, render_mode="rgb_array")
         env.reset(seed=seed)
         frame = env.render()
-        self.mission = env.instrs.surface(env)
+        self.mission = env.unwrapped.instrs.surface(env)
         self._plot_and_save_obs(frame)
         return env
 
