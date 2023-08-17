@@ -456,7 +456,7 @@ class CustomDataset:
         start = self.episode_starts[ep_idx]
         if random_start:
             start += np.random.randint(
-                0, self.episode_lengths[ep_idx] - self.episode_lengths[ep_idx] // 4
+                0, self.episode_lengths[ep_idx] - self.episode_lengths[ep_idx] // 2
             )
         tmp = start + length if length else self.episode_ends[ep_idx]
         end = min(tmp, self.episode_ends[ep_idx])
