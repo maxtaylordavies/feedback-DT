@@ -46,6 +46,7 @@ class Evaluator(TrainerCallback):
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.seeds = None
 
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
@@ -53,13 +54,7 @@ class Evaluator(TrainerCallback):
             os.makedirs(self.output_dir)
 
         # initialise a dict to store the evaluation results
-        self.results = {
-            "model": [],
-            "samples": [],
-            "return": [],
-            "episode length": [],
-            "success": [],
-        }
+        self._init_results()
 
         # # create default missing feedback embeddings
         # self.feedback_embeddings = self.collator.embed_feedback(
@@ -87,6 +82,7 @@ class Evaluator(TrainerCallback):
             "return": [],  # episode return
             "episode length": [],  # episode length
             "success": [],  # whether the episode was successful (bool)
+            "seed": [],  # seed used for the episode
             "ood": [],  # whether the episode was out-of-distribution (bool)
         }
 
@@ -130,18 +126,44 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
+        # sample set of seeds for evaluation
+        self._load_seed_dict(self.collator.dataset.configs[0])
+        seeds = self._sample_seeds(n=self.num_repeats, ood=ood)
+
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(a, name, ood=ood)
+            self._evaluate_agent_performance(a, name, seeds, ood=ood)
             # self._evaluate_agent_predictions(a, name)
 
         self._plot_results()
 
-    def _create_env(self, atari=False, ood=False):
-        env_name = self.user_args["env_name"]
+    def _load_seed_dict(self, config):
+        self.seeds = self.collator.dataset.seed_finder.load_seeds(
+            self.user_args["level"], config
+        )
 
-        # sample a seed
-        seed = 0
+    def _sample_seeds(self, n=1, ood=False, ood_type=None):
+        if self.seeds is None:
+            raise Exception("No seeds loaded")
+
+        all_ood_seeds = []
+        types = [k for k in self.seeds if "seed" not in k]
+        for t in types:
+            all_ood_seeds += self.seeds[t]["test_seeds"]
+
+        not_ood_seeds = np.setdiff1d(
+            np.arange(self.seeds["last_seed_tested"] + 1), all_ood_seeds
+        )
+
+        if ood and ood_type:
+            return np.random.choice(self.seeds[ood_type]["test_seeds"], size=n, replace=False)
+        elif ood:
+            return np.random.choice(all_ood_seeds, size=n, replace=False)
+        else:
+            return np.random.choice(not_ood_seeds, size=n, replace=False)
+
+    def _create_env(self, seed, atari=False):
+        env_name = self.user_args["level"]
 
         if atari:
             game = env_name.split(":")[1]
@@ -156,12 +178,13 @@ class Evaluator(TrainerCallback):
         _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
-    def _record_result(self, env, model_name, ret, ep_length, success, ood):
+    def _record_result(self, env, model_name, ret, ep_length, success, seed, ood):
         self.results["samples"].append(self.collator.samples_processed)
         self.results["model"].append(model_name)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["success"].append(success)
+        self.results["seed"].append(seed)
         self.results["ood"].append(ood)
 
         if self.user_args["record_video"]:
@@ -182,15 +205,15 @@ class Evaluator(TrainerCallback):
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
-    def _evaluate_agent_performance(self, agent: Agent, agent_name: str, ood=False):
+    def _evaluate_agent_performance(self, agent: Agent, agent_name: str, seeds, ood=False):
         atari = self.user_args["env_name"].startswith("atari")
         run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
 
         # for each repeat, record the episode return (and optionally render a video of the episode)
-        for _ in range(self.num_repeats):
-            env = self._create_env(atari=atari, ood=ood)
+        for seed in seeds:
+            env = self._create_env(seed, atari=atari)
             ret, ep_length, success = run_agent(agent, env, self.target_return)
-            self._record_result(env, agent_name, ret, ep_length, success, ood)
+            self._record_result(env, agent_name, ret, ep_length, success, seed, ood)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
