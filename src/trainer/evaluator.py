@@ -59,7 +59,6 @@ class Evaluator(TrainerCallback):
             "return": [],
             "episode length": [],
             "success": [],
-            # "eval acc": [],
         }
 
         # # create default missing feedback embeddings
@@ -81,16 +80,15 @@ class Evaluator(TrainerCallback):
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
 
-    def on_train_begin(
-        self,
-        args: TrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        model: Agent,
-        **kwargs,
-    ):
-        self._plot_loss(state)
-        self._run_eval_and_plot(model, state)
+    def _init_results(self):
+        self.results = {
+            "model": [],  # "random" or "DT"
+            "samples": [],  # number of training samples processed by model
+            "return": [],  # episode return
+            "episode length": [],  # episode length
+            "success": [],  # whether the episode was successful (bool)
+            "ood": [],  # whether the episode was out-of-distribution (bool)
+        }
 
     def on_step_begin(
         self,
@@ -102,45 +100,69 @@ class Evaluator(TrainerCallback):
     ):
         self._plot_loss(state)
 
+        # if this is the first step or we've reached the sample interval, run eval + update plots
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if sample_diff >= self.sample_interval:
-            self._run_eval_and_plot(model, state)
+        if self.samples_processed == 0 or sample_diff >= self.sample_interval:
+            self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
 
-    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
+    def on_train_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        self._plot_loss(state)
+        self._run_eval_and_plot(model, state, eval_type="generalisation")
+
+    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, eval_type: str):
+        if eval_type == "efficiency":
+            ood = False
+        elif eval_type == "generalisation":
+            ood = True
+        else:
+            raise ValueError(f"unsupported eval_type: {eval_type}")
+
         log(
-            f"running {'FINAL' if final else ''} evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(a, name)
+            self._evaluate_agent_performance(a, name, ood=ood)
             # self._evaluate_agent_predictions(a, name)
 
         self._plot_results()
 
-    def _create_env(self, atari=False):
+    def _create_env(self, atari=False, ood=False):
         env_name = self.user_args["env_name"]
+
+        # sample a seed
+        seed = 0
+
         if atari:
             game = env_name.split(":")[1]
-            _env = AtariEnv(self.device, game, self.user_args["seed"])
+            _env = AtariEnv(self.device, game, seed)
             return AtariVisualiser(
                 _env,
                 self.output_dir,
                 filename=f"tmp",
-                seed=self.user_args["seed"],
+                seed=seed,
             )
 
         _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
-        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=self.user_args["seed"])
+        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
-    def _record_result(self, env, model_name, ret, ep_length, success):
+    def _record_result(self, env, model_name, ret, ep_length, success, ood):
         self.results["samples"].append(self.collator.samples_processed)
         self.results["model"].append(model_name)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["success"].append(success)
+        self.results["ood"].append(ood)
 
         if self.user_args["record_video"]:
             env.release()
@@ -160,15 +182,15 @@ class Evaluator(TrainerCallback):
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
-    def _evaluate_agent_performance(self, agent: Agent, agent_name: str):
+    def _evaluate_agent_performance(self, agent: Agent, agent_name: str, ood=False):
         atari = self.user_args["env_name"].startswith("atari")
         run_agent = self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
 
         # for each repeat, record the episode return (and optionally render a video of the episode)
         for _ in range(self.num_repeats):
-            env = self._create_env(atari=atari)
+            env = self._create_env(atari=atari, ood=ood)
             ret, ep_length, success = run_agent(agent, env, self.target_return)
-            self._record_result(env, agent_name, ret, ep_length, success)
+            self._record_result(env, agent_name, ret, ep_length, success, ood)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
