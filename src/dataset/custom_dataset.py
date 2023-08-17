@@ -347,7 +347,7 @@ class CustomDataset:
             current_conf_episode = 1
             while (
                 current_conf_episode < episodes_per_config
-                and current_episode < self.args["num_episodes"]
+                and current_episode <= self.args["num_episodes"]
             ):
                 for seed in range(seed_log["last_seed_tested"] + 1):
                     if (
