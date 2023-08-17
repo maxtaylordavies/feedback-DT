@@ -54,7 +54,7 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=64,
+        default=16,
         help="context length in timesteps (default: 64)",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
