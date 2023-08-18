@@ -11,12 +11,6 @@ def get_args():
         help="name of the run (default: current date and time)",
     )
     parser.add_argument(
-        "--env_name",
-        type=str,
-        default="BabyAI-GoToRedBallGrey-v0",
-        help="the name of the environment config; must be registered with gymnasium",
-    )
-    parser.add_argument(
         "--num_episodes",
         type=int,
         default=100,
@@ -32,12 +26,6 @@ def get_args():
         type=bool,
         default=True,
         help="whether to include episodes terminated by timeout / truncated",
-    )
-    parser.add_argument(
-        "--load_dataset_if_exists",
-        type=bool,
-        default=True,
-        help="whether to load the dataset from local storage if it already exists",
     )
     parser.add_argument(
         "--fully_obs",
@@ -66,7 +54,7 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=64,
+        default=16,
         help="context length in timesteps (default: 64)",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
@@ -166,5 +154,11 @@ def get_args():
         type=str,
         default="GoToRedBallGrey",
         help="the name of the level to train on.",
+    )
+    parser.add_argument(
+        "--train_mode",
+        type=str,
+        default="single_task",
+        help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum' or 'anti_curriculum.",
     )
     return vars(parser.parse_args())

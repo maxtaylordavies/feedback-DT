@@ -53,4 +53,7 @@ class RandomAgent(Agent):
         return torch.tensor(0.0, requires_grad=True)
 
     def get_action(self, input: AgentInput, context=1, one_hot=False):
-        return torch.tensor(np.random.random(self.act_dim), device=input.states.device)
+        return torch.tensor(
+            np.random.random(self.act_dim).astype(np.float32),
+            device=input.states.device,
+        )
