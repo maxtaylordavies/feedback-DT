@@ -21,7 +21,7 @@ from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import log, get_minigrid_obs, normalise
 
 # from .atari_env import AtariEnv
-from .visualiser import Visualiser, AtariVisualiser
+from .visualiser import Visualiser
 
 sns.set_theme()
 
@@ -54,9 +54,7 @@ class Evaluator(TrainerCallback):
         self.seeds = None
 
         # create the output directory if it doesn't exist
-        self.output_dir = os.path.join(
-            self.user_args["output"], self.user_args["run_name"]
-        )
+        self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -90,11 +88,12 @@ class Evaluator(TrainerCallback):
         self.results = {
             "model": [],  # "random" or "DT"
             "samples": [],  # number of training samples processed by model
+            "config": [],  # config used for the episode
+            "seed": [],  # seed used for the episode
+            "ood": [],  # whether the episode was out-of-distribution (bool)
             "return": [],  # episode return
             "episode length": [],  # episode length
             "success": [],  # whether the episode was successful (bool)
-            "seed": [],  # seed used for the episode
-            "ood": [],  # whether the episode was out-of-distribution (bool)
         }
 
     def on_step_begin(
@@ -137,14 +136,14 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-        # sample set of seeds for evaluation
-        self._load_seed_dict(self.collator.dataset.configs[0])
+        # get config and sample set of seeds for evaluation
+        config = self.collator.dataset.configs[0]
+        self._load_seed_dict(config)
         seeds = self._sample_seeds(n=self.num_repeats, ood=ood)
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(a, name, seeds, ood=ood)
-            # self._evaluate_agent_predictions(a, name)
+            self._evaluate_agent_performance(a, name, config, seeds, ood=ood)
 
         self._plot_results()
 
@@ -173,30 +172,29 @@ class Evaluator(TrainerCallback):
         else:
             return np.random.choice(not_ood_seeds, size=n, replace=False)
 
-    def _create_env(self, seed, atari=False):
-        env_name = self.user_args["level"]
+    def _create_env(self, config, seed):
+        # if "atari" in config:
+        #     game = config.split(":")[1]
+        #     _env = AtariEnv(self.device, game, seed)
+        #     return AtariVisualiser(
+        #         _env,
+        #         self.output_dir,
+        #         filename=f"tmp",
+        #         seed=seed,
+        #     )
 
-        if atari:
-            game = env_name.split(":")[1]
-            _env = AtariEnv(self.device, game, seed)
-            return AtariVisualiser(
-                _env,
-                self.output_dir,
-                filename=f"tmp",
-                seed=seed,
-            )
-
-        _env = gym.make(self.user_args["env_name"], render_mode="rgb_array")
+        _env = gym.make(config, render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
-    def _record_result(self, env, model_name, ret, ep_length, success, seed, ood):
-        self.results["samples"].append(self.collator.samples_processed)
+    def _record_result(self, env, config, seed, ood, model_name, ret, ep_length, success):
         self.results["model"].append(model_name)
+        self.results["samples"].append(self.collator.samples_processed)
+        self.results["config"].append(config)
+        self.results["seed"].append(seed)
+        self.results["ood"].append(ood)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["success"].append(success)
-        self.results["seed"].append(seed)
-        self.results["ood"].append(ood)
 
         if self.user_args["record_video"]:
             env.release()
@@ -216,18 +214,19 @@ class Evaluator(TrainerCallback):
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
-    def _evaluate_agent_performance(self, agent: Agent, agent_name: str, seeds, ood=False):
-        atari = self.user_args["level"].startswith("atari")
+    def _evaluate_agent_performance(
+        self, agent: Agent, agent_name: str, config: str, seeds, ood=False
+    ):
         # run_agent = (
-        #     self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
+        #     self._run_agent_on_atari_env if "atari" in config else self._run_agent_on_minigrid_env
         # )
         run_agent = self._run_agent_on_minigrid_env
 
-        # for each repeat, record the episode return (and optionally render a video of the episode)
+        # for each repeat, run agent and record metrics (and optionally render a video of the episode)
         for seed in seeds:
-            env = self._create_env(seed, atari=atari)
+            env = self._create_env(config, seed)
             ret, ep_length, success = run_agent(agent, env, self.target_return)
-            self._record_result(env, agent_name, ret, ep_length, success, seed, ood)
+            self._record_result(env, config, seed, ood, agent_name, ret, ep_length, success)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
@@ -245,9 +244,7 @@ class Evaluator(TrainerCallback):
         accs = np.zeros(repeats)
 
         for rep in range(repeats):
-            batch = self.collator._sample_batch(
-                1, random_start=True, full=True, train=False
-            )
+            batch = self.collator._sample_batch(1, random_start=True, full=True, train=False)
             for k in batch:
                 batch[k] = batch[k].to(self.device)
 
@@ -278,9 +275,7 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-    def _run_agent_on_minigrid_env(
-        self, agent: Agent, env: Visualiser, target_return: float
-    ):
+    def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
                 env.get_env(),
