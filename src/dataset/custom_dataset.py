@@ -36,6 +36,7 @@ class CustomDataset:
         self.shard = None
         self.seed_finder = SeedFinder(self.args["num_episodes"])
         self.configs = self._get_configs()
+        self.category = self._get_category()
 
     def _get_configs(self):
         """
@@ -48,9 +49,9 @@ class CustomDataset:
             list: the configs.
         """
         configs = []
-        for config in LEVELS_CONFIGS[self.args["level"]]:
+        for config in LEVELS_CONFIGS["original_tasks"][self.args["level"]]:
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
-            if seed_log["num_train_seeds"]:
+            if seed_log["n_train_seeds"]:
                 configs.append(config)
         return configs
 
@@ -102,8 +103,52 @@ class CustomDataset:
         """
         metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
         metadata = JsoncParser.parse_file(metadata_path)["levels"]
-        category = self._get_category()
-        return metadata[category][self.args["level"]]["used_action_space"]
+        return metadata[self.category][self.args["level"]]["used_action_space"]
+
+    def _get_level_max_steps(self):
+        """
+        Get the max steps for the environment.
+
+        Returns
+        -------
+        int: the max steps.
+        """
+        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
+        metadata = JsoncParser.parse_file(metadata_path)
+        level_metadata = metadata["levels"][self.category][self.args["level"]]
+
+        seq_instrs_factor = 4 if level_metadata["mission_space"]["sequence"] else 1
+        putnext_instrs_factor = 2 if level_metadata["putnext"] else 1
+        max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
+
+        global_max_steps = 0
+        for config in self.configs:
+            try:
+                max_steps = level_metadata[config]["max_steps"]
+            except KeyError:
+                try:
+                    room_size = level_metadata[config]["room_size"]
+                except KeyError:
+                    room_size = metadata["defaults"]["room"]["room_size"]
+                try:
+                    num_rows = level_metadata[config]["num_rows"]
+                except KeyError:
+                    num_rows = (
+                        metadata["defaults"]["maze"]["num_rows"]
+                        if level_metadata["maze"]
+                        else 1
+                    )
+                try:
+                    num_cols = level_metadata[config]["num_cols"]
+                except KeyError:
+                    num_cols = (
+                        metadata["defaults"]["maze"]["num_cols"]
+                        if level_metadata["maze"]
+                        else 1
+                    )
+                max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
+            global_max_steps = max(global_max_steps, max_steps)
+        return global_max_steps
 
     def _policy(self, observation):
         """
@@ -170,26 +215,27 @@ class CustomDataset:
             return rule_feedback
 
     def _clear_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
-        max_steps = self.env.max_steps
+        max_steps = self._get_level_max_steps()
         self.buffer = {
-            "configs": [config] * (max_steps * num_eps + 1),
-            "seeds": [[0]] * (max_steps * num_eps + 1),
-            "missions": [self.env.descr.surface(self.env)] * (max_steps * num_eps + 1),
+            "configs": [config] * ((max_steps + 1) * num_eps),
+            "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
+            "missions": [self.env.instrs.surface(self.env)]
+            * ((max_steps + 1) * num_eps),
             "observations": np.array(
-                [np.zeros(obs_shape)] * (max_steps * num_eps + 1),
+                [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
             ),
             "actions": np.array(
-                [[0]] * (max_steps * num_eps + 1),
+                [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
             "rewards": np.array(
-                [[0]] * (max_steps * num_eps + 1),
+                [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self._get_feedback_constant()] * (max_steps * num_eps + 1),
-            "terminations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
-            "truncations": np.array([[0]] * (max_steps * num_eps + 1), dtype=bool),
+            "feedback": [self._get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
+            "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
         self.steps = 0
 
@@ -253,7 +299,7 @@ class CustomDataset:
         )
 
         md = MinariDataset(
-            level_group=self._get_category(self.args["level"]),
+            level_group=self.category,
             level_name=self.args["level"],
             dataset_name=name_dataset(self.args),
             policy=self.args["policy"],
@@ -291,14 +337,32 @@ class CustomDataset:
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
-        episodes_per_config = self.args["num_episodes"] // len(self.configs)
+        episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
+            self.args["num_episodes"] % len(self.configs) > 0
+        )
 
-        ep_idx = 0
+        current_episode = 1
         for config in self.configs:
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
-
-            while ep_idx < episodes_per_config:
+            current_conf_episode = 1
+            while (
+                current_conf_episode < episodes_per_config
+                and current_episode <= self.args["num_episodes"]
+            ):
                 for seed in range(seed_log["last_seed_tested"] + 1):
+                    if (
+                        current_conf_episode > episodes_per_config
+                        or seed > seed_log["last_seed_tested"]
+                        or current_episode > self.args["num_episodes"]
+                        # the second condition is here in case we want to use the same set of training seeds multiple times
+                        # e.g. if we want to create really big random dataset
+                        # and likely this will be necessary to train a PPO agent to convergence for harder levels
+                        # this should not result in duplicate trajectories despite the same seeds being used multiple times
+                        # when used with random policy, and even when used with the PPO agent as the agent will be at different
+                        # model checkpoints at the time the seeds get repeated
+                    ):
+                        break
+
                     if not self.seed_finder.is_test_seed(
                         seed_log, seed
                     ) and not self.seed_finder.is_validation_seed(seed_log, seed):
@@ -315,7 +379,7 @@ class CustomDataset:
                         self.state_dim = np.prod(obs.shape)
 
                         # initialise buffer to store replay data
-                        if ep_idx == 0:
+                        if current_episode == 1:
                             self._clear_buffer(obs.shape, config)
 
                         # feedback verifiers
@@ -329,26 +393,16 @@ class CustomDataset:
 
                         # create another episode
                         self._create_episode(config, seed)
-                        ep_idx = +1
 
                         # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                        if ((ep_idx + 1) % EPS_PER_SHARD == 0) or ep_idx == self.args[
-                            "num_episodes"
-                        ] - 1:
+                        if (current_episode % EPS_PER_SHARD == 0) or (
+                            current_episode == self.args["num_episodes"]
+                        ):
                             self._save_buffer_to_minari_file()
                             self._clear_buffer(obs.shape, config)
 
-                        if (
-                            ep_idx == episodes_per_config
-                            or seed == seed_log["last_seed_tested"]
-                            # the second condition is here in case we want to use the same set of training seeds multiple times
-                            # e.g. if we want to create really big random dataset
-                            # and likely this will be necessary to train a PPO agent to convergence for harder levels
-                            # this should not result in duplicate trajectories despite the same seeds being used multiple times
-                            # when used with random policy, and even when used with the PPO agent as the agent will be at different
-                            # model checkpoints at the time the seeds get repeated
-                        ):
-                            break
+                        current_episode += 1
+                        current_conf_episode += 1
 
         self.env.close()
         self._clear_buffer(obs.shape)
@@ -401,10 +455,13 @@ class CustomDataset:
         # optionally sample a random start timestep for this episode
         start = self.episode_starts[ep_idx]
         if random_start:
-            start += np.random.randint(0, self.episode_lengths[ep_idx])
+            start += np.random.randint(
+                0,
+                self.episode_lengths[ep_idx]
+                - max(self.episode_lengths[ep_idx] // 4, 1),
+            )
         tmp = start + length if length else self.episode_ends[ep_idx]
         end = min(tmp, self.episode_ends[ep_idx])
-
         s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
 

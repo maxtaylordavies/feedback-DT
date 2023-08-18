@@ -22,7 +22,9 @@ class AgentTrainer(Trainer):
             args=TrainingArguments(
                 run_name=self.user_args["run_name"],
                 output_dir=self.user_args["output"],
-                report_to="none" if self.user_args["wandb_mode"] == "disabled" else "wandb",
+                report_to="none"
+                if self.user_args["wandb_mode"] == "disabled"
+                else "wandb",
                 logging_steps=self.user_args["log_interval"],
                 remove_unused_columns=False,
                 num_train_epochs=self.user_args["epochs"],
@@ -41,7 +43,9 @@ class AgentTrainer(Trainer):
         self.create_callbacks()
 
     def create_callbacks(self):
-        self.add_callback(Evaluator(user_args=self.user_args, collator=self.data_collator))
+        self.add_callback(
+            Evaluator(user_args=self.user_args, collator=self.data_collator)
+        )
 
     def compute_loss(self, model, inputs, return_outputs=False):
         input = AgentInput(**inputs)

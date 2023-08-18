@@ -43,7 +43,9 @@ def setup_devices(seed, useGpu=True):
     torch.manual_seed(seed)
 
     if useCuda:
-        device_str = f"{device.type}:{device.index}" if device.index else f"{device.type}"
+        device_str = (
+            f"{device.type}:{device.index}" if device.index else f"{device.type}"
+        )
         os.environ["CUDA_VISIBLE_DEVICES"] = device_str
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
