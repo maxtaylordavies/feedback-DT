@@ -90,7 +90,7 @@ class Evaluator(TrainerCallback):
             "samples": [],  # number of training samples processed by model
             "config": [],  # config used for the episode
             "seed": [],  # seed used for the episode
-            "ood": [],  # whether the episode was out-of-distribution (bool)
+            "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
             "return": [],  # episode return
             "episode length": [],  # episode length
             "success": [],  # whether the episode was successful (bool)
@@ -124,26 +124,27 @@ class Evaluator(TrainerCallback):
         self._run_eval_and_plot(model, state, eval_type="generalisation")
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, eval_type: str):
-        if eval_type == "efficiency":
-            ood = False
-        elif eval_type == "generalisation":
-            ood = True
-        else:
-            raise ValueError(f"unsupported eval_type: {eval_type}")
+        if eval_type not in ["efficiency", "generalisation"]:
+            raise Exception(f"Unknown eval type: {eval_type}")
 
         log(
             f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
 
-        # get config and sample set of seeds for evaluation
-        config = self.collator.dataset.configs[0]
-        self._load_seed_dict(config)
-        seeds = self._sample_seeds(n=self.num_repeats, ood=ood)
+        # cycle through configs
+        for config in self.collator.dataset.configs:
+            # sample some seeds for the current config
+            self._load_seed_dict(config)
+            seeds = (
+                self._sample_validation_seeds(n=self.num_repeats)
+                if eval_type == "efficiency"
+                else self._sample_test_seeds(n=self.num_repeats)
+            )
 
-        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
-        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(a, name, config, seeds, ood=ood)
+            # run evaluations using both the agent being trained and a random agent (for baseline comparison)
+            for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+                self._evaluate_agent_performance(a, name, config, seeds)
 
         self._plot_results()
 
@@ -152,25 +153,22 @@ class Evaluator(TrainerCallback):
             self.user_args["level"], config
         )
 
-    def _sample_seeds(self, n=1, ood=False, ood_type=None):
+    def _sample_validation_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
 
-        all_ood_seeds = []
+        # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
+        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
+
+    def _sample_test_seeds(self, n=1):
+        if self.seeds is None:
+            raise Exception("No seeds loaded")
+
+        seeds = {}
         types = [k for k in self.seeds if "seed" not in k]
         for t in types:
-            all_ood_seeds += self.seeds[t]["test_seeds"]
-
-        not_ood_seeds = np.setdiff1d(
-            np.arange(self.seeds["last_seed_tested"] + 1), all_ood_seeds
-        )
-
-        if ood and ood_type:
-            return np.random.choice(self.seeds[ood_type]["test_seeds"], size=n, replace=False)
-        elif ood:
-            return np.random.choice(all_ood_seeds, size=n, replace=False)
-        else:
-            return np.random.choice(not_ood_seeds, size=n, replace=False)
+            seeds[t] = np.random.choice(self.seeds[t]["test_seeds"], size=n, replace=False)
+        return seeds
 
     def _create_env(self, config, seed):
         # if "atari" in config:
@@ -186,12 +184,14 @@ class Evaluator(TrainerCallback):
         _env = gym.make(config, render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
-    def _record_result(self, env, config, seed, ood, model_name, ret, ep_length, success):
+    def _record_result(
+        self, env, config, seed, ood_type, model_name, ret, ep_length, success
+    ):
         self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
         self.results["config"].append(config)
         self.results["seed"].append(seed)
-        self.results["ood"].append(ood)
+        self.results["ood_type"].append(ood_type)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["success"].append(success)
@@ -223,10 +223,13 @@ class Evaluator(TrainerCallback):
         run_agent = self._run_agent_on_minigrid_env
 
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
-        for seed in seeds:
-            env = self._create_env(config, seed)
-            ret, ep_length, success = run_agent(agent, env, self.target_return)
-            self._record_result(env, config, seed, ood, agent_name, ret, ep_length, success)
+        for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
+            for seed in seeds:
+                env = self._create_env(config, seed)
+                ret, ep_length, success = run_agent(agent, env, self.target_return)
+                self._record_result(
+                    env, config, seed, ood_type, agent_name, ret, ep_length, success
+                )
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
@@ -459,10 +462,12 @@ class Evaluator(TrainerCallback):
 
         # split into in-distribution and out-of-distribution for efficiency and generalisation plots
         df = pd.DataFrame(self.results)
-        eff_df = df[df["ood"] == False]
-        gen_df = df[df["ood"] == True]
+        eff_df = df[df["ood_type"] == ""]
+        gen_df = df[df["ood_type"] != ""]
 
-        metrics = set(self.results.keys()).difference({"samples", "model", "seed", "ood"})
+        metrics = set(self.results.keys()).difference(
+            {"samples", "model", "config", "seed", "ood_type"}
+        )
         for m in metrics:
             # for success, we want the percentage success rate, which we
             # can get by taking the mean of the success column multiplied by 100
@@ -479,7 +484,7 @@ class Evaluator(TrainerCallback):
             # then, do bar plot (for generalisation) (if we have data yet)
             if len(gen_df) > 0:
                 fig, ax = plt.subplots()
-                sns.barplot(x="model", y=m, data=gen_df, ax=ax)
+                sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
                 for fmt in formats:
                     fig.savefig(
                         os.path.join(self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}")
