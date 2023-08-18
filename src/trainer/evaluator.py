@@ -438,14 +438,33 @@ class Evaluator(TrainerCallback):
         plt.close(fig)
 
     def _plot_results(self):
+        formats = ["png", "svg"]
+
+        # split into in-distribution and out-of-distribution for efficiency and generalisation plots
         df = pd.DataFrame(self.results)
-        for k in set(self.results.keys()).difference({"samples", "model"}):
+        eff_df = df[df["ood"] == False]
+        gen_df = df[df["ood"] == True]
+
+        metrics = set(self.results.keys()).difference({"samples", "model", "seed", "ood"})
+        for m in metrics:
             # for success, we want the percentage success rate, which we
             # can get by taking the mean of the success column multiplied by 100
-            if k == "success":
-                df[k] = df[k] * 100
+            if m == "success":
+                df[m] = df[m] * 100
 
+            # first, do line plot against samples (for sample efficiency)
             fig, ax = plt.subplots()
-            sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
-            fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
+            sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
+            for fmt in formats:
+                fig.savefig(os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}"))
             plt.close(fig)
+
+            # then, do bar plot (for generalisation) (if we have data yet)
+            if len(gen_df) > 0:
+                fig, ax = plt.subplots()
+                sns.barplot(x="model", y=m, data=gen_df, ax=ax)
+                for fmt in formats:
+                    fig.savefig(
+                        os.path.join(self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}")
+                    )
+                plt.close(fig)
