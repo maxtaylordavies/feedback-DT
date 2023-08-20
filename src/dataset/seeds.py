@@ -153,7 +153,7 @@ class SeedFinder:
             "object_task": self._check_object_task,
             "task_task": self._check_task_task,
         }
-        self.seeds_dir = "seeds"
+        self.seeds_dir = os.getenv("SEEDS_DIR") or "seeds"
         if not os.path.exists(self.seeds_dir):
             os.mkdir(self.seeds_dir)
 
@@ -661,8 +661,7 @@ class SeedFinder:
         level_path = os.path.join(self.seeds_dir, level)
         if not os.path.exists(level_path):
             os.mkdir(level_path)
-        config_path = os.path.join(level_path, config)
-        return config_path + ".json"
+        return os.path.join(level_path, config) + ".json"
 
     def load_seeds(self, level, config):
         """
@@ -815,11 +814,13 @@ class SeedFinder:
         return seed in seed_log["validation_seeds"]
 
     def get_train_seeds(self, seed_log):
-        all_seeds = list(range(seed_log["last_seed_tested"] + 1))
+        ceil = seed_log["last_seed_tested"] + 1
+        all_seeds = np.array(range(ceil))
 
         exclude_seeds = seed_log["validation_seeds"]
         for ood_type in seed_log.keys():
-            if "test_seeds" in seed_log[ood_type]:
-                exclude_seeds += seed_log[ood_type]["test_seeds"]
+            if type(seed_log[ood_type]) == dict and "test_seeds" in seed_log[ood_type]:
+                exclude_seeds.extend(seed_log[ood_type]["test_seeds"])
+        exclude_seeds = np.array(exclude_seeds)
 
         return np.setdiff1d(all_seeds, exclude_seeds)
