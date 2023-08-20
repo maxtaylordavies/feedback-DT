@@ -35,6 +35,7 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
+        self.buffer = None
         self.seed_finder = SeedFinder(self.args["num_episodes"])
         self.configs = self._get_configs()
         self.category = self._get_category()
@@ -259,8 +260,9 @@ class CustomDataset:
         if (
             self.buffer
             and len(self.buffer["observations"]) > 0
-            and not np.allzeros(self.buffer["observations"])
+            and np.any(self.buffer["observations"])  # check any nonzero
         ):
+            print("saving buffer to file")
             self._save_buffer_to_minari_file()
 
         max_steps = self._get_level_max_steps()
@@ -311,8 +313,6 @@ class CustomDataset:
         self.buffer["seeds"][self.steps] = seed
 
     def _create_episode(self, config, seed):
-        log("creating episode")
-
         partial_obs, _ = self.env.reset(seed=seed)
         # Storing observation at initial episode timestep t=0 (o_0)
         obs = get_minigrid_obs(
@@ -375,40 +375,36 @@ class CustomDataset:
         episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
             self.args["num_episodes"] % len(self.configs) > 0
         )
-        current_episode = 1
+        current_episode = 0
 
         for config in self.configs:
-            log(f"config: {config}")
+            log(f"config: {config}", with_tqdm=True)
 
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
             train_seeds = self.seed_finder.get_train_seeds(seed_log)
-            log(f"num train seeds: {len(train_seeds)}")
+            log(f"num train seeds: {len(train_seeds)}", with_tqdm=True)
 
-            current_conf_episode = 1
-            while (
-                current_conf_episode < episodes_per_config
-                and current_episode <= self.args["num_episodes"]
-            ):
+            current_conf_episode, done = 0, False
+            while not done:
                 for seed in train_seeds:
-                    log(f"seed: {seed}")
-                    if (
-                        current_conf_episode > episodes_per_config
-                        or seed > seed_log["last_seed_tested"]
-                        or current_episode > self.args["num_episodes"]
+                    seed = int(seed)  # from np.int64
+
+                    done = (
+                        current_conf_episode >= episodes_per_config
+                        or current_episode >= self.args["num_episodes"]
+                    )
+
+                    if done or seed >= seed_log["last_seed_tested"]:
                         # the second condition is here in case we want to use the same set of training seeds multiple times
                         # e.g. if we want to create really big random dataset
                         # and likely this will be necessary to train a PPO agent to convergence for harder levels
                         # this should not result in duplicate trajectories despite the same seeds being used multiple times
                         # when used with random policy, and even when used with the PPO agent as the agent will be at different
                         # model checkpoints at the time the seeds get repeated
-                    ):
                         break
 
-                    # if not self.seed_finder.is_test_seed(
-                    #     seed_log, seed
-                    # ) and not self.seed_finder.is_validation_seed(seed_log, seed):
                     # create and initialise environment
-                    log("creating env")
+                    log("creating env", with_tqdm=True)
                     self.env = gym.make(config)
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
@@ -422,8 +418,8 @@ class CustomDataset:
                     log(f"state_dim: {self.state_dim}")
 
                     # initialise buffer to store replay data
-                    if current_episode == 1:
-                        log("initialising buffer")
+                    if current_episode == 0:
+                        log("initialising buffer", with_tqdm=True)
                         self._flush_buffer(obs.shape, config)
 
                     # feedback verifiers
@@ -439,8 +435,8 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (current_episode % EPS_PER_SHARD == 0) or (
-                        current_episode == self.args["num_episodes"]
+                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"] - 1
                     ):
                         self._flush_buffer(obs.shape, config)
 
