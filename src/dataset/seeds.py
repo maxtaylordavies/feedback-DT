@@ -389,9 +389,9 @@ class SeedFinder:
             tuple: tuple of tuple of x and y quadrant of the agent in the room and maze.
         """
         if self._is_maze(env):
-            return self._agent_pos_to_room_quadrant(
+            return self._agent_pos_to_room_quadrant(env), self._agent_pos_to_maze_quadrant(
                 env
-            ), self._agent_pos_to_maze_quadrant(env)
+            )
         return self._agent_pos_to_room_quadrant(env), None
 
     def _get_possible_room_quadrants(self):
@@ -422,9 +422,7 @@ class SeedFinder:
         """
         return [
             q
-            for q in combinations_with_replacement(
-                [self.iid_num_cols, self.iid_num_rows], 2
-            )
+            for q in combinations_with_replacement([self.iid_num_cols, self.iid_num_rows], 2)
         ]
 
     def _pick_random_room_quadrant(self):
@@ -619,9 +617,9 @@ class SeedFinder:
                 if task.desc.loc and task.desc.loc == self.random_rel_loc:
                     return True
             except AttributeError:
-                if (
-                    task.desc_move.loc and task.desc_move.loc == self.random_rel_loc
-                ) or (task.desc_fixed and task.desc_fixed.loc == self.random_rel_loc):
+                if (task.desc_move.loc and task.desc_move.loc == self.random_rel_loc) or (
+                    task.desc_fixed and task.desc_fixed.loc == self.random_rel_loc
+                ):
                     return True
         return False
 
@@ -745,9 +743,7 @@ class SeedFinder:
                         continue
                     seed_log[ood_type]["test_seeds"].append(seed)
             if not self.is_test_seed(seed_log, seed):
-                if len(seed_log["validation_seeds"]) < (
-                    self.n_validation_seeds_required
-                ):
+                if len(seed_log["validation_seeds"]) < (self.n_validation_seeds_required):
                     seed_log["validation_seeds"].append(seed)
                 seed_log["n_train_seeds"] += 1
             seed_log["last_seed_tested"] = seed
@@ -817,3 +813,13 @@ class SeedFinder:
             bool: True if the seed is in the list of validation seeds, False otherwise.
         """
         return seed in seed_log["validation_seeds"]
+
+    def get_train_seeds(self, seed_log):
+        all_seeds = list(range(seed_log["last_seed_tested"] + 1))
+
+        exclude_seeds = seed_log["validation_seeds"]
+        for ood_type in seed_log.keys():
+            if "test_seeds" in seed_log[ood_type]:
+                exclude_seeds += seed_log[ood_type]["test_seeds"]
+
+        return np.setdiff1d(all_seeds, exclude_seeds)

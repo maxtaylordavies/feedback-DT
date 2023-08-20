@@ -5,6 +5,7 @@ import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
+from tqdm import tqdm
 
 from src.dataset.custom_feedback_verifier import (
     RandomFeedback,
@@ -310,6 +311,8 @@ class CustomDataset:
         self.buffer["seeds"][self.steps] = seed
 
     def _create_episode(self, config, seed):
+        log("creating episode")
+
         partial_obs, _ = self.env.reset(seed=seed)
         # Storing observation at initial episode timestep t=0 (o_0)
         obs = get_minigrid_obs(
@@ -367,19 +370,27 @@ class CustomDataset:
         os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
+        pbar = tqdm(total=self.args["num_episodes"], desc="Generating dataset")
+
         episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
             self.args["num_episodes"] % len(self.configs) > 0
         )
-
         current_episode = 1
+
         for config in self.configs:
+            log(f"config: {config}")
+
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
+            train_seeds = self.seed_finder.get_train_seeds(seed_log)
+            log(f"num train seeds: {len(train_seeds)}")
+
             current_conf_episode = 1
             while (
                 current_conf_episode < episodes_per_config
                 and current_episode <= self.args["num_episodes"]
             ):
-                for seed in range(seed_log["last_seed_tested"] + 1):
+                for seed in train_seeds:
+                    log(f"seed: {seed}")
                     if (
                         current_conf_episode > episodes_per_config
                         or seed > seed_log["last_seed_tested"]
@@ -393,45 +404,50 @@ class CustomDataset:
                     ):
                         break
 
-                    if not self.seed_finder.is_test_seed(
-                        seed_log, seed
-                    ) and not self.seed_finder.is_validation_seed(seed_log, seed):
-                        # create and initialise environment
-                        self.env = gym.make(config)
-                        partial_obs, _ = self.env.reset(seed=seed)
-                        obs = get_minigrid_obs(
-                            self.env,
-                            partial_obs,
-                            self.args["fully_obs"],
-                            self.args["rgb_obs"],
-                        )["image"]
+                    # if not self.seed_finder.is_test_seed(
+                    #     seed_log, seed
+                    # ) and not self.seed_finder.is_validation_seed(seed_log, seed):
+                    # create and initialise environment
+                    log("creating env")
+                    self.env = gym.make(config)
+                    partial_obs, _ = self.env.reset(seed=seed)
+                    obs = get_minigrid_obs(
+                        self.env,
+                        partial_obs,
+                        self.args["fully_obs"],
+                        self.args["rgb_obs"],
+                    )["image"]
 
-                        self.state_dim = np.prod(obs.shape)
+                    self.state_dim = np.prod(obs.shape)
+                    log(f"state_dim: {self.state_dim}")
 
-                        # initialise buffer to store replay data
-                        if current_episode == 1:
-                            self._flush_buffer(obs.shape, config)
+                    # initialise buffer to store replay data
+                    if current_episode == 1:
+                        log("initialising buffer")
+                        self._flush_buffer(obs.shape, config)
 
-                        # feedback verifiers
-                        self.rule_feedback_verifier = RuleFeedback()
-                        self.task_feedback_verifier = TaskFeedback(self.env)
-                        self.random_feedback_verifier = RandomFeedback(
-                            "lorem_ipsum"
-                            if "lorem_ipsum" in self.args["feedback_mode"]
-                            else "random_sentence"
-                        )
+                    # feedback verifiers
+                    self.rule_feedback_verifier = RuleFeedback()
+                    self.task_feedback_verifier = TaskFeedback(self.env)
+                    self.random_feedback_verifier = RandomFeedback(
+                        "lorem_ipsum"
+                        if "lorem_ipsum" in self.args["feedback_mode"]
+                        else "random_sentence"
+                    )
 
-                        # create another episode
-                        self._create_episode(config, seed)
+                    # create another episode
+                    self._create_episode(config, seed)
 
-                        # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                        if (current_episode % EPS_PER_SHARD == 0) or (
-                            current_episode == self.args["num_episodes"]
-                        ):
-                            self._flush_buffer(obs.shape, config)
+                    # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+                    if (current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"]
+                    ):
+                        self._flush_buffer(obs.shape, config)
 
-                        current_episode += 1
-                        current_conf_episode += 1
+                    current_episode += 1
+                    current_conf_episode += 1
+                    pbar.update(1)
+                    pbar.refresh()
 
         self.env.close()
         self._flush_buffer(obs.shape)
