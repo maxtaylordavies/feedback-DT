@@ -80,7 +80,7 @@ class PPOAgent:
             use_text=self.args["text"],
         )
 
-    def _train_agent(self, buffer_callback=None):
+    def _train_agent(self, callback=None):
         """
         Trains the agent for the specified number of frames.
         This corresponds to the train.py script in the original implementation.
@@ -169,8 +169,8 @@ class PPOAgent:
             num_frames += logs["num_frames"]
             update += 1
 
-            if buffer_callback is not None:
-                buffer_callback(exps)
+            if callback is not None:
+                callback(exps, logs)
 
             # Print logs
             if update % self.args["log_interval"] == 0:
