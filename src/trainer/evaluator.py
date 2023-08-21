@@ -21,7 +21,7 @@ from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import log, get_minigrid_obs, normalise
 
 # from .atari_env import AtariEnv
-from .visualiser import Visualiser, AtariVisualiser
+from .visualiser import Visualiser
 
 sns.set_theme()
 
@@ -33,7 +33,7 @@ class Evaluator(TrainerCallback):
         collator,
         sample_interval=20000,
         target_return=90,
-        num_repeats=3,
+        num_repeats=5,
         gamma=0.99,
     ) -> None:
         super().__init__()
@@ -51,6 +51,7 @@ class Evaluator(TrainerCallback):
             if torch.cuda.is_available()
             else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
+        self.seeds = None
 
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(
@@ -60,13 +61,7 @@ class Evaluator(TrainerCallback):
             os.makedirs(self.output_dir)
 
         # initialise a dict to store the evaluation results
-        self.results = {
-            "model": [],
-            "samples": [],
-            "return": [],
-            "episode length": [],
-            # "eval acc": [],
-        }
+        self._init_results()
 
         # # create default missing feedback embeddings
         # self.feedback_embeddings = self.collator.embed_feedback(
@@ -91,16 +86,17 @@ class Evaluator(TrainerCallback):
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
 
-    def on_train_begin(
-        self,
-        args: TrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        model: Agent,
-        **kwargs,
-    ):
-        self._plot_loss(state)
-        self._run_eval_and_plot(model, state)
+    def _init_results(self):
+        self.results = {
+            "model": [],  # "random" or "DT"
+            "samples": [],  # number of training samples processed by model
+            "config": [],  # config used for the episode
+            "seed": [],  # seed used for the episode
+            "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
+            "return": [],  # episode return
+            "episode length": [],  # episode length
+            "success": [],  # whether the episode was successful (bool)
+        }
 
     def on_step_begin(
         self,
@@ -112,44 +108,99 @@ class Evaluator(TrainerCallback):
     ):
         self._plot_loss(state)
 
+        # if this is the first step or we've reached the sample interval, run eval + update plots
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if sample_diff >= self.sample_interval:
-            self._run_eval_and_plot(model, state)
+        if self.samples_processed == 0 or sample_diff >= self.sample_interval:
+            self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
 
-    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, final=False):
+    def on_train_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        self._plot_loss(state)
+        self._run_eval_and_plot(model, state, eval_type="generalisation")
+
+    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, eval_type: str):
+        if eval_type not in ["efficiency", "generalisation"]:
+            raise Exception(f"Unknown eval type: {eval_type}")
+
         log(
-            f"running {'FINAL' if final else ''} evaluation (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
 
-        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
-        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(a, name)
-            # self._evaluate_agent_predictions(a, name)
+        # cycle through configs
+        for config in self.collator.dataset.configs:
+            # sample some seeds for the current config
+            self._load_seed_dict(config)
+            seeds = (
+                self._sample_validation_seeds(n=self.num_repeats)
+                if eval_type == "efficiency"
+                else self._sample_test_seeds(n=self.num_repeats)
+            )
+
+            # run evaluations using both the agent being trained and a random agent (for baseline comparison)
+            for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+                self._evaluate_agent_performance(a, name, config, seeds)
 
         self._plot_results()
 
-    def _create_env(self, atari=False):
-        env_name = self.user_args["level"]
-        # if atari:
-        #     game = env_name.split(":")[1]
-        #     _env = AtariEnv(self.device, game, self.user_args["seed"])
+    def _load_seed_dict(self, config):
+        self.seeds = self.collator.dataset.seed_finder.load_seeds(
+            self.user_args["level"], config
+        )
+
+    def _sample_validation_seeds(self, n=1):
+        if self.seeds is None:
+            raise Exception("No seeds loaded")
+
+        # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
+        return {
+            "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
+        }
+
+    def _sample_test_seeds(self, n=1):
+        if self.seeds is None:
+            raise Exception("No seeds loaded")
+
+        seeds = {}
+        types = [k for k in self.seeds if "seed" not in k]
+        for t in types:
+            seeds[t] = np.random.choice(
+                self.seeds[t]["test_seeds"], size=n, replace=False
+            )
+        return seeds
+
+    def _create_env(self, config, seed):
+        # if "atari" in config:
+        #     game = config.split(":")[1]
+        #     _env = AtariEnv(self.device, game, seed)
         #     return AtariVisualiser(
         #         _env,
         #         self.output_dir,
         #         filename=f"tmp",
-        #         seed=self.user_args["seed"],
+        #         seed=seed,
         #     )
 
-        _env = gym.make("BabyAI-GoToRedBallGrey-v0", render_mode="rgb_array")
-        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=0)
+        _env = gym.make(config, render_mode="rgb_array")
+        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
-    def _record_return(self, env, ret, ep_length, model_name):
+    def _record_result(
+        self, env, config, seed, ood_type, model_name, ret, ep_length, success
+    ):
+        self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
+        self.results["config"].append(config)
+        self.results["seed"].append(seed)
+        self.results["ood_type"].append(ood_type)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
-        self.results["model"].append(model_name)
+        self.results["success"].append(success)
 
         if self.user_args["record_video"]:
             env.release()
@@ -169,17 +220,22 @@ class Evaluator(TrainerCallback):
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
-    def _evaluate_agent_performance(self, agent: Agent, agent_name: str):
-        atari = self.user_args["level"].startswith("atari")
+    def _evaluate_agent_performance(
+        self, agent: Agent, agent_name: str, config: str, seeds, ood=False
+    ):
         # run_agent = (
-        #     self._run_agent_on_atari_env if atari else self._run_agent_on_minigrid_env
+        #     self._run_agent_on_atari_env if "atari" in config else self._run_agent_on_minigrid_env
         # )
         run_agent = self._run_agent_on_minigrid_env
-        # for each repeat, record the episode return (and optionally render a video of the episode)
-        for _ in range(self.num_repeats):
-            env = self._create_env(atari=atari)
-            ret, ep_length = run_agent(agent, env, self.target_return)
-            self._record_return(env, ret, ep_length, agent_name)
+
+        # for each repeat, run agent and record metrics (and optionally render a video of the episode)
+        for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
+            for seed in seeds:
+                env = self._create_env(config, seed)
+                ret, ep_length, success = run_agent(agent, env, self.target_return)
+                self._record_result(
+                    env, config, seed, ood_type, agent_name, ret, ep_length, success
+                )
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
@@ -246,8 +302,7 @@ class Evaluator(TrainerCallback):
                 .to(device=self.device, dtype=torch.float32)
             )
 
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 1000
-
+        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
         obs, _ = env.reset(seed=self.user_args["seed"])
 
         states = get_state(obs)
@@ -303,8 +358,8 @@ class Evaluator(TrainerCallback):
             if done:
                 break
 
-        # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
-        return np.sum(rewards.detach().cpu().numpy()), t
+        success = done and reward > 0
+        return np.sum(rewards.detach().cpu().numpy()), t, success
 
     # def _run_agent_on_atari_env(
     #     self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
@@ -413,11 +468,39 @@ class Evaluator(TrainerCallback):
         plt.close(fig)
 
     def _plot_results(self):
-        df = pd.DataFrame(self.results)
+        formats = ["png", "svg"]
 
-        for k in self.results.keys():
-            if k not in ("samples", "model"):
+        # split into in-distribution and out-of-distribution for efficiency and generalisation plots
+        df = pd.DataFrame(self.results)
+        eff_df = df[df["ood_type"] == ""]
+        gen_df = df[df["ood_type"] != ""]
+
+        metrics = set(self.results.keys()).difference(
+            {"samples", "model", "config", "seed", "ood_type"}
+        )
+        for m in metrics:
+            # for success, we want the percentage success rate, which we
+            # can get by taking the mean of the success column multiplied by 100
+            if m == "success":
+                df[m] = df[m] * 100
+
+            # first, do line plot against samples (for sample efficiency)
+            fig, ax = plt.subplots()
+            sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
+            for fmt in formats:
+                fig.savefig(
+                    os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")
+                )
+            plt.close(fig)
+
+            # then, do bar plot (for generalisation) (if we have data yet)
+            if len(gen_df) > 0:
                 fig, ax = plt.subplots()
-                sns.lineplot(x="samples", y=k, hue="model", data=df, ax=ax)
-                fig.savefig(os.path.join(self.output_dir, f"{k.replace(' ', '_')}.png"))
+                sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
+                for fmt in formats:
+                    fig.savefig(
+                        os.path.join(
+                            self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}"
+                        )
+                    )
                 plt.close(fig)
