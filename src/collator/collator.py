@@ -224,6 +224,8 @@ class RoundRobinCollator:
         self.collator_idx = (self.collator_idx + 1) % len(self.collators)
         self.dataset = self._get_current_dataset()
 
+        return batch
+
     def __call__(self, features):
         batch_size = len(features)
         return self._sample_batch(batch_size)
@@ -257,6 +259,7 @@ class CurriculumCollator:
 
     def update_epoch(self):
         self._update_weights()
+        self.dataset = self._get_current_dataset()
 
     def _update_weights(self):
         n_tasks_to_include = np.argmax(self.weights) + 2
