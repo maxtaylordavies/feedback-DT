@@ -173,6 +173,15 @@ class CustomDataset:
         # to evaluate success for any of the tasks
         return np.random.randint(0, 6)
 
+    def _create_feedback_verifiers(self):
+        self.rule_feedback_verifier = RuleFeedback()
+        self.task_feedback_verifier = TaskFeedback(self.env)
+        self.random_feedback_verifier = RandomFeedback(
+            "lorem_ipsum"
+            if "lorem_ipsum" in self.args["feedback_mode"]
+            else "random_sentence"
+        )
+
     def _get_feedback_constant(self):
         """
         Get the constant feedback string depending on the feedback mode.
@@ -187,7 +196,7 @@ class CustomDataset:
             return np.array(0, dtype=np.float32)
         return "No feedback available."
 
-    def _get_feedback(self, rule_feedback, task_feedback):
+    def _get_feedback(self, action):
         """
         Get the feedback for a given action.
 
@@ -199,6 +208,17 @@ class CustomDataset:
         -------
             str: the feedback.
         """
+        rule_feedback = (
+            self.rule_feedback_verifier.verify_feedback(self.env, action)
+            if self.args["feedback_mode"] in ["all", "rule_only"]
+            else None
+        )
+        task_feedback = (
+            self.task_feedback_verifier.verify_feedback(self.env, action)
+            if self.args["feedback_mode"] in ["all", "task_only"]
+            else None
+        )
+
         if self.args["feedback_mode"] == "random":
             return self.random_feedback_verifier.verify_feedback()
         if self.args["feedback_mode"] == "rule_only":
@@ -331,23 +351,10 @@ class CustomDataset:
             # following the original implementation
             action = self._policy(partial_obs)
             partial_obs, reward, terminated, truncated, _ = self.env.step(action)
-
             obs = get_minigrid_obs(
                 self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
             )
-
-            rule_feedback = (
-                self.rule_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] in ["all", "rule_only"]
-                else None
-            )
-            task_feedback = (
-                self.task_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] in ["all", "task_only"]
-                else None
-            )
-            feedback = self._get_feedback(rule_feedback, task_feedback)
-
+            feedback = self._get_feedback(action)
             reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
@@ -425,13 +432,7 @@ class CustomDataset:
                         self._flush_buffer(obs.shape, config)
 
                     # feedback verifiers
-                    self.rule_feedback_verifier = RuleFeedback()
-                    self.task_feedback_verifier = TaskFeedback(self.env)
-                    self.random_feedback_verifier = RandomFeedback(
-                        "lorem_ipsum"
-                        if "lorem_ipsum" in self.args["feedback_mode"]
-                        else "random_sentence"
-                    )
+                    self._create_feedback_verifiers()
 
                     # create another episode
                     self._create_episode(config, seed)
@@ -643,6 +644,19 @@ class CustomDataset:
         # initialise dataset
         d = cls(args)
 
+        # helper func to set up buffer for env
+        def setup(env):
+            d.env = env
+            d._create_feedback_verifiers()
+            partial_obs, _ = d.env.reset(seed=args["seed"])
+            obs = get_minigrid_obs(
+                d.env,
+                partial_obs,
+                d.args["fully_obs"],
+                d.args["rgb_obs"],
+            )["image"]
+            d._flush_buffer(config=config, obs_shape=obs.shape)
+
         # define callback func for storing data
         def callback(exps, logs):
             obss = exps.obs.image.cpu().numpy()
@@ -654,29 +668,21 @@ class CustomDataset:
                 o = get_minigrid_obs(  # process partial observation
                     d.env, obss[t], args["fully_obs"], args["rgb_obs"]
                 )["image"]
+                f = d._get_feedback(actions[t])
+                r = f if args["feedback_mode"] == "numerical_reward" else rewards[t]
                 d._add_to_buffer(
                     action=actions[t],
                     observation=o,
-                    reward=rewards[t],
+                    reward=r,
+                    feedback=f,
+                    config=config,
                 )
-
-        # helper func to set up buffer for env
-        def setup_buffer(env):
-            d.env = env
-            partial_obs, _ = d.env.reset(seed=args["seed"])
-            obs = get_minigrid_obs(
-                d.env,
-                partial_obs,
-                d.args["fully_obs"],
-                d.args["rgb_obs"],
-            )["image"]
-            d._flush_buffer(config=config, obs_shape=obs.shape)
 
         # train a PPO agent for each config
         for config in tqdm(d.configs):
             log(f"config: {config}", with_tqdm=True)
             ppo = PPOAgent(env_name=config, seed=args["seed"], n_frames=args["ppo_frames"])
-            setup_buffer(ppo.env)
+            setup(ppo.env)
             ppo._train_agent(callback=callback)
 
         # return dataset
