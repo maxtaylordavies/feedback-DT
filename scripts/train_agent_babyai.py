@@ -26,7 +26,7 @@ args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "curriculum"
+args["train_mode"] = "round_robin"
 
 frame_size = 64 if args["fully_obs"] else 56
 
@@ -57,8 +57,8 @@ else:
 if not "single" in args["train_mode"]:
     log("Creating dataset...with multiple tasks.")
     dataset = []
-    for config in list(LEVELS_CONFIGS["original_tasks"].keys())[:3]:
-        args["level"] = config
+    for level in list(LEVELS_CONFIGS["original_tasks"].keys())[:3]:
+        args["level"] = level
         dataset.append(CustomDataset.get_dataset(args))
     args["epochs"] = max(args["epochs"], len(dataset))  # + len(datasets) // 4
 else:
@@ -88,10 +88,6 @@ else:
         context_length=args["context_length"],
     )
 
-# for epoch in range(0, args["epochs"]):
-#     batch = collator(features)
-#     collator.update_epoch()
-
 log("creating agent...")
 agent = MinigridFDTAgent(
     config=DecisionTransformerConfig(
@@ -106,7 +102,7 @@ log("creating trainer...")
 trainer = AgentTrainer(
     agent=agent,
     collator=collator,
-    dataset=dataset,
+    dataset=collator.dataset,
     args=args,
 )
 

@@ -187,10 +187,14 @@ class RoundRobinCollator:
     """
 
     def __init__(self, custom_dataset):
-        self.collators = [Collator(dataset) for dataset in custom_dataset]
+        self.datasets = custom_dataset
+        self.collators = [Collator(dataset) for dataset in self.datasets]
         random.shuffle(self.collators)
         self.collator_idx = 0
         self.reset_counter()
+        self.dataset = self._get_current_dataset()
+        self.state_dim = self.dataset.state_dim
+        self.act_dim = self.dataset.act_dim
 
     def reset_counter(self):
         self.samples_processed = 0
@@ -204,9 +208,12 @@ class RoundRobinCollator:
         n_first_timesteps = batch["timesteps"].shape[0]
         return n_non_zero + n_first_timesteps
 
+    def _get_current_dataset(self):
+        return self.datasets[self.collator_idx]
+
     def _sample_batch(self, batch_size, train=True):
         collator = self.collators[self.collator_idx]
-        features = np.zeros((batch_size, 1))
+        features = np.zeros(batch_size)
         batch = collator(features)
         if train:
             self.samples_processed_by_level[
@@ -215,6 +222,7 @@ class RoundRobinCollator:
             self.samples_processed += self._count_samples_processed(batch)
 
         self.collator_idx = (self.collator_idx + 1) % len(self.collators)
+        self.dataset = self._get_current_dataset()
 
     def __call__(self, features):
         batch_size = len(features)
