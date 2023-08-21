@@ -170,7 +170,7 @@ class PPOAgent:
             update += 1
 
             if callback is not None:
-                callback(exps, logs)
+                callback(exps, logs, self.args["env"], self.args["seed"])
 
             # Print logs
             if update % self.args["log_interval"] == 0:

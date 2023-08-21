@@ -658,10 +658,14 @@ class CustomDataset:
             d._flush_buffer(config=config, obs_shape=obs.shape)
 
         # define callback func for storing data
-        def callback(exps, logs):
+        def callback(exps, logs, config, seed):
             obss = exps.obs.image.cpu().numpy()
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
+
+            # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
+            # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
+            terminations = 1 - exps.mask.cpu().numpy()
 
             num_timesteps = obss.shape[0]
             for t in range(num_timesteps):
@@ -675,7 +679,9 @@ class CustomDataset:
                     observation=o,
                     reward=r,
                     feedback=f,
+                    terminated=terminations[t],
                     config=config,
+                    seed=seed,
                 )
 
         # train a PPO agent for each config
