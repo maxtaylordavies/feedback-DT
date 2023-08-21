@@ -35,6 +35,7 @@ class CustomDataset:
         self.args = args
         self.shard = None
         self.seed_finder = SeedFinder(self.args["num_episodes"])
+        self.level = self.args["level"]
         self.configs = self._get_configs()
         self.category = self._get_category()
 

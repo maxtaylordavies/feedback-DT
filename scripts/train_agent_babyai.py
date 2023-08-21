@@ -26,7 +26,7 @@ args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "round-robin"
+args["train_mode"] = "curriculum"
 
 frame_size = 64 if args["fully_obs"] else 56
 
@@ -56,11 +56,11 @@ else:
 
 if not "single" in args["train_mode"]:
     log("Creating dataset...with multiple tasks.")
-    datasets = []
+    dataset = []
     for config in list(LEVELS_CONFIGS["original_tasks"].keys())[:3]:
         args["level"] = config
-        datasets.append(CustomDataset.get_dataset(args))
-    args["epochs"] = max(args["epochs"], len(datasets))  # + len(datasets) // 4
+        dataset.append(CustomDataset.get_dataset(args))
+    args["epochs"] = max(args["epochs"], len(dataset))  # + len(datasets) // 4
 else:
     log("Creating dataset...with a single task.")
     dataset = CustomDataset.get_dataset(args)
@@ -71,13 +71,13 @@ features = np.zeros(64)
 
 if "round" in args["train_mode"]:
     log("Creating round-robin collator...")
-    collator = RoundRobinCollator(custom_dataset=datasets)
+    collator = RoundRobinCollator(custom_dataset=dataset)
 elif "curriculum" in args["train_mode"]:
     log(
         f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
     )
     collator = CurriculumCollator(
-        custom_dataset=datasets, anti=False if "anti" in args["train_mode"] else True
+        custom_dataset=dataset, anti=False if "anti" in args["train_mode"] else True
     )
 else:
     log("Creating standard single-task collator...")
@@ -88,27 +88,27 @@ else:
         context_length=args["context_length"],
     )
 
-for epoch in range(0, args["epochs"]):
-    batch = collator(features)
-    collator.update_epoch()
+# for epoch in range(0, args["epochs"]):
+#     batch = collator(features)
+#     collator.update_epoch()
 
-# log("creating agent...")
-# agent = MinigridFDTAgent(
-#     config=DecisionTransformerConfig(
-#         state_dim=collator.state_dim,
-#         act_dim=collator.act_dim,
-#         state_shape=(3, frame_size, frame_size),
-#         max_length=args["context_length"],
-#     )
-# )
+log("creating agent...")
+agent = MinigridFDTAgent(
+    config=DecisionTransformerConfig(
+        state_dim=collator.state_dim,
+        act_dim=collator.act_dim,
+        state_shape=(3, frame_size, frame_size),
+        max_length=args["context_length"],
+    )
+)
 
-# log("creating trainer...")
-# trainer = AgentTrainer(
-#     agent=agent,
-#     collator=collator,
-#     dataset=dataset,
-#     args=args,
-# )
+log("creating trainer...")
+trainer = AgentTrainer(
+    agent=agent,
+    collator=collator,
+    dataset=dataset,
+    args=args,
+)
 
-# log("training agent...")
-# trainer.train()
+log("training agent...")
+trainer.train()

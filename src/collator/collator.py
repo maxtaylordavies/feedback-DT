@@ -227,13 +227,17 @@ class CurriculumCollator:
     """
 
     def __init__(self, custom_dataset, anti=False):
+        self.datasets = custom_dataset
         self.collators = (
-            [Collator(dataset) for dataset in custom_dataset]
+            [Collator(dataset) for dataset in self.datasets]
             if not anti
-            else [Collator(dataset) for dataset in reversed(custom_dataset)]
+            else [Collator(dataset) for dataset in reversed(self.datasets)]
         )
+        self.state_dim = self.datasets[0].state_dim
+        self.act_dim = self.datasets[0].act_dim
         self.reset_counter()
         self.reset_weights()
+        self.dataset = self._get_current_dataset()
 
     def reset_counter(self):
         self.samples_processed = 0
@@ -253,6 +257,9 @@ class CurriculumCollator:
             for idx in range(n_tasks_to_include):
                 self.weights[idx] = (idx + 1) / triangle
         print(self.weights)
+
+    def _get_current_dataset(self):
+        return self.datasets[np.argmax(self.weights)]
 
     def _count_samples_processed(self, batch):
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))

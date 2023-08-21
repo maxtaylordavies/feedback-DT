@@ -148,11 +148,13 @@ class Evaluator(TrainerCallback):
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
                 self._evaluate_agent_performance(a, name, config, seeds)
 
+        self.collator.update_epoch()
+
         self._plot_results()
 
     def _load_seed_dict(self, config):
         self.seeds = self.collator.dataset.seed_finder.load_seeds(
-            self.user_args["level"], config
+            self.collator.dataset.level, config
         )
 
     def _sample_validation_seeds(self, n=1):
@@ -169,7 +171,9 @@ class Evaluator(TrainerCallback):
             raise Exception("No seeds loaded")
 
         seeds = {}
-        types = [k for k in self.seeds if "seed" not in k]
+        types = [
+            k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]
+        ]
         for t in types:
             seeds[t] = np.random.choice(
                 self.seeds[t]["test_seeds"], size=n, replace=False
@@ -462,7 +466,7 @@ class Evaluator(TrainerCallback):
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
-        losses = [x["loss"] for x in state.log_history]
+        losses = [x["loss"] for x in state.log_history[:-1]]
         sns.lineplot(x=range(len(losses)), y=losses, ax=ax)
         fig.savefig(os.path.join(self.output_dir, "loss.png"))
         plt.close(fig)
