@@ -269,7 +269,7 @@ class CustomDataset:
         self.buffer = {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            # "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
+            "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
@@ -299,40 +299,6 @@ class CustomDataset:
         config=None,
         seed=None,
     ):
-        if np.isscalar(action):
-            self._add_to_buffer_single(
-                action,
-                observation,
-                reward,
-                feedback=feedback,
-                terminated=terminated,
-                truncated=truncated,
-                config=config,
-                seed=seed,
-            )
-        else:
-            self._add_to_buffer_multi(
-                action,
-                observation,
-                reward,
-                feedback=feedback,
-                terminated=terminated,
-                truncated=truncated,
-                config=config,
-                seed=seed,
-            )
-
-    def _add_to_buffer_single(
-        self,
-        action,
-        observation,
-        reward,
-        feedback=None,
-        terminated=None,
-        truncated=None,
-        config=None,
-        seed=None,
-    ):
         # store action a_t taken after observing o_t
         self.buffer["actions"][self.steps] = action
 
@@ -351,23 +317,6 @@ class CustomDataset:
             self.buffer["configs"][self.steps] = config
         if seed:
             self.buffer["seeds"][self.steps] = seed
-
-    def _add_to_buffer_multi(
-        self,
-        action,
-        observation,
-        reward,
-        feedback=None,
-        terminated=None,
-        truncated=None,
-        config=None,
-        seed=None,
-    ):
-        n = len(action)
-        self.buffer["actions"][self.steps : self.steps + n] = action
-        self.buffer["observations"][self.steps : self.steps + n] = observation
-        self.buffer["rewards"][self.steps : self.steps + n] = reward
-        self.steps += n
 
     def _create_episode(self, config, seed):
         partial_obs, _ = self.env.reset(seed=seed)
@@ -693,19 +642,41 @@ class CustomDataset:
     def from_ppo_training(cls, args):
         # initialise dataset
         d = cls(args)
-        d._flush_buffer(obs_shape=(7, 7, 3))
 
         # define callback func for storing data
         def callback(exps, logs):
-            o = exps.obs.image.cpu().numpy()
-            a = exps.action.cpu().numpy().reshape(-1, 1)
-            r = exps.reward.cpu().numpy().reshape(-1, 1)
-            d._add_to_buffer(a, o, r)
+            obss = exps.obs.image.cpu().numpy()
+            actions = exps.action.cpu().numpy().reshape(-1, 1)
+            rewards = exps.reward.cpu().numpy().reshape(-1, 1)
+
+            num_timesteps = obss.shape[0]
+            for t in range(num_timesteps):
+                o = get_minigrid_obs(  # process partial observation
+                    d.env, obss[t], args["fully_obs"], args["rgb_obs"]
+                )["image"]
+                d._add_to_buffer(
+                    action=actions[t],
+                    observation=o,
+                    reward=rewards[t],
+                )
+
+        # helper func to set up buffer for env
+        def setup_buffer(env):
+            d.env = env
+            partial_obs, _ = d.env.reset(seed=args["seed"])
+            obs = get_minigrid_obs(
+                d.env,
+                partial_obs,
+                d.args["fully_obs"],
+                d.args["rgb_obs"],
+            )["image"]
+            d._flush_buffer(config=config, obs_shape=obs.shape)
 
         # train a PPO agent for each config
         for config in tqdm(d.configs):
             log(f"config: {config}", with_tqdm=True)
             ppo = PPOAgent(env_name=config, seed=args["seed"], n_frames=args["ppo_frames"])
+            setup_buffer(ppo.env)
             ppo._train_agent(callback=callback)
 
         # return dataset
