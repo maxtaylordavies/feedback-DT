@@ -15,18 +15,9 @@ import threading
 
 LEVELS_CONFIGS = {
     "original_tasks": {
+        "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0"],
         "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
         "GoToRedBall": ["BabyAI-GoToRedBall-v0"],
-        "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0"],
-        "GoToObjMaze": [
-            "BabyAI-GoToObjMaze-v0",
-            "BabyAI-GoToObjMazeOpen-v0",
-            "BabyAI-GoToObjMazeS4R2-v0",
-            "BabyAI-GoToObjMazeS4-v0",
-            "BabyAI-GoToObjMazeS5-v0",
-            "BabyAI-GoToObjMazeS6-v0",
-            "BabyAI-GoToObjMazeS7-v0",
-        ],
         "GoToLocal": [
             "BabyAI-GoToLocal-v0",
             "BabyAI-GoToLocalS5N2-v0",
@@ -42,21 +33,29 @@ LEVELS_CONFIGS = {
             "BabyAI-GoToLocalS8N6-v0",
             "BabyAI-GoToLocalS8N7-v0",
         ],
-        "GoTo": [
-            "BabyAI-GoTo-v0",
-            "BabyAI-GoToOpen-v0",
-        ],
-        "GoToImpUnlock": ["BabyAI-GoToImpUnlock-v0"],
-        "GoToSeq": ["BabyAI-GoToSeq-v0", "BabyAI-GoToSeqS5R2-v0"],
-        "Open": ["BabyAI-Open-v0"],
-        "Pickup": ["BabyAI-Pickup-v0"],
-        "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
-        "PickupLoc": ["BabyAI-PickupLoc-v0"],
         "PutNextLocal": [
             "BabyAI-PutNextLocal-v0",
             "BabyAI-PutNextLocalS5N3-v0",
             "BabyAI-PutNextLocalS6N4-v0",
         ],
+        "PickupLoc": ["BabyAI-PickupLoc-v0"],
+        "GoToObjMaze": [
+            "BabyAI-GoToObjMaze-v0",
+            "BabyAI-GoToObjMazeOpen-v0",
+            "BabyAI-GoToObjMazeS4R2-v0",
+            "BabyAI-GoToObjMazeS4-v0",
+            "BabyAI-GoToObjMazeS5-v0",
+            "BabyAI-GoToObjMazeS6-v0",
+            "BabyAI-GoToObjMazeS7-v0",
+        ],
+        "GoTo": [
+            "BabyAI-GoTo-v0",
+            "BabyAI-GoToOpen-v0",
+        ],
+        "Pickup": ["BabyAI-Pickup-v0"],
+        "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
+        "Open": ["BabyAI-Open-v0"],
+        "Unlock": ["BabyAI-Unlock-v0"],
         # "PutNext": [
         #     "BabyAI-PutNextS4N1-v0",
         #     "BabyAI-PutNextS5N1-v0",
@@ -64,10 +63,11 @@ LEVELS_CONFIGS = {
         #     "BabyAI-PutNextS6N3-v0",
         #     "BabyAI-PutNextS7N4-v0",
         # ],
-        "Unlock": ["BabyAI-Unlock-v0"],
         "Synth": ["BabyAI-Synth-v0"],
         "SynthLoc": ["BabyAI-SynthLoc-v0"],
+        "GoToSeq": ["BabyAI-GoToSeq-v0", "BabyAI-GoToSeqS5R2-v0"],
         "SynthSeq": ["BabyAI-SynthSeq-v0"],
+        "GoToImpUnlock": ["BabyAI-GoToImpUnlock-v0"],
         "BossLevel": ["BabyAI-BossLevel-v0"],
     },
     "new_tasks": {
