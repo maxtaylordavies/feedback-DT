@@ -313,11 +313,11 @@ class CustomDataset:
         action,
         observation,
         reward,
-        feedback=None,
-        terminated=None,
-        truncated=None,
-        config=None,
-        seed=None,
+        feedback,
+        terminated,
+        truncated,
+        config,
+        seed,
     ):
         # store action a_t taken after observing o_t
         self.buffer["actions"][self.steps] = action
@@ -326,17 +326,11 @@ class CustomDataset:
         self.steps += 1
         self.buffer["observations"][self.steps] = observation
         self.buffer["rewards"][self.steps] = reward
-
-        if feedback:
-            self.buffer["feedback"][self.steps] = feedback
-        if terminated:
-            self.buffer["terminations"][self.steps] = terminated
-        if truncated:
-            self.buffer["truncations"][self.steps] = truncated
-        if config:
-            self.buffer["configs"][self.steps] = config
-        if seed:
-            self.buffer["seeds"][self.steps] = seed
+        self.buffer["feedback"][self.steps] = feedback
+        self.buffer["terminations"][self.steps] = terminated
+        self.buffer["truncations"][self.steps] = truncated
+        self.buffer["configs"][self.steps] = config
+        self.buffer["seeds"][self.steps] = seed
 
     def _create_episode(self, config, seed):
         partial_obs, _ = self.env.reset(seed=seed)
@@ -680,6 +674,7 @@ class CustomDataset:
                     reward=r,
                     feedback=f,
                     terminated=terminations[t],
+                    truncated=0,
                     config=config,
                     seed=seed,
                 )
@@ -687,7 +682,15 @@ class CustomDataset:
         # train a PPO agent for each config
         for config in tqdm(d.configs):
             log(f"config: {config}", with_tqdm=True)
-            ppo = PPOAgent(env_name=config, seed=args["seed"], n_frames=args["ppo_frames"])
+
+            # choose random seed from train seeds
+            seed_log = d.seed_finder.load_seeds(d.args["level"], config)
+            train_seeds = d.seed_finder.get_train_seeds(seed_log)
+            seed = int(np.random.choice(train_seeds))
+            log(f"using seed {seed}", with_tqdm=True)
+
+            # train PPO agent
+            ppo = PPOAgent(env_name=config, seed=seed, n_frames=args["ppo_frames"])
             setup(ppo.env)
             ppo._train_agent(callback=callback)
 
