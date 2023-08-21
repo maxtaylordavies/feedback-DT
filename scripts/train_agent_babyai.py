@@ -26,7 +26,7 @@ args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "curriculum"
+args["train_mode"] = "round-robin"
 
 frame_size = 64 if args["fully_obs"] else 56
 

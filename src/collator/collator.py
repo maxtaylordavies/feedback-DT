@@ -190,20 +190,31 @@ class RoundRobinCollator:
         self.collators = [Collator(dataset) for dataset in custom_dataset]
         random.shuffle(self.collators)
         self.collator_idx = 0
+        self.reset_counter()
 
     def reset_counter(self):
         self.samples_processed = 0
+        self.samples_processed_by_level = {key: 0 for key in range(len(self.collators))}
 
     def update_epoch(self):
         pass
 
+    def _count_samples_processed(self, batch):
+        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        n_first_timesteps = batch["timesteps"].shape[0]
+        return n_non_zero + n_first_timesteps
+
     def _sample_batch(self, batch_size, train=True):
         collator = self.collators[self.collator_idx]
         features = np.zeros((batch_size, 1))
-        self.collator_idx = (self.collator_idx + 1) % len(self.collators)
         batch = collator(features)
         if train:
-            self.samples_processed += np.prod(batch["timesteps"].shape)
+            self.samples_processed_by_level[
+                self.collator_idx
+            ] += self._count_samples_processed(batch)
+            self.samples_processed += self._count_samples_processed(batch)
+
+        self.collator_idx = (self.collator_idx + 1) % len(self.collators)
 
     def __call__(self, features):
         batch_size = len(features)
@@ -226,6 +237,7 @@ class CurriculumCollator:
 
     def reset_counter(self):
         self.samples_processed = 0
+        self.samples_processed_by_level = {key: 0 for key in range(len(self.collators))}
 
     def reset_weights(self):
         self.weights = np.zeros(len(self.collators))
@@ -242,6 +254,11 @@ class CurriculumCollator:
                 self.weights[idx] = (idx + 1) / triangle
         print(self.weights)
 
+    def _count_samples_processed(self, batch):
+        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        n_first_timesteps = batch["timesteps"].shape[0]
+        return n_non_zero + n_first_timesteps
+
     def _sample_batch(self, batch_size, train=True):
         features = np.zeros(batch_size)
         sampler = WeightedRandomSampler(self.weights, batch_size)
@@ -249,7 +266,11 @@ class CurriculumCollator:
             self.collators[dataset_idx](features[:n_samples])
             for dataset_idx, n_samples in Counter(list(sampler)).items()
         ]
-
+        if train:
+            for level, batch in enumerate(sampled_batches):
+                self.samples_processed_by_level[level] += self._count_samples_processed(
+                    batch
+                )
         mixed_batch = {}
         for batch in sampled_batches:
             for key, tensor in batch.items():
@@ -259,7 +280,7 @@ class CurriculumCollator:
                     mixed_batch[key] = tensor
 
         if train:
-            self.samples_processed += np.prod(mixed_batch["timesteps"].shape)
+            self.samples_processed += self._count_samples_processed(mixed_batch)
 
         return mixed_batch
 
