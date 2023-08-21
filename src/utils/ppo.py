@@ -18,15 +18,15 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seed, n_frames, medium=True):
+    def __init__(self, env_name, seeds, n_frames, medium=True):
         self.args = {
             "algo": "ppo",
             "env": env_name,
             "model": None,
-            "seed": seed,
+            "seeds": seeds,
             "log_interval": 1,
             "save_interval": 10,
-            "procs": 16,
+            "procs": len(seeds),
             "frames": n_frames,
             "epochs": 4,
             "batch_size_ppo": 256,
@@ -48,7 +48,7 @@ class PPOAgent:
         }
         self.medium = medium
         self.args["mem"] = self.args["recurrence"] > 1
-        self.env = utils.make_env(self.args["env"], self.args["seed"])
+        self.env = utils.make_env(self.args["env"], self.args["seeds"][0])
         self.env.reset()
         self.model_dir = self._get_model_dir()
         # self.model = self._get_model()
@@ -57,7 +57,9 @@ class PPOAgent:
         """
         Returns the path to the directory where the model weights are saved.
         """
-        default_model_name = f"{self.args['env']}_{self.args['algo']}_seed{self.args['seed']}_frames{self.args['frames']}"
+        default_model_name = (
+            f"{self.args['env']}_{self.args['algo']}_frames{self.args['frames']}"
+        )
         model_name = self.args["model"] or default_model_name
         return os.path.join("external_rl", utils.get_model_dir(model_name))
 
@@ -95,15 +97,15 @@ class PPOAgent:
         txt_logger.info(f"{self.args}\n")
 
         # Set seed for all randomness sources
-        utils.seed(self.args["seed"])
+        utils.seed(self.args["seeds"][0])
 
         # Set device
         txt_logger.info(f"Device: {device}\n")
 
         # Load environments
         envs = []
-        for i in range(self.args["procs"]):
-            envs.append(utils.make_env(self.args["env"], self.args["seed"] + 10000 * i))
+        for s in self.args["seeds"]:
+            envs.append(utils.make_env(self.args["env"], s))
         txt_logger.info("Environments loaded\n")
 
         # Load training status
@@ -170,7 +172,7 @@ class PPOAgent:
             update += 1
 
             if callback is not None:
-                callback(exps, logs, self.args["env"], self.args["seed"])
+                callback(exps, logs, self.args["env"], self.args["seeds"])
 
             # Print logs
             if update % self.args["log_interval"] == 0:

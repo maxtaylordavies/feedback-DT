@@ -652,7 +652,7 @@ class CustomDataset:
             d._flush_buffer(config=config, obs_shape=obs.shape)
 
         # define callback func for storing data
-        def callback(exps, logs, config, seed):
+        def callback(exps, logs, config, seeds):
             obss = exps.obs.image.cpu().numpy()
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
@@ -676,21 +676,27 @@ class CustomDataset:
                     terminated=terminations[t],
                     truncated=0,
                     config=config,
-                    seed=seed,
+                    seed=seeds[0],
                 )
 
         # train a PPO agent for each config
         for config in tqdm(d.configs):
             log(f"config: {config}", with_tqdm=True)
 
-            # choose random seed from train seeds
+            # choose random subset of train seeds for this config
             seed_log = d.seed_finder.load_seeds(d.args["level"], config)
             train_seeds = d.seed_finder.get_train_seeds(seed_log)
-            seed = int(np.random.choice(train_seeds))
-            log(f"using seed {seed}", with_tqdm=True)
+            seeds = [
+                int(s)  # from np.int64
+                for s in np.random.choice(
+                    train_seeds, size=args["ppo_seeds_per_config"], replace=False
+                )
+            ]
+
+            log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seed=seed, n_frames=args["ppo_frames"])
+            ppo = PPOAgent(env_name=config, seeds=seeds, n_frames=args["ppo_frames"])
             setup(ppo.env)
             ppo._train_agent(callback=callback)
 
