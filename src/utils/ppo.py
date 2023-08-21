@@ -46,12 +46,12 @@ class PPOAgent:
             "text": True,
             "argmax": True,
         }
+        self.medium = medium
         self.args["mem"] = self.args["recurrence"] > 1
         self.env = utils.make_env(self.args["env"], self.args["seed"])
         self.env.reset()
         self.model_dir = self._get_model_dir()
-        self.model = self._get_model()
-        self.medium = medium
+        # self.model = self._get_model()
 
     def _get_model_dir(self):
         """

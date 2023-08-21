@@ -269,7 +269,7 @@ class CustomDataset:
         self.buffer = {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
+            # "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
@@ -293,11 +293,45 @@ class CustomDataset:
         action,
         observation,
         reward,
-        feedback,
-        terminated,
-        truncated,
-        config,
-        seed,
+        feedback=None,
+        terminated=None,
+        truncated=None,
+        config=None,
+        seed=None,
+    ):
+        if np.isscalar(action):
+            self._add_to_buffer_single(
+                action,
+                observation,
+                reward,
+                feedback=feedback,
+                terminated=terminated,
+                truncated=truncated,
+                config=config,
+                seed=seed,
+            )
+        else:
+            self._add_to_buffer_multi(
+                action,
+                observation,
+                reward,
+                feedback=feedback,
+                terminated=terminated,
+                truncated=truncated,
+                config=config,
+                seed=seed,
+            )
+
+    def _add_to_buffer_single(
+        self,
+        action,
+        observation,
+        reward,
+        feedback=None,
+        terminated=None,
+        truncated=None,
+        config=None,
+        seed=None,
     ):
         # store action a_t taken after observing o_t
         self.buffer["actions"][self.steps] = action
@@ -306,11 +340,34 @@ class CustomDataset:
         self.steps += 1
         self.buffer["observations"][self.steps] = observation
         self.buffer["rewards"][self.steps] = reward
-        self.buffer["feedback"][self.steps] = feedback
-        self.buffer["terminations"][self.steps] = terminated
-        self.buffer["truncations"][self.steps] = truncated
-        self.buffer["configs"][self.steps] = config
-        self.buffer["seeds"][self.steps] = seed
+
+        if feedback:
+            self.buffer["feedback"][self.steps] = feedback
+        if terminated:
+            self.buffer["terminations"][self.steps] = terminated
+        if truncated:
+            self.buffer["truncations"][self.steps] = truncated
+        if config:
+            self.buffer["configs"][self.steps] = config
+        if seed:
+            self.buffer["seeds"][self.steps] = seed
+
+    def _add_to_buffer_multi(
+        self,
+        action,
+        observation,
+        reward,
+        feedback=None,
+        terminated=None,
+        truncated=None,
+        config=None,
+        seed=None,
+    ):
+        n = len(action)
+        self.buffer["actions"][self.steps : self.steps + n] = action
+        self.buffer["observations"][self.steps : self.steps + n] = observation
+        self.buffer["rewards"][self.steps : self.steps + n] = reward
+        self.steps += n
 
     def _create_episode(self, config, seed):
         partial_obs, _ = self.env.reset(seed=seed)
@@ -342,19 +399,15 @@ class CustomDataset:
             )
             feedback = self._get_feedback(rule_feedback, task_feedback)
 
-            reward = (
-                feedback
-                if self.args["feedback_mode"] == "numerical_reward"
-                else np.array(reward)
-            )
+            reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
-                action=np.array(action),
+                action=action,
                 observation=obs["image"],
                 reward=reward,
                 feedback=feedback,
-                terminated=np.array(terminated),
-                truncated=np.array(truncated),
+                terminated=terminated,
+                truncated=truncated,
                 config=config,
                 seed=seed,
             )
@@ -635,6 +688,28 @@ class CustomDataset:
             episode_terminals=None,
             discrete_action=True,
         )
+
+    @classmethod
+    def from_ppo_training(cls, args):
+        # initialise dataset
+        d = cls(args)
+        d._flush_buffer(obs_shape=(7, 7, 3))
+
+        # define callback func for storing data
+        def callback(exps, logs):
+            o = exps.obs.image.cpu().numpy()
+            a = exps.action.cpu().numpy().reshape(-1, 1)
+            r = exps.reward.cpu().numpy().reshape(-1, 1)
+            d._add_to_buffer(a, o, r)
+
+        # train a PPO agent for each config
+        for config in tqdm(d.configs):
+            log(f"config: {config}", with_tqdm=True)
+            ppo = PPOAgent(env_name=config, seed=args["seed"], n_frames=args["ppo_frames"])
+            ppo._train_agent(callback=callback)
+
+        # return dataset
+        return d
 
 
 # helper func to load a dopamine buffer from dqn replay logs
