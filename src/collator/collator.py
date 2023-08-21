@@ -1,11 +1,15 @@
+import random
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
+from torch.utils.data import WeightedRandomSampler
 
 from src.dataset.custom_dataset import CustomDataset
 from src.utils.utils import log
+from torch.utils.data import WeightedRandomSampler
+from collections import Counter
 
 
 @dataclass
@@ -51,10 +55,14 @@ class Collator:
         )
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._feedback_embeddings_cache = {f: null_emb for f in ["", "No feedback available"]}
+        self._feedback_embeddings_cache = {
+            f: null_emb for f in ["", "No feedback available"]
+        }
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._mission_embeddings_cache = {m: null_emb for m in ["", "No mission available"]}
+        self._mission_embeddings_cache = {
+            m: null_emb for m in ["", "No mission available"]
+        }
 
         self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
@@ -64,6 +72,9 @@ class Collator:
 
     def reset_counter(self):
         self.samples_processed = 0
+
+    def update_epoch(self):
+        pass
 
     def _compute_sentence_embedding(self, sentence):
         return self.sentence_embedding_downsampler(
@@ -117,7 +128,9 @@ class Collator:
         self.dataset.load_shard()
 
         # sample episode indices according to self.episode_dist
-        episode_indices = self.dataset.sample_episode_indices(batch_size, self.episode_dist)
+        episode_indices = self.dataset.sample_episode_indices(
+            batch_size, self.episode_dist
+        )
 
         # sample a subsequence of each chosen episode
         length = self.context_length if not full else None
@@ -156,6 +169,99 @@ class Collator:
             self.samples_processed += np.prod(batch["timesteps"].shape)
 
         return batch
+
+    def __call__(self, features):
+        batch_size = len(features)
+        return self._sample_batch(batch_size)
+
+
+class RoundRobinCollator:
+    """
+    Class to implement round-robin learning by cycling through a list of collators.
+
+    Args:
+        datasets (list): list of CustomDataset objects to cycle through.
+
+    Returns:
+        Collator: a collator object that samples a batch from a different dataset each time it is called.
+    """
+
+    def __init__(self, custom_dataset):
+        self.collators = [Collator(dataset) for dataset in custom_dataset]
+        random.shuffle(self.collators)
+        self.collator_idx = 0
+
+    def reset_counter(self):
+        self.samples_processed = 0
+
+    def update_epoch(self):
+        pass
+
+    def _sample_batch(self, batch_size, train=True):
+        collator = self.collators[self.collator_idx]
+        features = np.zeros((batch_size, 1))
+        self.collator_idx = (self.collator_idx + 1) % len(self.collators)
+        batch = collator(features)
+        if train:
+            self.samples_processed += np.prod(batch["timesteps"].shape)
+
+    def __call__(self, features):
+        batch_size = len(features)
+        return self._sample_batch(batch_size)
+
+
+class CurriculumCollator:
+    """
+    Class to implement curriculum learning by composing weighted batches from a list of collators.
+    """
+
+    def __init__(self, custom_dataset, anti=False):
+        self.collators = (
+            [Collator(dataset) for dataset in custom_dataset]
+            if not anti
+            else [Collator(dataset) for dataset in reversed(custom_dataset)]
+        )
+        self.reset_counter()
+        self.reset_weights()
+
+    def reset_counter(self):
+        self.samples_processed = 0
+
+    def reset_weights(self):
+        self.weights = np.zeros(len(self.collators))
+        self.weights[0] = 1
+
+    def update_epoch(self):
+        self._update_weights()
+
+    def _update_weights(self):
+        n_tasks_to_include = np.argmax(self.weights) + 2
+        triangle = n_tasks_to_include * (n_tasks_to_include + 1) / 2
+        if n_tasks_to_include <= len(self.collators):
+            for idx in range(n_tasks_to_include):
+                self.weights[idx] = (idx + 1) / triangle
+        print(self.weights)
+
+    def _sample_batch(self, batch_size, train=True):
+        features = np.zeros(batch_size)
+        sampler = WeightedRandomSampler(self.weights, batch_size)
+        sampled_batches = [
+            self.collators[dataset_idx](features[:n_samples])
+            for dataset_idx, n_samples in Counter(list(sampler)).items()
+        ]
+
+        mixed_batch = {}
+        for batch in sampled_batches:
+            for key, tensor in batch.items():
+                try:
+                    mixed_batch[key] = torch.cat((mixed_batch[key], tensor), dim=0)
+                except KeyError:
+                    mixed_batch[key] = tensor
+
+        if train:
+            self.samples_processed += np.prod(mixed_batch["timesteps"].shape)
+
+        return mixed_batch
 
     def __call__(self, features):
         batch_size = len(features)
