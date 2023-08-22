@@ -19,6 +19,7 @@ args = get_args()
 
 args["output"] = OUTPUT_PATH
 args["run_name"] = "21-aug-test-1"
+# args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
 args["seed"] = 0
 args["policy"] = "random"
@@ -26,7 +27,7 @@ args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "round_robin"
+args["train_mode"] = "curriculum"
 
 frame_size = 64 if args["fully_obs"] else 56
 
@@ -60,28 +61,24 @@ if not "single" in args["train_mode"]:
     for level in list(LEVELS_CONFIGS["original_tasks"].keys()):
         args["level"] = level
         dataset.append(CustomDataset.get_dataset(args))
-    args["epochs"] = max(args["epochs"], len(dataset))  # + len(datasets) // 4
+    args["epochs"] = max(args["epochs"], len(dataset) * 2)
 else:
     log("Creating dataset...with a single task.")
     dataset = CustomDataset.get_dataset(args)
 
 if "round" in args["train_mode"]:
     log("Creating round-robin collator...")
-    collator = RoundRobinCollator(custom_dataset=dataset)
+    collator = RoundRobinCollator(custom_dataset=dataset, args=args)
 elif "curriculum" in args["train_mode"]:
     log(
         f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
     )
-    collator = CurriculumCollator(
-        custom_dataset=dataset, anti=False if "anti" in args["train_mode"] else True
-    )
+    collator = CurriculumCollator(custom_dataset=dataset, args=args)
 else:
     log("Creating standard single-task collator...")
     collator = Collator(
         custom_dataset=dataset,
-        feedback=args["use_feedback"],
-        mission=args["use_feedback"],
-        context_length=args["context_length"],
+        args=args,
     )
 
 log("creating agent...")

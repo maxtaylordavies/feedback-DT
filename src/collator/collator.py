@@ -17,9 +17,7 @@ class Collator:
     def __init__(
         self,
         custom_dataset: CustomDataset,
-        feedback=True,
-        mission=True,
-        context_length=64,
+        args,
         scale=1,
         gamma=0.99,
         embedding_dim=128,
@@ -28,9 +26,7 @@ class Collator:
     ) -> None:
         (
             self.dataset,
-            self.feedback,
-            self.mission,
-            self.context_length,
+            self.args,
             self.scale,
             self.gamma,
             self.embedding_dim,
@@ -38,15 +34,17 @@ class Collator:
             self.episode_dist,
         ) = (
             custom_dataset,
-            feedback,
-            mission,
-            context_length,
+            args,
             scale,
             gamma,
             embedding_dim,
             randomise_starts,
             episode_dist,
         )
+        self.feedback = self.args["use_feedback"]
+        self.mission = self.args["use_mission"]
+        self.context_length = self.args["context_length"]
+        self.batch_size = self.args["batch_size"]
         self.sentence_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )
@@ -114,7 +112,7 @@ class Collator:
 
     def _count_samples_processed(self, batch):
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
-        n_first_timesteps = batch["timesteps"].shape[0]
+        n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
 
     def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
@@ -176,8 +174,7 @@ class Collator:
         return batch
 
     def __call__(self, features):
-        batch_size = len(features)
-        return self._sample_batch(batch_size)
+        return self._sample_batch(self.batch_size)
 
 
 class RoundRobinCollator:
@@ -191,14 +188,15 @@ class RoundRobinCollator:
         Collator: a collator object that samples a batch from a different dataset each time it is called.
     """
 
-    def __init__(self, custom_dataset):
+    def __init__(self, custom_dataset, args):
         self.datasets = custom_dataset
-        self.collators = [Collator(dataset) for dataset in self.datasets]
+        self.args = args
+        self.batch_size = self.args["batch_size"]
+        self.collators = [Collator(dataset, self.args) for dataset in self.datasets]
         random.shuffle(self.collators)
         self.collator_idx = 0
         self.reset_counter()
         self.dataset = self.datasets[0]
-        self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
 
@@ -211,7 +209,7 @@ class RoundRobinCollator:
 
     def _count_samples_processed(self, batch):
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
-        n_first_timesteps = batch["timesteps"].shape[0]
+        n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
 
     def _sample_batch(self, batch_size, train=True):
@@ -229,8 +227,7 @@ class RoundRobinCollator:
         return batch
 
     def __call__(self, features):
-        batch_size = len(features)
-        return self._sample_batch(batch_size)
+        return self._sample_batch(self.batch_size)
 
 
 class CurriculumCollator:
@@ -238,24 +235,25 @@ class CurriculumCollator:
     Class to implement curriculum learning by composing weighted batches from a list of collators.
     """
 
-    def __init__(self, custom_dataset, anti=False):
+    def __init__(self, custom_dataset, args):
         self.datasets = custom_dataset
+        self.args = args
+        self.anti = "anti" in args["train_mode"]
         self.collators = (
-            [Collator(dataset) for dataset in self.datasets]
-            if not anti
-            else [Collator(dataset) for dataset in reversed(self.datasets)]
+            [Collator(dataset, self.args) for dataset in self.datasets]
+            if not self.anti
+            else [Collator(dataset, self.args) for dataset in reversed(self.datasets)]
         )
 
         self.reset_counter()
         self.reset_weights()
         self.dataset = self.datasets[0]
-        self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
 
     def reset_counter(self):
         self.samples_processed = 0
-        self.samples_processed_by_level = {key: 0 for key in range(len(self.collators))}
+        self.samples_processed_by_level = {key: 0 for key in range(len(self.datasets))}
 
     def reset_weights(self):
         self.weights = np.zeros(len(self.collators))
@@ -270,38 +268,42 @@ class CurriculumCollator:
         if n_tasks_to_include <= len(self.collators):
             for idx in range(n_tasks_to_include):
                 self.weights[idx] = (idx + 1) / triangle
-        print(self.weights)
+                print(f"weights updated to:\n{self.weights}")
 
-    def _count_samples_processed(self, batch):
-        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
-        n_first_timesteps = batch["timesteps"].shape[0]
+    def _count_samples_processed(self, batch, n_samples=None):
+        if n_samples is None:
+            n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        else:
+            n_non_zero = int(torch.count_nonzero(batch["timesteps"][:n_samples]))
+        n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
 
     def _sample_batch(self, batch_size, train=True):
         features = np.zeros(batch_size)
         sampler = WeightedRandomSampler(self.weights, batch_size)
-        sampled_batches = [
-            self.collators[dataset_idx](features[:n_samples])
-            for dataset_idx, n_samples in Counter(list(sampler)).items()
-        ]
-        if train:
-            for level, batch in enumerate(sampled_batches):
-                self.samples_processed_by_level[level] += self._count_samples_processed(
-                    batch
-                )
+        sample_ids = sorted(list(sampler))
+
         mixed_batch = {}
-        for batch in sampled_batches:
+        for dataset_idx, n_samples in Counter(sample_ids).items():
+            batch = self.collators[dataset_idx](features)
             for key, tensor in batch.items():
                 try:
-                    mixed_batch[key] = torch.cat((mixed_batch[key], tensor), dim=0)
+                    mixed_batch[key] = torch.cat(
+                        (mixed_batch[key], tensor[:n_samples]), dim=0
+                    )
                 except KeyError:
-                    mixed_batch[key] = tensor
+                    mixed_batch[key] = tensor[:n_samples]
+            self.samples_processed_by_level[
+                dataset_idx
+            ] += self._count_samples_processed(batch, n_samples)
 
         if train:
             self.samples_processed += self._count_samples_processed(mixed_batch)
+        print(f"current weights:\n{self.weights}")
+        print(self.samples_processed_by_level)
 
         return mixed_batch
 
     def __call__(self, features):
-        batch_size = len(features)
+        batch_size = self.args["batch_size"]
         return self._sample_batch(batch_size)

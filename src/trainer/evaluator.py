@@ -19,6 +19,7 @@ import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import log, get_minigrid_obs, normalise
+from src.collator import CurriculumCollator
 
 # from .atari_env import AtariEnv
 from .visualiser import Visualiser
@@ -156,7 +157,10 @@ class Evaluator(TrainerCallback):
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-                self._evaluate_agent_performance(a, name, config, seeds)
+                if isinstance(self.collator, CurriculumCollator):
+                    self._evaluate_agent_performance(a, name, config, seeds)
+                else:
+                    self._evaluate_agent_performance(a, name, config, seeds)
 
         self._plot_results()
 
