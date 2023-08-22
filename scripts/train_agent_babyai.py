@@ -18,7 +18,7 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 args = get_args()
 
 args["output"] = OUTPUT_PATH
-args["run_name"] = "21-aug-test-1"
+args["run_name"] = "22-aug-test-final"
 # args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
 args["seed"] = 0
@@ -27,9 +27,10 @@ args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "curriculum"
+args["train_mode"] = "anti_curriculum"
 
 frame_size = 64 if args["fully_obs"] else 56
+custom_order = [0, 1, 2, 4, 3, 5, 9, 8, 7, 6, 10, 15, 16, 14, 13, 18, 17]
 
 log("setting up devices")
 if torch.cuda.is_available():
@@ -73,7 +74,9 @@ elif "curriculum" in args["train_mode"]:
     log(
         f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
     )
-    collator = CurriculumCollator(custom_dataset=dataset, args=args)
+    collator = CurriculumCollator(
+        custom_dataset=dataset, args=args, custom_order=custom_order
+    )
 else:
     log("Creating standard single-task collator...")
     collator = Collator(
