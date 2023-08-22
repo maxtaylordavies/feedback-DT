@@ -12,9 +12,8 @@ from src.dataset.custom_feedback_verifier import (
     TaskFeedback,
 )
 from src.dataset.minari_dataset import MinariDataset
-from src.dataset.minari_storage import list_local_datasets, name_dataset
+from src.dataset.minari_storage import name_dataset
 from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
-from src.utils.ppo import PPOAgent
 from src.utils.utils import (
     discounted_cumsum,
     get_minigrid_obs,
@@ -150,27 +149,6 @@ class CustomDataset:
                 max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(global_max_steps, max_steps)
         return global_max_steps
-
-    def _policy(self, observation):
-        """
-        Get the next action from a given policy.
-
-        Parameters
-        ----------
-        observation (np.ndarray): the observation.
-
-        Returns
-        -------
-        int: the next action.
-        """
-
-        if self.args["policy"] == "random_used_action_space_only":
-            return np.random.choice(self._get_used_action_space())
-        if "ppo" in self.args["policy"]:
-            raise NotImplementedError
-        # Excluding the 'done' action (integer representation: 6), as by default, this is not used
-        # to evaluate success for any of the tasks
-        return np.random.randint(0, 6)
 
     def _get_feedback_constant(self):
         """
@@ -328,7 +306,7 @@ class CustomDataset:
             )
             self.buffer["observations"][self.steps] = obs["image"]
 
-            action = self._policy(partial_obs)
+            action = np.random.randint(0, 6)
             self.buffer["actions"][self.steps] = np.array(action)
 
             rule_feedback = (

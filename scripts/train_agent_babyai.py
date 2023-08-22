@@ -21,7 +21,7 @@ args["output"] = OUTPUT_PATH
 args["run_name"] = "21-aug-test-1"
 args["num_episodes"] = 20
 args["seed"] = 0
-args["policy"] = "random_used_action_space_only"
+args["policy"] = "random"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
@@ -57,17 +57,13 @@ else:
 if not "single" in args["train_mode"]:
     log("Creating dataset...with multiple tasks.")
     dataset = []
-    for level in list(LEVELS_CONFIGS["original_tasks"].keys())[:3]:
+    for level in list(LEVELS_CONFIGS["original_tasks"].keys()):
         args["level"] = level
         dataset.append(CustomDataset.get_dataset(args))
     args["epochs"] = max(args["epochs"], len(dataset))  # + len(datasets) // 4
 else:
     log("Creating dataset...with a single task.")
     dataset = CustomDataset.get_dataset(args)
-
-import numpy as np
-
-features = np.zeros(64)
 
 if "round" in args["train_mode"]:
     log("Creating round-robin collator...")

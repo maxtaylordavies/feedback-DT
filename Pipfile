@@ -11,7 +11,6 @@ gymnasium-robotics = "*"
 huggingface = "*"
 datasets = "*"
 black = "*"
-torch = "*"
 scipy = "*"
 tqdm = "*"
 transformers = "*"
@@ -25,14 +24,21 @@ opencv-python = "*"
 dopamine-rl = "*"
 sentence-transformers = "*"
 seaborn = "*"
-torch-ac = "*"
 tensorboardx = "*"
-feedback-dt = {editable = true, path = "."}
 essential-generators = "*"
 lorem-text = "*"
+feedback-dt = {editable = true, path = "."}
+accelerate = "*"
+torch = "*"
+torchvision = "*"
+torchaudio = "*"
+torch-ac = "*"
 
 [dev-packages]
 ipykernel = "*"
 
 [requires]
 python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true

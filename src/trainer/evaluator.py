@@ -23,6 +23,10 @@ from src.utils.utils import log, get_minigrid_obs, normalise
 # from .atari_env import AtariEnv
 from .visualiser import Visualiser
 
+import warnings
+
+warnings.filterwarnings("ignore")
+
 sns.set_theme()
 
 
@@ -85,6 +89,7 @@ class Evaluator(TrainerCallback):
 
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
+        self.current_epoch = 0
 
     def _init_results(self):
         self.results = {
@@ -113,6 +118,11 @@ class Evaluator(TrainerCallback):
         if self.samples_processed == 0 or sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
+
+        previous_epoch = self.current_epoch
+        self.current_epoch = state.epoch
+        if previous_epoch != self.current_epoch:
+            self.collator.update_epoch()
 
     def on_train_end(
         self,
@@ -147,8 +157,6 @@ class Evaluator(TrainerCallback):
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
                 self._evaluate_agent_performance(a, name, config, seeds)
-
-        self.collator.update_epoch()
 
         self._plot_results()
 

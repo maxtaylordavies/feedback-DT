@@ -112,6 +112,11 @@ class Collator:
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
+    def _count_samples_processed(self, batch):
+        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        n_first_timesteps = batch["timesteps"].shape[0]
+        return n_non_zero + n_first_timesteps
+
     def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
         batch = {
             "timesteps": [],
@@ -166,7 +171,7 @@ class Collator:
 
         # if we're in training mode, update the sample counter
         if train:
-            self.samples_processed += np.prod(batch["timesteps"].shape)
+            self.samples_processed += self._count_samples_processed(batch)
 
         return batch
 
@@ -192,7 +197,8 @@ class RoundRobinCollator:
         random.shuffle(self.collators)
         self.collator_idx = 0
         self.reset_counter()
-        self.dataset = self._get_current_dataset()
+        self.dataset = self.datasets[0]
+        self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
 
@@ -208,9 +214,6 @@ class RoundRobinCollator:
         n_first_timesteps = batch["timesteps"].shape[0]
         return n_non_zero + n_first_timesteps
 
-    def _get_current_dataset(self):
-        return self.datasets[self.collator_idx]
-
     def _sample_batch(self, batch_size, train=True):
         collator = self.collators[self.collator_idx]
         features = np.zeros(batch_size)
@@ -222,7 +225,6 @@ class RoundRobinCollator:
             self.samples_processed += self._count_samples_processed(batch)
 
         self.collator_idx = (self.collator_idx + 1) % len(self.collators)
-        self.dataset = self._get_current_dataset()
 
         return batch
 
@@ -243,11 +245,13 @@ class CurriculumCollator:
             if not anti
             else [Collator(dataset) for dataset in reversed(self.datasets)]
         )
-        self.state_dim = self.datasets[0].state_dim
-        self.act_dim = self.datasets[0].act_dim
+
         self.reset_counter()
         self.reset_weights()
-        self.dataset = self._get_current_dataset()
+        self.dataset = self.datasets[0]
+        self.dataset.load_shard()
+        self.state_dim = self.dataset.state_dim
+        self.act_dim = self.dataset.act_dim
 
     def reset_counter(self):
         self.samples_processed = 0
@@ -259,7 +263,6 @@ class CurriculumCollator:
 
     def update_epoch(self):
         self._update_weights()
-        self.dataset = self._get_current_dataset()
 
     def _update_weights(self):
         n_tasks_to_include = np.argmax(self.weights) + 2
@@ -268,9 +271,6 @@ class CurriculumCollator:
             for idx in range(n_tasks_to_include):
                 self.weights[idx] = (idx + 1) / triangle
         print(self.weights)
-
-    def _get_current_dataset(self):
-        return self.datasets[np.argmax(self.weights)]
 
     def _count_samples_processed(self, batch):
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
