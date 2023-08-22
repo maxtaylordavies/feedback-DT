@@ -79,8 +79,8 @@ else:
     log("Creating standard single-task collator...")
     collator = Collator(
         custom_dataset=dataset,
-        feedback=True,
-        mission=True,
+        feedback=args["use_feedback"],
+        mission=args["use_feedback"],
         context_length=args["context_length"],
     )
 
