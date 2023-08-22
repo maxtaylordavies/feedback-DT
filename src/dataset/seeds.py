@@ -56,13 +56,13 @@ LEVELS_CONFIGS = {
         "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
         "Open": ["BabyAI-Open-v0"],
         "Unlock": ["BabyAI-Unlock-v0"],
-        # "PutNext": [
-        #     "BabyAI-PutNextS4N1-v0",
-        #     "BabyAI-PutNextS5N1-v0",
-        #     "BabyAI-PutNextS5N2-v0",
-        #     "BabyAI-PutNextS6N3-v0",
-        #     "BabyAI-PutNextS7N4-v0",
-        # ],
+        "PutNext": [
+            "BabyAI-PutNextS4N1-v0",
+            "BabyAI-PutNextS5N1-v0",
+            "BabyAI-PutNextS5N2-v0",
+            "BabyAI-PutNextS6N3-v0",
+            "BabyAI-PutNextS7N4-v0",
+        ],
         "Synth": ["BabyAI-Synth-v0"],
         "SynthLoc": ["BabyAI-SynthLoc-v0"],
         "GoToSeq": ["BabyAI-GoToSeq-v0", "BabyAI-GoToSeqS5R2-v0"],
@@ -227,7 +227,7 @@ class SeedFinder:
         -------
             bool: True if the level is a maze, False otherwise.
         """
-        return env.unwrapped.num_rows > 1 or env.unwrapped.num_cols > 1
+        return env.unwrapped.num_rows > 1 or env.unwrapped.num_cols > 2
 
     def _get_all_positions(self, size, n):
         """
@@ -518,8 +518,8 @@ class SeedFinder:
             return (
                 env.unwrapped.room_size < self.iid_room_size_min
                 or env.unwrapped.room_size > self.iid_room_size_max
-                or env.unwrapped.num_cols != 3
-                or env.unwrapped.num_rows != 3
+                or env.unwrapped.num_cols != self.iid_num_cols
+                or env.unwrapped.num_rows != self.iid_num_rows
             )
         return (
             env.unwrapped.room_size < self.iid_room_size_min
@@ -697,6 +697,14 @@ class SeedFinder:
         )
 
     def _create_seed_log(self, level, config):
+        """
+        Create a seed log for a given level and config.
+
+        Parameters
+        ----------
+            level (str): name of the level.
+            config (str): name of the config.
+        """
         n_seeds_stop_search_early = 10**3
 
         if os.path.exists(self._get_config_fn(level, config) + "_new"):
@@ -742,6 +750,10 @@ class SeedFinder:
                     continue
                 if ood_type_check(env):
                     if ood_type == "agent_loc" and self.ood_types["size"](env):
+                        continue
+                    # PutNext is not technically a maze level, but it is a special case
+                    # which results in different grid dimensions, so we skip it here
+                    if ood_type == "agent_loc" and level == "PutNext":
                         continue
                     seed_log[ood_type]["test_seeds"].append(seed)
             if not self.is_test_seed(seed_log, seed):
