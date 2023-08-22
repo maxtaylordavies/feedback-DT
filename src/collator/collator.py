@@ -235,8 +235,11 @@ class CurriculumCollator:
     Class to implement curriculum learning by composing weighted batches from a list of collators.
     """
 
-    def __init__(self, custom_dataset, args):
+    def __init__(self, custom_dataset, args, custom_order=None):
         self.datasets = custom_dataset
+        self.custom_order = custom_order
+        if custom_order is not None:
+            self._custom_sort()
         self.args = args
         self.anti = "anti" in args["train_mode"]
         self.collators = (
@@ -250,6 +253,10 @@ class CurriculumCollator:
         self.dataset = self.datasets[0]
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
+
+    def _custom_sort(self):
+        zipped_pairs = zip(self.custom_order, self.datasets)
+        self.datasets = [dataset for _, dataset in sorted(zipped_pairs)]
 
     def reset_counter(self):
         self.samples_processed = 0
@@ -268,7 +275,7 @@ class CurriculumCollator:
         if n_tasks_to_include <= len(self.collators):
             for idx in range(n_tasks_to_include):
                 self.weights[idx] = (idx + 1) / triangle
-                print(f"weights updated to:\n{self.weights}")
+            log(f"weights updated to:\n{self.weights}")
 
     def _count_samples_processed(self, batch, n_samples=None):
         if n_samples is None:
@@ -299,8 +306,7 @@ class CurriculumCollator:
 
         if train:
             self.samples_processed += self._count_samples_processed(mixed_batch)
-        print(f"current weights:\n{self.weights}")
-        print(self.samples_processed_by_level)
+        log(self.samples_processed_by_level)
 
         return mixed_batch
 
