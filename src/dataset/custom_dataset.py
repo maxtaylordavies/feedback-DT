@@ -35,7 +35,8 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
-        self.buffer = None
+        self.buffers = []
+        self.steps = []
         self.seed_finder = SeedFinder(self.args["num_episodes"])
         self.configs = self._get_configs()
         self.category = self._get_category()
@@ -236,12 +237,14 @@ class CustomDataset:
                 return task_feedback
             return rule_feedback
 
-    def _save_buffer_to_minari_file(self):
-        for key in self.buffer.keys():
-            self.buffer[key] = self.buffer[key][: self.steps + 2]
+    def _save_buffer_to_minari_file(self, buffer_idx):
+        for key in self.buffers[buffer_idx].keys():
+            self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
+                : self.steps[buffer_idx] + 2
+            ]
 
         episode_terminals = (
-            self.buffer["terminations"] + self.buffer["truncations"]
+            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -252,41 +255,37 @@ class CustomDataset:
             dataset_name=name_dataset(self.args),
             policy=self.args["policy"],
             feedback_mode=self.args["feedback_mode"],
-            configs=self.buffer["configs"],
-            seeds=self.buffer["seeds"],
+            configs=self.buffers[buffer_idx]["configs"],
+            seeds=self.buffers[buffer_idx]["seeds"],
             code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
             author="Sabrina McCallum",
             author_email="s2431177@ed.ac.uk",
-            missions=self.buffer["missions"],
-            observations=self.buffer["observations"],
-            actions=self.buffer["actions"],
-            rewards=self.buffer["rewards"],
-            feedback=self.buffer["feedback"],
-            terminations=self.buffer["terminations"],
-            truncations=self.buffer["truncations"],
+            missions=self.buffers[buffer_idx]["missions"],
+            observations=self.buffers[buffer_idx]["observations"],
+            actions=self.buffers[buffer_idx]["actions"],
+            rewards=self.buffers[buffer_idx]["rewards"],
+            feedback=self.buffers[buffer_idx]["feedback"],
+            terminations=self.buffers[buffer_idx]["terminations"],
+            truncations=self.buffers[buffer_idx]["truncations"],
             episode_terminals=episode_terminals,
         )
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffer['observations'])} steps)",
+            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
         md.save(fp)
         self.num_shards += 1
 
-    def _flush_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
-        # if buffer exists and isn't empty, first save it to file
-        if (
-            self.buffer
-            and len(self.buffer["observations"]) > 0
-            and np.any(self.buffer["observations"])  # check any nonzero
-        ):
-            print("saving buffer to file")
-            self._save_buffer_to_minari_file()
+    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        for _ in range(num_buffers):
+            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
+            self.steps.append(0)
 
+    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self._get_level_max_steps()
-        self.buffer = {
+        return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
             "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
@@ -306,10 +305,22 @@ class CustomDataset:
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
-        self.steps = 0
+
+    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        # if buffer exists and isn't empty, first save it to file
+        if (
+            len(self.buffers) > buffer_idx
+            and len(self.buffers[buffer_idx]["observations"]) > 0
+            and np.any(self.buffers[buffer_idx]["observations"])  # check any nonzero
+        ):
+            print("saving buffer to file")
+            self._save_buffer_to_minari_file(buffer_idx)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
+        self.steps[buffer_idx] = 0
 
     def _add_to_buffer(
         self,
+        buffer_idx,
         action,
         observation,
         reward,
@@ -320,25 +331,29 @@ class CustomDataset:
         seed,
     ):
         # store action a_t taken after observing o_t
-        self.buffer["actions"][self.steps] = action
+        self.buffers[buffer_idx]["actions"][self.steps[buffer_idx]] = action
 
         # store obs o_t+1, reward r_t+1 etc resulting from taking a_t at o_t
-        self.steps += 1
-        self.buffer["observations"][self.steps] = observation
-        self.buffer["rewards"][self.steps] = reward
-        self.buffer["feedback"][self.steps] = feedback
-        self.buffer["terminations"][self.steps] = terminated
-        self.buffer["truncations"][self.steps] = truncated
-        self.buffer["configs"][self.steps] = config
-        self.buffer["seeds"][self.steps] = seed
+        self.steps[buffer_idx] += 1
+        self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = observation
+        self.buffers[buffer_idx]["rewards"][self.steps[buffer_idx]] = reward
+        self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
+        self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
+        self.buffers[buffer_idx]["truncations"][self.steps] = truncated
+        self.buffers[buffer_idx]["configs"][self.steps[buffer_idx]] = config
+        self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
 
-    def _create_episode(self, config, seed):
-        partial_obs, _ = self.env.reset(seed=seed)
+    def _store_initial_obs(self, obs, buffer_idx):
+        self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = obs
+
+    def _create_episode(self, config, seed, buffer_idx=0):
         # Storing observation at initial episode timestep t=0 (o_0)
+        partial_obs, _ = self.env.reset(seed=seed)
         obs = get_minigrid_obs(
             self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
         )
-        self.buffer["observations"][self.steps] = obs["image"]
+        self._store_initial_obs(obs["image"], buffer_idx)
+
         terminated, truncated = False, False
         while not (terminated or truncated):
             # Passing partial observation to policy (PPO) as agent was trained on this
@@ -352,6 +367,7 @@ class CustomDataset:
             reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
+                buffer_idx=buffer_idx,
                 action=action,
                 observation=obs["image"],
                 reward=reward,
@@ -420,10 +436,14 @@ class CustomDataset:
                     self.state_dim = np.prod(obs.shape)
                     log(f"state_dim: {self.state_dim}")
 
-                    # initialise buffer to store replay data
+                    # initialise buffers to store replay data
                     if current_episode == 0:
-                        log("initialising buffer", with_tqdm=True)
-                        self._flush_buffer(obs.shape, config)
+                        log("initialising buffers", with_tqdm=True)
+                        self._initialise_buffers(
+                            num_buffers=1,
+                            obs_shape=obs.shape,
+                            config=config,
+                        )
 
                     # feedback verifiers
                     self._create_feedback_verifiers()
@@ -435,7 +455,7 @@ class CustomDataset:
                     if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
                         current_episode == self.args["num_episodes"] - 1
                     ):
-                        self._flush_buffer(obs.shape, config)
+                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -639,7 +659,7 @@ class CustomDataset:
         d = cls(args)
 
         # helper func to set up buffer for env
-        def setup(env):
+        def setup(env, config, num_seeds):
             d.env = env
             d._create_feedback_verifiers()
             partial_obs, _ = d.env.reset(seed=args["seed"])
@@ -649,7 +669,7 @@ class CustomDataset:
                 d.args["fully_obs"],
                 d.args["rgb_obs"],
             )["image"]
-            d._flush_buffer(config=config, obs_shape=obs.shape)
+            d._initialise_buffers(num_buffers=num_seeds, obs_shape=obs.shape, config=config)
 
         # define callback func for storing data
         def callback(exps, logs, config, seeds):
@@ -661,23 +681,30 @@ class CustomDataset:
             # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
             terminations = 1 - exps.mask.cpu().numpy()
 
-            num_timesteps = obss.shape[0]
-            for t in range(num_timesteps):
-                o = get_minigrid_obs(  # process partial observation
-                    d.env, obss[t], args["fully_obs"], args["rgb_obs"]
-                )["image"]
-                f = d._get_feedback(actions[t])
-                r = f if args["feedback_mode"] == "numerical_reward" else rewards[t]
-                d._add_to_buffer(
-                    action=actions[t],
-                    observation=o,
-                    reward=r,
-                    feedback=f,
-                    terminated=terminations[t],
-                    truncated=0,
-                    config=config,
-                    seed=seeds[0],
-                )
+            # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
+            tensors = [obss, actions, rewards, terminations]
+            for i in range(len(tensors)):
+                tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
+            obss, actions, rewards, terminations = tensors
+
+            for i, seed in enumerate(seeds):
+                for t in range(obss.shape[1]):
+                    o = get_minigrid_obs(  # process partial observation
+                        d.env, obss[i, t], args["fully_obs"], args["rgb_obs"]
+                    )["image"]
+                    f = d._get_feedback(actions[i, t])
+                    r = f if args["feedback_mode"] == "numerical_reward" else rewards[i, t]
+                    d._add_to_buffer(
+                        buffer_idx=0,
+                        action=actions[i, t],
+                        observation=o,
+                        reward=r,
+                        feedback=f,
+                        terminated=terminations[i, t],
+                        truncated=0,
+                        config=config,
+                        seed=seed,
+                    )
 
         # train a PPO agent for each config
         for config in tqdm(d.configs):
@@ -697,7 +724,7 @@ class CustomDataset:
 
             # train PPO agent
             ppo = PPOAgent(env_name=config, seeds=seeds, n_frames=args["ppo_frames"])
-            setup(ppo.env)
+            setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 
         # return dataset
