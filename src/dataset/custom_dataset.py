@@ -452,7 +452,7 @@ class CustomDataset:
 
         if hasattr(self, "env"):
             self.env.close()
-            self._clear_buffer(obs.shape)
+        self._clear_buffer(obs.shape)
 
     def load_shard(self, idx=None):
         if not idx:
