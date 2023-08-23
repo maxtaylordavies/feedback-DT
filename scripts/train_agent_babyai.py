@@ -3,17 +3,20 @@ import os
 import torch
 from transformers import DecisionTransformerConfig
 
-from src.utils.utils import log
+from src.utils.utils import log, seed
 from src.utils.argparsing import get_args
 from src.dataset.custom_dataset import CustomDataset
 from src.collator import Collator, RoundRobinCollator, CurriculumCollator
 from src.agent.fdt import MinigridFDTAgent
 from src.trainer import AgentTrainer
 from src.dataset.seeds import LEVELS_CONFIGS
-from src.constants import ENV_METADATA_PATH, OUTPUT_PATH
+from src.constants import ENV_METADATA_PATH, OUTPUT_PATH, GLOBAL_SEED
+
 
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
+
+seed(GLOBAL_SEED)
 
 args = get_args()
 
@@ -21,16 +24,14 @@ args["output"] = OUTPUT_PATH
 args["run_name"] = "22-aug-test-final"
 # args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
-args["seed"] = 0
 args["policy"] = "random"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "anti_curriculum"
+args["train_mode"] = "curriculum"
 
 frame_size = 64 if args["fully_obs"] else 56
-custom_order = [0, 1, 2, 4, 3, 5, 9, 8, 7, 6, 10, 15, 16, 14, 13, 18, 17]
 
 log("setting up devices")
 if torch.cuda.is_available():
@@ -39,7 +40,7 @@ if torch.cuda.is_available():
     os.environ["CUDA_VISIBLE_DEVICES"] = device_str
     log(f"Using device: {torch.cuda.get_device_name()}")
     log("using gpu")
-if not torch.backends.mps.is_available():
+elif not torch.backends.mps.is_available():
     if not torch.backends.mps.is_built():
         print(
             "MPS not available because the current PyTorch install was not "
@@ -50,8 +51,8 @@ if not torch.backends.mps.is_available():
             "MPS not available because the current MacOS version is not 12.3+ "
             "and/or you do not have an MPS-enabled device on this machine."
         )
-        device = torch.device("cpu")
-        log("using cpu")
+    device = torch.device("cpu")
+    log("using cpu")
 else:
     device = torch.device("mps")
     log("using mps")
@@ -74,9 +75,7 @@ elif "curriculum" in args["train_mode"]:
     log(
         f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
     )
-    collator = CurriculumCollator(
-        custom_dataset=dataset, args=args, custom_order=custom_order
-    )
+    collator = CurriculumCollator(custom_dataset=dataset, args=args)
 else:
     log("Creating standard single-task collator...")
     collator = Collator(

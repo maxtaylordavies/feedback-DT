@@ -253,7 +253,9 @@ class Evaluator(TrainerCallback):
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
                 env = self._create_env(config, seed)
-                ret, ep_length, success = run_agent(agent, env, self.target_return)
+                ret, ep_length, success = run_agent(
+                    agent, env, seed, self.target_return
+                )
                 self._record_result(
                     env,
                     dataset,
@@ -316,7 +318,11 @@ class Evaluator(TrainerCallback):
         )
 
     def _run_agent_on_minigrid_env(
-        self, agent: Agent, env: Visualiser, target_return: float
+        self,
+        agent: Agent,
+        env: Visualiser,
+        seed: int,
+        target_return: float,
     ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
@@ -332,7 +338,7 @@ class Evaluator(TrainerCallback):
             )
 
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
-        obs, _ = env.reset(seed=self.user_args["seed"])
+        obs, _ = env.reset(seed=seed)
 
         states = get_state(obs)
         actions = torch.zeros(

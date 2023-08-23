@@ -1,11 +1,12 @@
+import os
+import random
+import socket
 from datetime import datetime
 from itertools import accumulate
-import os
-import socket
 
 import numpy as np
-from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 import torch
+from minigrid.wrappers import FullyObsWrapper, RGBImgObsWrapper, RGBImgPartialObsWrapper
 from tqdm import tqdm
 
 
@@ -84,10 +85,6 @@ def discounted_cumsum(x, gamma=1):
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
 
 
-def name_dataset(args):
-    return f"{args['env_name']}_{args['num_episodes']}-eps_{'incl' if args['include_timeout'] else 'excl'}-timeout"
-
-
 def get_minigrid_obs(env, partial_obs, fully_obs=False, rgb_obs=False):
     """
     Get the observation from the environment.
@@ -112,3 +109,11 @@ def get_minigrid_obs(env, partial_obs, fully_obs=False, rgb_obs=False):
         return _env.observation({})
     else:
         return partial_obs
+
+
+def seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
