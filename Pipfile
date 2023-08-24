@@ -33,6 +33,7 @@ torch = "*"
 torchvision = "*"
 torchaudio = "*"
 torch-ac = "*"
+pre-commit = "*"
 
 [dev-packages]
 ipykernel = "*"
