@@ -173,4 +173,22 @@ def get_args():
         default=True,
         help="whether to use the pretrained GPT-2 model",
     )
+    parser.add_argument(
+        "--sample_interval",
+        type=int,
+        default=20000,
+        help="whether to use the pretrained GPT-2 model",
+    )
+    parser.add_argument(
+        "--target_return",
+        type=int,
+        default=90,
+        help="the target return to condition on",
+    )
+    parser.add_argument(
+        "--num_repeats",
+        type=int,
+        default=512,
+        help="number of seeds to evaluate over (for validation, this will be 1 / 4)",
+    )
     return vars(parser.parse_args())
