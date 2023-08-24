@@ -10,7 +10,10 @@ from src.dataset.custom_dataset import CustomDataset
 from src.utils.utils import log
 from torch.utils.data import WeightedRandomSampler
 from collections import Counter
+<<<<<<< HEAD
 from src.constants import GLOBAL_SEED
+=======
+>>>>>>> 315730db7fbae18d2b53c8701154ab88b8c43767
 
 
 @dataclass
