@@ -4,12 +4,22 @@ import time
 
 # import tensorboardX
 import torch_ac
+import gymnasium as gym
 
 import external_rl.utils as utils
 from external_rl.model import ACModel
 from external_rl.utils import device
+from src.env.feedback_env import FeedbackEnv
+from .ppo_algo import PPOAlgo
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
+
+
+def make_env(env_key, seed=None, render_mode=None, feedback_mode=None):
+    _env = gym.make(env_key, render_mode=render_mode)
+    env = FeedbackEnv.from_env(_env, feedback_mode=feedback_mode)
+    env.reset(seed=seed)
+    return env
 
 
 class PPOAgent:
@@ -18,7 +28,7 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seeds, n_frames, medium=True):
+    def __init__(self, env_name, seeds, n_frames, medium=True, feedback_mode=None):
         self.args = {
             "algo": "ppo",
             "env": env_name,
@@ -45,10 +55,13 @@ class PPOAgent:
             else 1,
             "text": True,
             "argmax": True,
+            "feedback_mode": feedback_mode,
         }
         self.medium = medium
         self.args["mem"] = self.args["recurrence"] > 1
-        self.env = utils.make_env(self.args["env"], self.args["seeds"][0])
+        self.env = make_env(
+            self.args["env"], self.args["seeds"][0], feedback_mode=feedback_mode
+        )
         self.env.reset()
         self.model_dir = self._get_model_dir()
         # self.model = self._get_model()
@@ -105,7 +118,9 @@ class PPOAgent:
         # Load environments
         envs = []
         for s in self.args["seeds"]:
-            envs.append(utils.make_env(self.args["env"], s))
+            envs.append(
+                make_env(self.args["env"], s, feedback_mode=self.args["feedback_mode"])
+            )
         txt_logger.info("Environments loaded\n")
 
         # Load training status
@@ -132,7 +147,7 @@ class PPOAgent:
         txt_logger.info(f"{acmodel}\n")
 
         # Load algo
-        algo = torch_ac.PPOAlgo(
+        algo = PPOAlgo(
             envs,
             acmodel,
             device,

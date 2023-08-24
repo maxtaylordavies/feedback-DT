@@ -7,15 +7,11 @@ from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 from tqdm import tqdm
 
-from src.dataset.custom_feedback_verifier import (
-    RandomFeedback,
-    RuleFeedback,
-    TaskFeedback,
-)
+from src.env.feedback_env import FeedbackEnv
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import list_local_datasets, name_dataset
 from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
-from src.utils.ppo import PPOAgent
+from src.ppo.ppo_agent import PPOAgent
 from src.utils.utils import (
     discounted_cumsum,
     get_minigrid_obs,
@@ -174,68 +170,68 @@ class CustomDataset:
         # to evaluate success for any of the tasks
         return np.random.randint(0, 6)
 
-    def _create_feedback_verifiers(self):
-        self.rule_feedback_verifier = RuleFeedback()
-        self.task_feedback_verifier = TaskFeedback(self.env)
-        self.random_feedback_verifier = RandomFeedback(
-            "lorem_ipsum"
-            if "lorem_ipsum" in self.args["feedback_mode"]
-            else "random_sentence"
-        )
+    # def _create_feedback_verifiers(self):
+    #     self.rule_feedback_verifier = RuleFeedback()
+    #     self.task_feedback_verifier = TaskFeedback(self.env)
+    #     self.random_feedback_verifier = RandomFeedback(
+    #         "lorem_ipsum"
+    #         if "lorem_ipsum" in self.args["feedback_mode"]
+    #         else "random_sentence"
+    #     )
 
-    def _get_feedback_constant(self):
-        """
-        Get the constant feedback string depending on the feedback mode.
+    # def _get_feedback_constant(self):
+    #     """
+    #     Get the constant feedback string depending on the feedback mode.
 
-        Returns
-        -------
-            str: the constant feedback string.
-        """
-        if self.args["feedback_mode"] == "random_lorem_ipsum":
-            return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
-        if self.args["feedback_mode"] == "numerical_reward":
-            return np.array(0, dtype=np.float32)
-        return "No feedback available."
+    #     Returns
+    #     -------
+    #         str: the constant feedback string.
+    #     """
+    #     if self.args["feedback_mode"] == "random_lorem_ipsum":
+    #         return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+    #     if self.args["feedback_mode"] == "numerical_reward":
+    #         return np.array(0, dtype=np.float32)
+    #     return "No feedback available."
 
-    def _get_feedback(self, action):
-        """
-        Get the feedback for a given action.
+    # def _get_feedback(self, action):
+    #     """
+    #     Get the feedback for a given action.
 
-        Parameters
-        ----------
-            action (int): the action.
+    #     Parameters
+    #     ----------
+    #         action (int): the action.
 
-        Returns
-        -------
-            str: the feedback.
-        """
-        rule_feedback = (
-            self.rule_feedback_verifier.verify_feedback(self.env, action)
-            if self.args["feedback_mode"] in ["all", "rule_only"]
-            else None
-        )
-        task_feedback = (
-            self.task_feedback_verifier.verify_feedback(self.env, action)
-            if self.args["feedback_mode"] in ["all", "task_only"]
-            else None
-        )
+    #     Returns
+    #     -------
+    #         str: the feedback.
+    #     """
+    #     rule_feedback = (
+    #         self.rule_feedback_verifier.verify_feedback(self.env, action)
+    #         if self.args["feedback_mode"] in ["all", "rule_only"]
+    #         else None
+    #     )
+    #     task_feedback = (
+    #         self.task_feedback_verifier.verify_feedback(self.env, action)
+    #         if self.args["feedback_mode"] in ["all", "task_only"]
+    #         else None
+    #     )
 
-        if self.args["feedback_mode"] == "random":
-            return self.random_feedback_verifier.verify_feedback()
-        if self.args["feedback_mode"] == "rule_only":
-            return rule_feedback
-        if self.args["feedback_mode"] == "task_only":
-            return task_feedback
-        if self.args["feedback_mode"] == "numerical_reward":
-            if task_feedback != "No feedback available.":
-                return np.array(1)
-            if rule_feedback != "No feedback available.":
-                return np.array(-1)
-            return np.array(0)
-        if self.args["feedback_mode"] == "all":
-            if rule_feedback == "No feedback available.":
-                return task_feedback
-            return rule_feedback
+    #     if self.args["feedback_mode"] == "random":
+    #         return self.random_feedback_verifier.verify_feedback()
+    #     if self.args["feedback_mode"] == "rule_only":
+    #         return rule_feedback
+    #     if self.args["feedback_mode"] == "task_only":
+    #         return task_feedback
+    #     if self.args["feedback_mode"] == "numerical_reward":
+    #         if task_feedback != "No feedback available.":
+    #             return np.array(1)
+    #         if rule_feedback != "No feedback available.":
+    #             return np.array(-1)
+    #         return np.array(0)
+    #     if self.args["feedback_mode"] == "all":
+    #         if rule_feedback == "No feedback available.":
+    #             return task_feedback
+    #         return rule_feedback
 
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
@@ -288,7 +284,7 @@ class CustomDataset:
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": [self.env.instrs.surface(self.env)] * ((max_steps + 1) * num_eps),
+            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
@@ -301,7 +297,7 @@ class CustomDataset:
                 [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self._get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -359,11 +355,10 @@ class CustomDataset:
             # Passing partial observation to policy (PPO) as agent was trained on this
             # following the original implementation
             action = self._policy(partial_obs)
-            partial_obs, reward, terminated, truncated, _ = self.env.step(action)
+            partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
             obs = get_minigrid_obs(
                 self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
             )
-            feedback = self._get_feedback(action)
             reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
@@ -424,7 +419,9 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = gym.make(config)
+                    self.env = FeedbackEnv.from_env(
+                        gym.make(config), self.args["feedback_mode"]
+                    )
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -661,7 +658,6 @@ class CustomDataset:
         # helper func to set up buffer for env
         def setup(env, config, num_seeds):
             d.env = env
-            d._create_feedback_verifiers()
             partial_obs, _ = d.env.reset(seed=args["seed"])
             obs = get_minigrid_obs(
                 d.env,
@@ -676,30 +672,35 @@ class CustomDataset:
             obss = exps.obs.image.cpu().numpy()
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
+            feedback = exps.feedback.cpu().numpy().reshape(-1, 1)
 
             # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
             # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
             terminations = 1 - exps.mask.cpu().numpy()
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
-            tensors = [obss, actions, rewards, terminations]
+            tensors = [obss, actions, rewards, feedback, terminations]
             for i in range(len(tensors)):
                 tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
-            obss, actions, rewards, terminations = tensors
+            obss, actions, rewards, feedback, terminations = tensors
 
             for i, seed in enumerate(seeds):
                 for t in range(obss.shape[1]):
                     o = get_minigrid_obs(  # process partial observation
                         d.env, obss[i, t], args["fully_obs"], args["rgb_obs"]
                     )["image"]
-                    f = d._get_feedback(actions[i, t])
-                    r = f if args["feedback_mode"] == "numerical_reward" else rewards[i, t]
+                    # f = d._get_feedback(actions[i, t])
+                    r = (
+                        feedback[i, t]
+                        if args["feedback_mode"] == "numerical_reward"
+                        else rewards[i, t]
+                    )
                     d._add_to_buffer(
                         buffer_idx=0,
                         action=actions[i, t],
                         observation=o,
                         reward=r,
-                        feedback=f,
+                        feedback=feedback[i, t],
                         terminated=terminations[i, t],
                         truncated=0,
                         config=config,

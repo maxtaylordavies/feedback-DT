@@ -1,6 +1,12 @@
 import gymnasium as gym
 import numpy as np
 
+from src.dataset.custom_feedback_verifier import (
+    RandomFeedback,
+    RuleFeedback,
+    TaskFeedback,
+)
+
 
 class FeedbackEnv(gym.Env):
     def __init__(self) -> None:
@@ -9,11 +15,13 @@ class FeedbackEnv(gym.Env):
         self.rule_fv = None
         self.feedback_mode = None
 
-    def setup_feedback(self, feedback_mode, random_fv, task_fv, rule_fv):
+    def setup_feedback(self, feedback_mode):
         self.feedback_mode = feedback_mode
-        self.random_fv = random_fv
-        self.task_fv = task_fv
-        self.rule_fv = rule_fv
+        self.rule_fv = RuleFeedback()
+        self.task_fv = TaskFeedback(self)
+        self.random_fv = RandomFeedback(
+            "lorem_ipsum" if "lorem_ipsum" in self.feedback_mode else "random_sentence"
+        )
 
     def rule_feedback(self, action):
         return (
@@ -28,6 +36,20 @@ class FeedbackEnv(gym.Env):
             if self.feedback_mode in ["all", "task_only"]
             else None
         )
+
+    def get_feedback_constant(self):
+        """
+        Get the constant feedback string depending on the feedback mode.
+
+        Returns
+        -------
+            str: the constant feedback string.
+        """
+        if self.feedback_mode == "random_lorem_ipsum":
+            return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+        if self.feedback_mode == "numerical_reward":
+            return np.array(0, dtype=np.float32)
+        return "No feedback available."
 
     def get_feedback(self, rule_feedback, task_feedback):
         if self.feedback_mode == "random":
@@ -66,14 +88,12 @@ class FeedbackEnv(gym.Env):
         feedback = self.get_feedback(rule_feedback, task_feedback)
         return obs, reward, terminated, truncated, feedback
 
+    def get_mission(self):
+        return self.instrs.surface(self)
+
     @classmethod
-    def from_env(cls, env, feedback_mode, verifiers):
-        new_env = cls()
-        new_env.__dict__ = env.__dict__.copy()
-        new_env.setup_feedback(
-            feedback_mode,
-            verifiers["random"],
-            verifiers["task"],
-            verifiers["rule"],
-        )
-        return new_env
+    def from_env(cls, env, feedback_mode):
+        _env = cls()
+        _env.__dict__ = env.__dict__.copy()
+        _env.setup_feedback(feedback_mode)
+        return _env
