@@ -238,7 +238,7 @@ class CurriculumCollator:
     def __init__(self, custom_dataset, args):
         self.datasets = custom_dataset
         self.args = args
-         self.custom_order = (
+        self.custom_order = (
             [int(n) for n in args["custom_order"].split(",")]
             if args["custom_order"]
             else None
@@ -280,7 +280,7 @@ class CurriculumCollator:
         if n_tasks_to_include <= len(self.collators):
             for idx in range(n_tasks_to_include):
                 self.weights[idx] = (idx + 1) / triangle
-            log(f"weights updated to:\n{self.weights}")
+            # log(f"weights updated to:\n{self.weights}")
 
     def _count_samples_processed(self, batch, n_samples=None):
         if n_samples is None:
@@ -292,7 +292,9 @@ class CurriculumCollator:
 
     def _sample_batch(self, batch_size, train=True):
         features = np.zeros(batch_size)
-        sampler = WeightedRandomSampler(self.weights, batch_size, generator=self.generator)
+        sampler = WeightedRandomSampler(
+            self.weights, batch_size, generator=self.generator
+        )
         sample_ids = sorted(list(sampler))
 
         mixed_batch = {}
@@ -311,7 +313,7 @@ class CurriculumCollator:
 
         if train:
             self.samples_processed += self._count_samples_processed(mixed_batch)
-        log(self.samples_processed_by_level)
+        # log(self.samples_processed_by_level)
 
         return mixed_batch
 

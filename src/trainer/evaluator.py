@@ -25,8 +25,6 @@ from src.utils.utils import get_minigrid_obs
 from src.utils.utils import log
 from src.utils.utils import normalise
 
-# from minigrid.wrappers import FullyObsWrapper
-
 warnings.filterwarnings("ignore")
 
 sns.set_theme()
@@ -137,10 +135,10 @@ class Evaluator(TrainerCallback):
         if eval_type not in ["efficiency", "generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
-        log(
-            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-            with_tqdm=True,
-        )
+        # log(
+        #     f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+        #     with_tqdm=True,
+        # )
 
         if isinstance(self.collator, CurriculumCollator) or isinstance(
             self.collator, RoundRobinCollator
@@ -239,13 +237,13 @@ class Evaluator(TrainerCallback):
 
         if ret > self.best_returns[model_name]:
             self.best_returns[model_name] = ret
-            log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
+            # log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as(f"best_{model_name}")
 
         if ep_length < self.best_lengths[model_name]:
             self.best_lengths[model_name] = ep_length
-            log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
+            # log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
@@ -257,6 +255,7 @@ class Evaluator(TrainerCallback):
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
+                seed = int(seed)
                 env = self._create_env(config, seed)
                 ret, ep_length, success = run_agent(
                     agent, env, seed, self.target_return
@@ -277,10 +276,10 @@ class Evaluator(TrainerCallback):
         df = pd.DataFrame(self.results)
 
         # log the average episode return for the current eval
-        log(
-            f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
-            with_tqdm=True,
-        )
+        # log(
+        #     f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
+        #     with_tqdm=True,
+        # )
 
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
