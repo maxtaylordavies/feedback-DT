@@ -19,9 +19,14 @@ import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import log, get_minigrid_obs, normalise
+from src.collator import CurriculumCollator, RoundRobinCollator
 
 # from .atari_env import AtariEnv
 from .visualiser import Visualiser
+
+import warnings
+
+warnings.filterwarnings("ignore")
 
 sns.set_theme()
 
@@ -43,7 +48,7 @@ class Evaluator(TrainerCallback):
         self.samples_processed = 0
         self.target_return = target_return
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
-        self.best_lengths = {"random": 0, "DT": 0}
+        self.best_lengths = {"random": np.inf, "DT": np.inf}
         self.num_repeats = num_repeats
         self.gamma = gamma
         self.device = torch.device(
@@ -54,7 +59,9 @@ class Evaluator(TrainerCallback):
         self.seeds = None
 
         # create the output directory if it doesn't exist
-        self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
+        self.output_dir = os.path.join(
+            self.user_args["output"], self.user_args["run_name"]
+        )
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -83,11 +90,13 @@ class Evaluator(TrainerCallback):
 
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
+        self.current_epoch = 0
 
     def _init_results(self):
         self.results = {
             "model": [],  # "random" or "DT"
             "samples": [],  # number of training samples processed by model
+            "level": [],  # level name (for MT training)
             "config": [],  # config used for the episode
             "seed": [],  # seed used for the episode
             "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
@@ -112,6 +121,11 @@ class Evaluator(TrainerCallback):
             self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
 
+        previous_epoch = self.current_epoch
+        self.current_epoch = state.epoch
+        if previous_epoch != self.current_epoch:
+            self.collator.update_epoch()
+
     def on_train_end(
         self,
         args: TrainingArguments,
@@ -132,10 +146,20 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-        # cycle through configs
-        for config in self.collator.dataset.configs:
+        if isinstance(self.collator, CurriculumCollator) or isinstance(
+            self.collator, RoundRobinCollator
+        ):
+            for dataset in self.collator.datasets:
+                self._evaluate_by_config(dataset, agent, eval_type)
+        else:
+            self._evaluate_by_config(self.collator.dataset, agent, eval_type)
+
+        self._plot_results()
+
+    def _evaluate_by_config(self, dataset, agent, eval_type):
+        for config in dataset.configs:
             # sample some seeds for the current config
-            self._load_seed_dict(config)
+            self._load_seed_dict(dataset, config)
             seeds = (
                 self._sample_validation_seeds(n=self.num_repeats)
                 if eval_type == "efficiency"
@@ -144,30 +168,32 @@ class Evaluator(TrainerCallback):
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-                self._evaluate_agent_performance(a, name, config, seeds)
+                self._evaluate_agent_performance(a, name, dataset, config, seeds)
 
-        self._plot_results()
-
-    def _load_seed_dict(self, config):
-        self.seeds = self.collator.dataset.seed_finder.load_seeds(
-            self.user_args["level"], config
-        )
+    def _load_seed_dict(self, dataset, config):
+        self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
 
     def _sample_validation_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
 
         # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
-        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
+        return {
+            "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
+        }
 
     def _sample_test_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
 
         seeds = {}
-        types = [k for k in self.seeds if "seed" not in k]
+        types = [
+            k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]
+        ]
         for t in types:
-            seeds[t] = np.random.choice(self.seeds[t]["test_seeds"], size=n, replace=False)
+            seeds[t] = np.random.choice(
+                self.seeds[t]["test_seeds"], size=n, replace=False
+            )
         return seeds
 
     def _create_env(self, config, seed):
@@ -185,10 +211,11 @@ class Evaluator(TrainerCallback):
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
     def _record_result(
-        self, env, config, seed, ood_type, model_name, ret, ep_length, success
+        self, env, dataset, config, seed, ood_type, model_name, ret, ep_length, success
     ):
         self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
+        self.results["level"].append(dataset.level)
         self.results["config"].append(config)
         self.results["seed"].append(seed)
         self.results["ood_type"].append(ood_type)
@@ -208,14 +235,14 @@ class Evaluator(TrainerCallback):
             if self.user_args["record_video"]:
                 env.save_as(f"best_{model_name}")
 
-        if ep_length > self.best_lengths[model_name]:
+        if ep_length < self.best_lengths[model_name]:
             self.best_lengths[model_name] = ep_length
             log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
     def _evaluate_agent_performance(
-        self, agent: Agent, agent_name: str, config: str, seeds, ood=False
+        self, agent: Agent, agent_name: str, dataset, config: str, seeds: dict
     ):
         # run_agent = (
         #     self._run_agent_on_atari_env if "atari" in config else self._run_agent_on_minigrid_env
@@ -228,7 +255,15 @@ class Evaluator(TrainerCallback):
                 env = self._create_env(config, seed)
                 ret, ep_length, success = run_agent(agent, env, self.target_return)
                 self._record_result(
-                    env, config, seed, ood_type, agent_name, ret, ep_length, success
+                    env,
+                    dataset,
+                    config,
+                    seed,
+                    ood_type,
+                    agent_name,
+                    ret,
+                    ep_length,
+                    success,
                 )
 
         # convert results to dataframe
@@ -236,7 +271,7 @@ class Evaluator(TrainerCallback):
 
         # log the average episode return for the current eval
         log(
-            f"average return ({agent_name} agent): {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
+            f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
             with_tqdm=True,
         )
 
@@ -247,7 +282,9 @@ class Evaluator(TrainerCallback):
         accs = np.zeros(repeats)
 
         for rep in range(repeats):
-            batch = self.collator._sample_batch(1, random_start=True, full=True, train=False)
+            batch = self.collator._sample_batch(
+                1, random_start=True, full=True, train=False
+            )
             for k in batch:
                 batch[k] = batch[k].to(self.device)
 
@@ -278,7 +315,9 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-    def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
+    def _run_agent_on_minigrid_env(
+        self, agent: Agent, env: Visualiser, target_return: float
+    ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
                 env.get_env(),
@@ -452,7 +491,7 @@ class Evaluator(TrainerCallback):
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
-        losses = [x["loss"] for x in state.log_history]
+        losses = [x["loss"] for x in state.log_history[:-1]]
         sns.lineplot(x=range(len(losses)), y=losses, ax=ax)
         fig.savefig(os.path.join(self.output_dir, "loss.png"))
         plt.close(fig)
@@ -466,7 +505,7 @@ class Evaluator(TrainerCallback):
         gen_df = df[df["ood_type"] != ""]
 
         metrics = set(self.results.keys()).difference(
-            {"samples", "model", "config", "seed", "ood_type"}
+            {"samples", "model", "level", "config", "seed", "ood_type"}
         )
         for m in metrics:
             # for success, we want the percentage success rate, which we
@@ -478,7 +517,9 @@ class Evaluator(TrainerCallback):
             fig, ax = plt.subplots()
             sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
             for fmt in formats:
-                fig.savefig(os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}"))
+                fig.savefig(
+                    os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")
+                )
             plt.close(fig)
 
             # then, do bar plot (for generalisation) (if we have data yet)
@@ -487,6 +528,8 @@ class Evaluator(TrainerCallback):
                 sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
                 for fmt in formats:
                     fig.savefig(
-                        os.path.join(self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}")
+                        os.path.join(
+                            self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}"
+                        )
                     )
                 plt.close(fig)

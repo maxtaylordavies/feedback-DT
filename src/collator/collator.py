@@ -1,11 +1,15 @@
+import random
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
+from torch.utils.data import WeightedRandomSampler
 
 from src.dataset.custom_dataset import CustomDataset
 from src.utils.utils import log
+from torch.utils.data import WeightedRandomSampler
+from collections import Counter
 
 
 @dataclass
@@ -13,9 +17,7 @@ class Collator:
     def __init__(
         self,
         custom_dataset: CustomDataset,
-        feedback=True,
-        mission=True,
-        context_length=64,
+        args,
         scale=1,
         gamma=0.99,
         embedding_dim=128,
@@ -24,9 +26,7 @@ class Collator:
     ) -> None:
         (
             self.dataset,
-            self.feedback,
-            self.mission,
-            self.context_length,
+            self.args,
             self.scale,
             self.gamma,
             self.embedding_dim,
@@ -34,15 +34,17 @@ class Collator:
             self.episode_dist,
         ) = (
             custom_dataset,
-            feedback,
-            mission,
-            context_length,
+            args,
             scale,
             gamma,
             embedding_dim,
             randomise_starts,
             episode_dist,
         )
+        self.feedback = self.args["use_feedback"]
+        self.mission = self.args["use_mission"]
+        self.context_length = self.args["context_length"]
+        self.batch_size = self.args["batch_size"]
         self.sentence_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )
@@ -51,10 +53,14 @@ class Collator:
         )
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._feedback_embeddings_cache = {f: null_emb for f in ["", "No feedback available"]}
+        self._feedback_embeddings_cache = {
+            f: null_emb for f in ["", "No feedback available"]
+        }
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._mission_embeddings_cache = {m: null_emb for m in ["", "No mission available"]}
+        self._mission_embeddings_cache = {
+            m: null_emb for m in ["", "No mission available"]
+        }
 
         self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
@@ -64,6 +70,9 @@ class Collator:
 
     def reset_counter(self):
         self.samples_processed = 0
+
+    def update_epoch(self):
+        pass
 
     def _compute_sentence_embedding(self, sentence):
         return self.sentence_embedding_downsampler(
@@ -101,6 +110,11 @@ class Collator:
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
 
+    def _count_samples_processed(self, batch):
+        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        n_first_timesteps = batch["timesteps"].shape[1]
+        return n_non_zero + n_first_timesteps
+
     def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
         batch = {
             "timesteps": [],
@@ -117,7 +131,9 @@ class Collator:
         self.dataset.load_shard()
 
         # sample episode indices according to self.episode_dist
-        episode_indices = self.dataset.sample_episode_indices(batch_size, self.episode_dist)
+        episode_indices = self.dataset.sample_episode_indices(
+            batch_size, self.episode_dist
+        )
 
         # sample a subsequence of each chosen episode
         length = self.context_length if not full else None
@@ -153,10 +169,147 @@ class Collator:
 
         # if we're in training mode, update the sample counter
         if train:
-            self.samples_processed += np.prod(batch["timesteps"].shape)
+            self.samples_processed += self._count_samples_processed(batch)
 
         return batch
 
     def __call__(self, features):
-        batch_size = len(features)
+        return self._sample_batch(self.batch_size)
+
+
+class RoundRobinCollator:
+    """
+    Class to implement round-robin learning by cycling through a list of collators.
+
+    Args:
+        datasets (list): list of CustomDataset objects to cycle through.
+
+    Returns:
+        Collator: a collator object that samples a batch from a different dataset each time it is called.
+    """
+
+    def __init__(self, custom_dataset, args):
+        self.datasets = custom_dataset
+        self.args = args
+        self.batch_size = self.args["batch_size"]
+        self.collators = [Collator(dataset, self.args) for dataset in self.datasets]
+        random.shuffle(self.collators)
+        self.collator_idx = 0
+        self.reset_counter()
+        self.dataset = self.datasets[0]
+        self.state_dim = self.dataset.state_dim
+        self.act_dim = self.dataset.act_dim
+
+    def reset_counter(self):
+        self.samples_processed = 0
+        self.samples_processed_by_level = {key: 0 for key in range(len(self.collators))}
+
+    def update_epoch(self):
+        pass
+
+    def _count_samples_processed(self, batch):
+        n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        n_first_timesteps = batch["timesteps"].shape[1]
+        return n_non_zero + n_first_timesteps
+
+    def _sample_batch(self, batch_size, train=True):
+        collator = self.collators[self.collator_idx]
+        features = np.zeros(batch_size)
+        batch = collator(features)
+        if train:
+            self.samples_processed_by_level[
+                self.collator_idx
+            ] += self._count_samples_processed(batch)
+            self.samples_processed += self._count_samples_processed(batch)
+
+        self.collator_idx = (self.collator_idx + 1) % len(self.collators)
+
+        return batch
+
+    def __call__(self, features):
+        return self._sample_batch(self.batch_size)
+
+
+class CurriculumCollator:
+    """
+    Class to implement curriculum learning by composing weighted batches from a list of collators.
+    """
+
+    def __init__(self, custom_dataset, args, custom_order=None):
+        self.datasets = custom_dataset
+        self.custom_order = custom_order
+        if custom_order is not None:
+            self._custom_sort()
+        self.args = args
+        self.anti = "anti" in args["train_mode"]
+        self.collators = (
+            [Collator(dataset, self.args) for dataset in self.datasets]
+            if not self.anti
+            else [Collator(dataset, self.args) for dataset in reversed(self.datasets)]
+        )
+
+        self.reset_counter()
+        self.reset_weights()
+        self.dataset = self.datasets[0]
+        self.state_dim = self.dataset.state_dim
+        self.act_dim = self.dataset.act_dim
+
+    def _custom_sort(self):
+        zipped_pairs = zip(self.custom_order, self.datasets)
+        self.datasets = [dataset for _, dataset in sorted(zipped_pairs)]
+
+    def reset_counter(self):
+        self.samples_processed = 0
+        self.samples_processed_by_level = {key: 0 for key in range(len(self.datasets))}
+
+    def reset_weights(self):
+        self.weights = np.zeros(len(self.collators))
+        self.weights[0] = 1
+
+    def update_epoch(self):
+        self._update_weights()
+
+    def _update_weights(self):
+        n_tasks_to_include = np.argmax(self.weights) + 2
+        triangle = n_tasks_to_include * (n_tasks_to_include + 1) / 2
+        if n_tasks_to_include <= len(self.collators):
+            for idx in range(n_tasks_to_include):
+                self.weights[idx] = (idx + 1) / triangle
+            log(f"weights updated to:\n{self.weights}")
+
+    def _count_samples_processed(self, batch, n_samples=None):
+        if n_samples is None:
+            n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
+        else:
+            n_non_zero = int(torch.count_nonzero(batch["timesteps"][:n_samples]))
+        n_first_timesteps = batch["timesteps"].shape[1]
+        return n_non_zero + n_first_timesteps
+
+    def _sample_batch(self, batch_size, train=True):
+        features = np.zeros(batch_size)
+        sampler = WeightedRandomSampler(self.weights, batch_size)
+        sample_ids = sorted(list(sampler))
+
+        mixed_batch = {}
+        for dataset_idx, n_samples in Counter(sample_ids).items():
+            batch = self.collators[dataset_idx](features)
+            for key, tensor in batch.items():
+                try:
+                    mixed_batch[key] = torch.cat(
+                        (mixed_batch[key], tensor[:n_samples]), dim=0
+                    )
+                except KeyError:
+                    mixed_batch[key] = tensor[:n_samples]
+            self.samples_processed_by_level[
+                dataset_idx
+            ] += self._count_samples_processed(batch, n_samples)
+
+        if train:
+            self.samples_processed += self._count_samples_processed(mixed_batch)
+        log(self.samples_processed_by_level)
+
+        return mixed_batch
+
+    def __call__(self, features):
+        batch_size = self.args["batch_size"]
         return self._sample_batch(batch_size)

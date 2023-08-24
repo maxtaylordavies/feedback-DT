@@ -26,7 +26,7 @@ class Visualiser:
         self.rgb = rgb
 
         if self.size is None:
-            self.env.reset(seed=seed)
+            self.env.reset(seed=int(seed))
             self.size = self.env.render().shape[:2][::-1]
 
     def pause(self):
@@ -43,7 +43,9 @@ class Visualiser:
         if not self.active:
             return
         frame = self.env.render()
-        self._writer.write(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if self.rgb else frame)
+        self._writer.write(
+            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if self.rgb else frame
+        )
 
     def release(self):
         self._writer.release()
