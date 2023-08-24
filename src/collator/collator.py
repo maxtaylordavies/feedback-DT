@@ -1,4 +1,5 @@
 import random
+from collections import Counter
 from dataclasses import dataclass
 
 import numpy as np
@@ -6,10 +7,9 @@ import torch
 from sentence_transformers import SentenceTransformer
 from torch.utils.data import WeightedRandomSampler
 
+from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
 from src.utils.utils import log
-from torch.utils.data import WeightedRandomSampler
-from collections import Counter
 
 
 @dataclass
@@ -235,12 +235,16 @@ class CurriculumCollator:
     Class to implement curriculum learning by composing weighted batches from a list of collators.
     """
 
-    def __init__(self, custom_dataset, args, custom_order=None):
+    def __init__(self, custom_dataset, args):
         self.datasets = custom_dataset
-        self.custom_order = custom_order
-        if custom_order is not None:
-            self._custom_sort()
         self.args = args
+         self.custom_order = (
+            [int(n) for n in args["custom_order"].split(",")]
+            if args["custom_order"]
+            else None
+        )
+        if self.custom_order:
+            self._custom_sort()
         self.anti = "anti" in args["train_mode"]
         self.collators = (
             [Collator(dataset, self.args) for dataset in self.datasets]
@@ -253,6 +257,7 @@ class CurriculumCollator:
         self.dataset = self.datasets[0]
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
+        self.generator = torch.Generator().manual_seed(GLOBAL_SEED)
 
     def _custom_sort(self):
         zipped_pairs = zip(self.custom_order, self.datasets)
@@ -287,7 +292,7 @@ class CurriculumCollator:
 
     def _sample_batch(self, batch_size, train=True):
         features = np.zeros(batch_size)
-        sampler = WeightedRandomSampler(self.weights, batch_size)
+        sampler = WeightedRandomSampler(self.weights, batch_size, generator=self.generator)
         sample_ids = sorted(list(sampler))
 
         mixed_batch = {}
