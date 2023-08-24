@@ -1,30 +1,31 @@
 import os
+import warnings
 
 import gymnasium as gym
-import torch
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-# from minigrid.wrappers import FullyObsWrapper
-from transformers import (
-    TrainerCallback,
-    TrainerControl,
-    TrainerState,
-    TrainingArguments,
-)
-from transformers.trainer_callback import TrainerControl, TrainerState
-from transformers.training_args import TrainingArguments
-import matplotlib.pyplot as plt
 import seaborn as sns
+import torch
+from transformers import TrainerCallback
+from transformers import TrainerControl
+from transformers import TrainerState
+from transformers import TrainingArguments
+from transformers.trainer_callback import TrainerControl
+from transformers.trainer_callback import TrainerState
+from transformers.training_args import TrainingArguments
 
-from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import log, get_minigrid_obs, normalise
-from src.collator import CurriculumCollator, RoundRobinCollator
-
-# from .atari_env import AtariEnv
 from .visualiser import Visualiser
-
-import warnings
+from src.agent import Agent
+from src.agent import AgentInput
+from src.agent import RandomAgent
+from src.collator import CurriculumCollator
+from src.collator import RoundRobinCollator
+from src.utils.utils import get_minigrid_obs
+from src.utils.utils import log
+from src.utils.utils import normalise
+# from minigrid.wrappers import FullyObsWrapper
+# from .atari_env import AtariEnv
 
 warnings.filterwarnings("ignore")
 
@@ -253,7 +254,9 @@ class Evaluator(TrainerCallback):
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
                 env = self._create_env(config, seed)
-                ret, ep_length, success = run_agent(agent, env, self.target_return)
+                ret, ep_length, success = run_agent(
+                    agent, env, seed, self.target_return
+                )
                 self._record_result(
                     env,
                     dataset,
@@ -316,7 +319,7 @@ class Evaluator(TrainerCallback):
         )
 
     def _run_agent_on_minigrid_env(
-        self, agent: Agent, env: Visualiser, target_return: float
+        self, agent: Agent, env: Visualiser, seed: int, target_return: float
     ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
@@ -332,7 +335,7 @@ class Evaluator(TrainerCallback):
             )
 
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
-        obs, _ = env.reset(seed=self.user_args["seed"])
+        obs, _ = env.reset(seed=seed)
 
         states = get_state(obs)
         actions = torch.zeros(
