@@ -6,6 +6,7 @@ import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 
+from src.dataset.custom_feedback_verifier import RandomFeedback
 from src.dataset.custom_feedback_verifier import RuleFeedback
 from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
