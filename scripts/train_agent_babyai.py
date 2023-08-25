@@ -25,7 +25,7 @@ seed(GLOBAL_SEED)
 args = get_args()
 
 args["output"] = OUTPUT_PATH
-args["run_name"] = "22-aug-test-final"
+args["run_name"] = "24-aug-test"
 # args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
 args["policy"] = "random"

@@ -24,8 +24,6 @@ from src.collator import RoundRobinCollator
 from src.utils.utils import get_minigrid_obs
 from src.utils.utils import log
 from src.utils.utils import normalise
-# from minigrid.wrappers import FullyObsWrapper
-# from .atari_env import AtariEnv
 
 warnings.filterwarnings("ignore")
 
@@ -37,21 +35,16 @@ class Evaluator(TrainerCallback):
         self,
         user_args,
         collator,
-        sample_interval=20000,
-        target_return=90,
-        num_repeats=5,
-        gamma=0.99,
     ) -> None:
         super().__init__()
         self.user_args = user_args
         self.collator = collator
-        self.sample_interval = sample_interval
+        self.sample_interval = self.user_args["sample_interval"]
+        self.target_return = self.user_args["target_return"]
+        self.num_repeats = self.user_args["num_repeats"]
         self.samples_processed = 0
-        self.target_return = target_return
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
         self.best_lengths = {"random": np.inf, "DT": np.inf}
-        self.num_repeats = num_repeats
-        self.gamma = gamma
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -142,10 +135,10 @@ class Evaluator(TrainerCallback):
         if eval_type not in ["efficiency", "generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
-        log(
-            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-            with_tqdm=True,
-        )
+        # log(
+        #     f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+        #     with_tqdm=True,
+        # )
 
         if isinstance(self.collator, CurriculumCollator) or isinstance(
             self.collator, RoundRobinCollator
@@ -158,18 +151,32 @@ class Evaluator(TrainerCallback):
         self._plot_results()
 
     def _evaluate_by_config(self, dataset, agent, eval_type):
+        total_repeats = (
+            self.num_repeats if eval_type == "generalisation" else self.num_repeats // 4
+        )
+        per_config_repeats = total_repeats // len(dataset.configs) + (
+            total_repeats % len(dataset.configs) > 0
+        )
+
+        n_seeds_sampled = 0
         for config in dataset.configs:
             # sample some seeds for the current config
+            if n_seeds_sampled + per_config_repeats <= total_repeats:
+                n_seeds_to_sample = per_config_repeats
+            else:
+                n_seeds_to_sample = total_repeats - n_seeds_sampled
             self._load_seed_dict(dataset, config)
             seeds = (
-                self._sample_validation_seeds(n=self.num_repeats)
+                self._sample_validation_seeds(n=n_seeds_to_sample)
                 if eval_type == "efficiency"
-                else self._sample_test_seeds(n=self.num_repeats)
+                else self._sample_test_seeds(n=n_seeds_to_sample)
             )
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
                 self._evaluate_agent_performance(a, name, dataset, config, seeds)
+
+            n_seeds_sampled += n_seeds_to_sample
 
     def _load_seed_dict(self, dataset, config):
         self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
@@ -191,23 +198,26 @@ class Evaluator(TrainerCallback):
         types = [
             k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]
         ]
+        per_type_repeats = n // len(types) + (n % len(types) > 0)
+
+        seeds_sampled = 0
         for t in types:
-            seeds[t] = np.random.choice(
-                self.seeds[t]["test_seeds"], size=n, replace=False
-            )
+            if seeds_sampled + per_type_repeats <= n:
+                n_seeds_to_sample = per_type_repeats
+            else:
+                n_seeds_to_sample = n - seeds_sampled
+            try:
+                seeds[t] = np.random.choice(
+                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=False
+                )
+            except ValueError:
+                seeds[t] = np.random.choice(
+                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=True
+                )
+            seeds_sampled += n_seeds_to_sample
         return seeds
 
     def _create_env(self, config, seed):
-        # if "atari" in config:
-        #     game = config.split(":")[1]
-        #     _env = AtariEnv(self.device, game, seed)
-        #     return AtariVisualiser(
-        #         _env,
-        #         self.output_dir,
-        #         filename=f"tmp",
-        #         seed=seed,
-        #     )
-
         _env = gym.make(config, render_mode="rgb_array")
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
@@ -232,27 +242,25 @@ class Evaluator(TrainerCallback):
 
         if ret > self.best_returns[model_name]:
             self.best_returns[model_name] = ret
-            log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
+            # log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as(f"best_{model_name}")
 
         if ep_length < self.best_lengths[model_name]:
             self.best_lengths[model_name] = ep_length
-            log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
+            # log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
             if self.user_args["record_video"]:
                 env.save_as(f"longest_{model_name}")
 
     def _evaluate_agent_performance(
         self, agent: Agent, agent_name: str, dataset, config: str, seeds: dict
     ):
-        # run_agent = (
-        #     self._run_agent_on_atari_env if "atari" in config else self._run_agent_on_minigrid_env
-        # )
         run_agent = self._run_agent_on_minigrid_env
 
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
+                seed = int(seed)
                 env = self._create_env(config, seed)
                 ret, ep_length, success = run_agent(
                     agent, env, seed, self.target_return
@@ -273,50 +281,13 @@ class Evaluator(TrainerCallback):
         df = pd.DataFrame(self.results)
 
         # log the average episode return for the current eval
-        log(
-            f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
-            with_tqdm=True,
-        )
+        # log(
+        #     f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
+        #     with_tqdm=True,
+        # )
 
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
-
-    def _evaluate_agent_predictions(self, agent, agent_name, repeats=10, num_steps=100):
-        accs = np.zeros(repeats)
-
-        for rep in range(repeats):
-            batch = self.collator._sample_batch(
-                1, random_start=True, full=True, train=False
-            )
-            for k in batch:
-                batch[k] = batch[k].to(self.device)
-
-            ns = min(num_steps, batch["states"].shape[1] - 30)
-            for i in range(ns):
-                input = AgentInput(
-                    states=batch["states"][:, i : i + 30],
-                    actions=batch["actions"][:, i : i + 30],
-                    rewards=batch["rewards"][:, i : i + 30],
-                    returns_to_go=batch["returns_to_go"][:, i : i + 30],
-                    timesteps=batch["timesteps"][:, i : i + 30],
-                    feedback_embeddings=batch["feedback_embeddings"][:, i : i + 30],
-                    attention_mask=batch["attention_mask"][:, i : i + 30],
-                )
-
-                action = agent.get_action(input)
-                got = np.argmax(action.detach().cpu().numpy())
-                target = np.argmax(input.actions[0, -1].detach().cpu().numpy())
-
-                accs[rep] += int(got == target) / ns
-
-            self.results["samples"].append(self.collator.samples_processed)
-            self.results["model"].append(agent_name)
-            self.results["eval acc"].append(accs[rep])
-
-        log(
-            f"eval acc: {np.mean(accs)} (after {self.collator.samples_processed} samples)",
-            with_tqdm=True,
-        )
 
     def _run_agent_on_minigrid_env(
         self, agent: Agent, env: Visualiser, seed: int, target_return: float
@@ -392,105 +363,6 @@ class Evaluator(TrainerCallback):
 
         success = done and reward > 0
         return np.sum(rewards.detach().cpu().numpy()), t, success
-
-    # def _run_agent_on_atari_env(
-    #     self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
-    # ):
-    #     def get_state(frames):
-    #         frames = frames.permute(1, 2, 0)
-    #         return normalise(frames.reshape(1, self.collator.state_dim)).to(
-    #             device=self.device, dtype=torch.float32
-    #         )
-
-    #     max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
-
-    #     obs = env.reset(seed=self.user_args["seed"])
-    #     init_s = get_state(obs).detach().cpu().numpy()
-
-    #     _start_idx = 655
-    #     NUM_INITIAL_ACTIONS = 10
-
-    #     # ref_states = normalise(self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS])
-
-    #     # states = get_state(obs)
-    #     states = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     actions = torch.tensor(
-    #         self.collator.actions[_start_idx : _start_idx + NUM_INITIAL_ACTIONS],
-    #         device=self.device,
-    #     )
-    #     rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     returns_to_go = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     timesteps = torch.zeros(0, device=self.device, dtype=torch.long)
-
-    #     # execute set of initial actions to get going
-    #     a_idxs = []
-    #     for i, a in enumerate(actions):
-    #         a_idx = np.argmax(a.detach().cpu().numpy())
-    #         a_idxs.append(a_idx)
-
-    #         obs, r, _ = env.step(a_idx)
-    #         s = get_state(obs)
-
-    #         states = torch.cat([states, s], dim=0)
-    #         rewards = torch.cat(
-    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
-    #         )
-
-    #         if i == 0:
-    #             returns_to_go = torch.tensor(
-    #                 target_return, device=self.device, dtype=torch.float32
-    #             ).reshape(1, 1)
-    #         else:
-    #             returns_to_go = torch.cat(
-    #                 [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
-    #             )
-
-    #     for t in range(NUM_INITIAL_ACTIONS, max_ep_len):
-    #         # get action from agent
-    #         a = agent.get_action(
-    #             AgentInput(
-    #                 mission_embeddings=self.mission_embeddings,
-    #                 states=states,
-    #                 actions=actions,
-    #                 rewards=rewards,
-    #                 returns_to_go=returns_to_go,
-    #                 timesteps=timesteps,
-    #                 feedback_embeddings=self.feedback_embeddings,
-    #                 attention_mask=None,
-    #             ),
-    #             context=self.user_args["context_length"],
-    #             one_hot=True,
-    #         )
-
-    #         # take action, get next state and reward
-    #         a_idx = np.argmax(a.detach().cpu().numpy())
-    #         a_idxs.append(a_idx)
-    #         obs, r, done = env.step(a_idx)
-    #         s = get_state(obs)
-
-    #         # update state, reward, return, timestep tensors
-    #         states = torch.cat([states, s], dim=0)
-    #         actions = torch.cat([actions, a.reshape((1, 4))], dim=0)
-    #         rewards = torch.cat(
-    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
-    #         )
-    #         returns_to_go = torch.cat(
-    #             [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
-    #         )
-
-    #         timesteps = torch.cat(
-    #             [
-    #                 timesteps,
-    #                 torch.ones((1, 1), device=self.device, dtype=torch.long) * t,
-    #             ],
-    #             dim=1,
-    #         )
-
-    #         if done:
-    #             break
-
-    #     # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
-    #     return np.sum(rewards.detach().cpu().numpy()), t
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
