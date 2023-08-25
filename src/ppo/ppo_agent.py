@@ -17,7 +17,7 @@ os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
 def make_env(env_key, seed=None, render_mode=None, feedback_mode=None):
     _env = gym.make(env_key, render_mode=render_mode)
-    env = FeedbackEnv.from_env(_env, feedback_mode=feedback_mode)
+    env = FeedbackEnv(_env, feedback_mode=feedback_mode)
     env.reset(seed=seed)
     return env
 
@@ -62,7 +62,6 @@ class PPOAgent:
         self.env = make_env(
             self.args["env"], self.args["seeds"][0], feedback_mode=feedback_mode
         )
-        self.env.reset()
         self.model_dir = self._get_model_dir()
         # self.model = self._get_model()
 

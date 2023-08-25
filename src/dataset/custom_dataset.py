@@ -419,9 +419,7 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv.from_env(
-                        gym.make(config), self.args["feedback_mode"]
-                    )
+                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -442,8 +440,8 @@ class CustomDataset:
                             config=config,
                         )
 
-                    # feedback verifiers
-                    self._create_feedback_verifiers()
+                    # # feedback verifiers
+                    # self._create_feedback_verifiers()
 
                     # create another episode
                     self._create_episode(config, seed)
