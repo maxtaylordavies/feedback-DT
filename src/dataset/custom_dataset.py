@@ -443,7 +443,6 @@ class CustomDataset:
             )
         tmp = start + length - 1 if length else self.episode_ends[ep_idx]
         end = min(tmp, self.episode_ends[ep_idx]) + 1
-
         s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
 
