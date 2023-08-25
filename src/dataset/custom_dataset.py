@@ -619,7 +619,6 @@ class CustomDataset:
                     o = get_minigrid_obs(  # process partial observation
                         d.env, obss[i, t], args["fully_obs"], args["rgb_obs"]
                     )["image"]
-                    # f = d._get_feedback(actions[i, t])
                     r = (
                         feedback[i, t]
                         if args["feedback_mode"] == "numerical_reward"
@@ -635,6 +634,7 @@ class CustomDataset:
                         truncated=0,
                         config=config,
                         seed=seed,
+                        mission=d.env.get_mission(),
                     )
 
         # train a PPO agent for each config
