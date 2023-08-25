@@ -346,7 +346,7 @@ class Evaluator(TrainerCallback):
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
         task_feedback_verifier = TaskFeedback(env.get_env())
-        goal_conditions = len(task_feedback_verifier.tasks)
+        goal_conditions = len(task_feedback_verifier.subtasks)
         goal_conditions_met = 0
 
         for t in range(max_ep_len):
