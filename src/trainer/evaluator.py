@@ -399,8 +399,8 @@ class Evaluator(TrainerCallback):
 
         success = done and reward > 0
         gc_sr = goal_conditions_met / goal_conditions
-
         return np.sum(rewards.detach().cpu().numpy()), t, success, gc_sr
+
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
