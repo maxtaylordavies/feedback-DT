@@ -6,21 +6,18 @@ import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 
-from src.dataset.custom_feedback_verifier import (
-    RandomFeedback,
-    RuleFeedback,
-    TaskFeedback,
-)
+from src.dataset.custom_feedback_verifier import RandomFeedback
+from src.dataset.custom_feedback_verifier import RuleFeedback
+from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.dataset.minari_dataset import MinariDataset
 from src.dataset.minari_storage import name_dataset
-from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
-from src.utils.utils import (
-    discounted_cumsum,
-    get_minigrid_obs,
-    log,
-    normalise,
-    to_one_hot,
-)
+from src.dataset.seeds import LEVELS_CONFIGS
+from src.dataset.seeds import SeedFinder
+from src.utils.utils import discounted_cumsum
+from src.utils.utils import get_minigrid_obs
+from src.utils.utils import log
+from src.utils.utils import normalise
+from src.utils.utils import to_one_hot
 
 EPS_PER_SHARD = 100
 
@@ -65,19 +62,24 @@ class CustomDataset:
         MinariDataset: the dataset object that was retrieved from storage or created.
         """
         dataset_name = name_dataset(self.args)
-        print(f"Creating dataset {dataset_name}")
+        minari_fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
+            os.path.expanduser("~"), ".minari", "datasets"
+        )
+        self.fp, self.num_shards = os.path.join(minari_fp, dataset_name), 0
 
-        self._generate_new_dataset()
+        if self.args["load_existing_dataset"] and os.path.exists(self.fp):
+            print(f"Loading existing dataset {dataset_name}")
+            self._load_dataset(self.fp)
+        else:
+            print(f"Creating dataset {dataset_name}")
+            self._generate_new_dataset()
+
         return self
 
-        # if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
-        #     log(f"Loading dataset {dataset_name} from local storage")
-        #     return MinariDataset.load(dataset_name)
-        # else:
-        #     dataset = self._generate_new_dataset()
-        #     log(f"Created new dataset {dataset_name}, saving to local storage")
-        #     dataset.save()
-        #     return dataset
+    def _load_dataset(self, datset_dir):
+        self.num_shards = 0
+        for f in os.listdir(datset_dir):
+            self.num_shards += 1
 
     def _get_category(self):
         """
@@ -375,10 +377,6 @@ class CustomDataset:
 
     def _generate_new_dataset(self):
         # create folder to store MinariDataset files
-        fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
-            os.path.expanduser("~"), ".minari", "datasets"
-        )
-        self.fp, self.num_shards = os.path.join(fp, name_dataset(self.args)), 0
         if os.path.exists(self.fp):
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
