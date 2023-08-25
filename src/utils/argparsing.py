@@ -203,4 +203,10 @@ def get_args():
         default=False,
         help="whether to also predict feedback during training (besides the action)",
     )
+    parser.add_argument(
+        "--load_existing_dataset",
+        type=bool,
+        default=False,
+        help="whether to load the dataset if it already exists",
+    )
     return vars(parser.parse_args())
