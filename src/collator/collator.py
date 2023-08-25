@@ -9,6 +9,7 @@ from torch.utils.data import WeightedRandomSampler
 
 from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
+from src.dataset.custom_feedback_verifier import RandomFeedback
 from src.utils.utils import log
 
 
@@ -54,17 +55,24 @@ class Collator:
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
         self._feedback_embeddings_cache = {
-            f: null_emb for f in ["", "No feedback available"]
+            f: null_emb for f in ["", "No feedback available."]
         }
 
         null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
         self._mission_embeddings_cache = {
-            m: null_emb for m in ["", "No mission available"]
+            m: null_emb for m in ["", "No mission available."]
         }
 
         self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
+        self.feedback_mode = self.args["feedback_mode"]
+
+        if self.feedback and "random" in self.feedback_mode:
+            random_feedback_generator = RandomFeedback(self.feedback_mode)
+            self.random_feedback_sentences = (
+                random_feedback_generator.get_random_sentences()
+            )
 
         self.reset_counter()
 
@@ -102,7 +110,6 @@ class Collator:
             sentences,
         ).reshape(1, -1, self.embedding_dim)
 
-    # MAX LOOKING INTO IMPLEMENTING PADDING WITH PYTORCH
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
         pad_width = pad_width or max(self.context_length - x.shape[1], 0)
@@ -114,6 +121,21 @@ class Collator:
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
         n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
+
+    def _replace_with_random(self, epsiode_feedback):
+        def replace_with_random(x):
+            if x == "No feedback available.":
+                return (
+                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+                    if "lorem" in self.feedback_mode
+                    else x
+                )
+            return random.sample(self.random_feedback_sentences, 1)[0]
+
+        vfunc = np.vectorize(replace_with_random)
+        new_episode_feedback = vfunc(epsiode_feedback)
+
+        return new_episode_feedback
 
     def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
         batch = {
@@ -149,6 +171,9 @@ class Collator:
 
             # pad episode data to self.context_length and append to batch
             for k, v in ep.items():
+                if k == "feedback":
+                    if "random" in self.feedback_mode:
+                        v = self._replace_with_random(v)
                 if k in (
                     "mission",
                     "feedback",

@@ -575,7 +575,7 @@ class TaskFeedback(Feedback):
         return self._get_task_feedback()
 
 
-class RandomFeedback(Feedback):
+class RandomFeedback:
     """
     Class for generating random feedback (for ablations)
     """
@@ -586,15 +586,42 @@ class RandomFeedback(Feedback):
             OBJ_TYPES + LOC_NAMES + COLOR_NAMES + ACTION_WORDS + SEQUENCE_CONSTRUCTORS
         )
 
-    def verify_feedback(self):
-        if self.random_type == "lorem_ipsum":
-            sentence = lorem.sentence()
-            while len(sentence) > 150:
+    def get_random_sentences(self):
+        """
+        Get random feedback to replace actual feedback with (for ablations).
+
+        Parameters
+        ----------
+        random_type : str
+            The type of random feedback to generate. Can be either 'random' or 'lorem_ipsum'.
+
+        Returns
+        -------
+        str
+            The random feedback.
+        """
+        if self.random_type == "random":
+            generator = DocumentGenerator()
+            babyai_words = (
+                OBJ_TYPES
+                + LOC_NAMES
+                + COLOR_NAMES
+                + ACTION_WORDS
+                + SEQUENCE_CONSTRUCTORS
+            )
+        sentences = []
+
+        while len(sentences) < 100:
+            if "lorem" in self.random_type:
                 sentence = lorem.sentence()
-            return sentence
-        generator = DocumentGenerator()
-        word_list = self.babyai_words
-        while any(word in self.babyai_words for word in word_list):
-            sentence = generator.sentence()
-            word_list = set(re.sub(r"\W+", " ", sentence).lower().split())
-        return sentence
+                while len(sentence) > 150:
+                    sentence = lorem.sentence()
+                sentences.append(sentence)
+            else:
+                word_list = babyai_words
+                while any(word in babyai_words for word in word_list):
+                    sentence = generator.sentence()
+                    word_list = set(re.sub(r"\W+", " ", sentence).lower().split())
+                sentences.append(sentence)
+
+        return sentences
