@@ -15,6 +15,7 @@ class FeedbackEnv:
         self.env = env
         self.feedback_mode = feedback_mode
         if self.feedback_mode:
+            self.env.reset()
             self.rule_fv = RuleFeedback()
             self.task_fv = TaskFeedback(self.env)
             self.random_fv = RandomFeedback(
@@ -126,3 +127,7 @@ class FeedbackEnv:
     @property
     def max_steps(self):
         return self.env.max_steps
+
+    @property
+    def instrs(self):
+        return self.env.instrs

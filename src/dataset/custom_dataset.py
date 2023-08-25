@@ -429,7 +429,6 @@ class CustomDataset:
                     )["image"]
 
                     self.state_dim = np.prod(obs.shape)
-                    log(f"state_dim: {self.state_dim}")
 
                     # initialise buffers to store replay data
                     if current_episode == 0:
@@ -458,7 +457,7 @@ class CustomDataset:
                     pbar.refresh()
 
         self.env.close()
-        self._flush_buffer(obs.shape)
+        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
     def load_shard(self, idx=None):
         if not idx:
