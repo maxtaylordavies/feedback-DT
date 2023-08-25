@@ -7,13 +7,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+from jsonc_parser.parser import JsoncParser
 from transformers import TrainerCallback
 from transformers import TrainerControl
 from transformers import TrainerState
 from transformers import TrainingArguments
-from transformers.trainer_callback import TrainerControl
-from transformers.trainer_callback import TrainerState
-from transformers.training_args import TrainingArguments
 
 from .visualiser import Visualiser
 from src.agent import Agent
@@ -21,6 +19,7 @@ from src.agent import AgentInput
 from src.agent import RandomAgent
 from src.collator import CurriculumCollator
 from src.collator import RoundRobinCollator
+from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.utils.utils import get_minigrid_obs
 from src.utils.utils import log
 from src.utils.utils import normalise
@@ -97,6 +96,8 @@ class Evaluator(TrainerCallback):
             "return": [],  # episode return
             "episode length": [],  # episode length
             "success": [],  # whether the episode was successful (bool)
+            "gc_success": [],  # goal condition success rate (float)
+            "pw_success": [],  # path-weighted success rate (float)
         }
 
     def on_step_begin(
@@ -222,7 +223,17 @@ class Evaluator(TrainerCallback):
         return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
 
     def _record_result(
-        self, env, dataset, config, seed, ood_type, model_name, ret, ep_length, success
+        self,
+        env,
+        dataset,
+        config,
+        seed,
+        ood_type,
+        model_name,
+        ret,
+        ep_length,
+        success,
+        gc_success,
     ):
         self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
@@ -233,6 +244,10 @@ class Evaluator(TrainerCallback):
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
         self.results["success"].append(success)
+        self.results["gc_success"].append(gc_success)
+        self.results["pw_success"].append(
+            self._get_pw_success(success, ep_length, dataset.level)
+        )
 
         if self.user_args["record_video"]:
             env.release()
@@ -262,7 +277,7 @@ class Evaluator(TrainerCallback):
             for seed in seeds:
                 seed = int(seed)
                 env = self._create_env(config, seed)
-                ret, ep_length, success = run_agent(
+                ret, ep_length, success, gc_success = run_agent(
                     agent, env, seed, self.target_return
                 )
                 self._record_result(
@@ -275,6 +290,7 @@ class Evaluator(TrainerCallback):
                     ret,
                     ep_length,
                     success,
+                    gc_success,
                 )
 
         # convert results to dataframe
@@ -288,6 +304,17 @@ class Evaluator(TrainerCallback):
 
         # save the results to disk
         df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
+
+    def _get_demo_mean(self, level):
+        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
+        metadata = JsoncParser.parse_file(metadata_path)["levels"]
+        for level_group, levels in metadata.items():
+            if level in levels:
+                return round(metadata[level_group][level]["demo_mean_n_steps"])
+
+    def _get_pw_success(self, success, episode_length, level):
+        demo_length = self._get_demo_mean(level)
+        return success * (demo_length / max(episode_length, demo_length))
 
     def _run_agent_on_minigrid_env(
         self, agent: Agent, env: Visualiser, seed: int, target_return: float
@@ -305,7 +332,7 @@ class Evaluator(TrainerCallback):
                 .to(device=self.device, dtype=torch.float32)
             )
 
-        max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
+        max_ep_len = env.get_env().max_steps
         obs, _ = env.reset(seed=seed)
 
         states = get_state(obs)
@@ -317,6 +344,10 @@ class Evaluator(TrainerCallback):
             target_return, device=self.device, dtype=torch.float32
         ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+
+        task_feedback_verifier = TaskFeedback(env.get_env())
+        goal_conditions = len(task_feedback_verifier.subtasks)
+        goal_conditions_met = 0
 
         for t in range(max_ep_len):
             actions = torch.cat(
@@ -358,11 +389,18 @@ class Evaluator(TrainerCallback):
                 dim=1,
             )
 
+            goal_conditions_met += (
+                task_feedback_verifier.verify_feedback(env.get_env(), np.argmax(a))
+                != "No feedback available."
+            )
+
             if done:
                 break
 
         success = done and reward > 0
-        return np.sum(rewards.detach().cpu().numpy()), t, success
+        gc_sr = goal_conditions_met / goal_conditions
+        return np.sum(rewards.detach().cpu().numpy()), t, success, gc_sr
+
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
