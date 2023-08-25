@@ -1,2 +1,2 @@
-from .trainer import AgentTrainer
 from .evaluator import Evaluator
+from .trainer import AgentTrainer

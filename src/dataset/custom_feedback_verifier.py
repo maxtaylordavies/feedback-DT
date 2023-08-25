@@ -1,24 +1,26 @@
 import re
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 
 from essential_generators import DocumentGenerator
 from lorem_text import lorem
 from minigrid.core.constants import COLOR_NAMES
-from minigrid.core.world_object import Box, Door, Key, Wall
-from minigrid.envs.babyai.core.verifier import (
-    LOC_NAMES,
-    OBJ_TYPES,
-    AfterInstr,
-    AndInstr,
-    BeforeInstr,
-    GoToInstr,
-    ObjDesc,
-    OpenInstr,
-    PickupInstr,
-    PutNextInstr,
-    SeqInstr,
-    pos_next_to,
-)
+from minigrid.core.world_object import Box
+from minigrid.core.world_object import Door
+from minigrid.core.world_object import Key
+from minigrid.core.world_object import Wall
+from minigrid.envs.babyai.core.verifier import AfterInstr
+from minigrid.envs.babyai.core.verifier import AndInstr
+from minigrid.envs.babyai.core.verifier import BeforeInstr
+from minigrid.envs.babyai.core.verifier import GoToInstr
+from minigrid.envs.babyai.core.verifier import LOC_NAMES
+from minigrid.envs.babyai.core.verifier import OBJ_TYPES
+from minigrid.envs.babyai.core.verifier import ObjDesc
+from minigrid.envs.babyai.core.verifier import OpenInstr
+from minigrid.envs.babyai.core.verifier import PickupInstr
+from minigrid.envs.babyai.core.verifier import pos_next_to
+from minigrid.envs.babyai.core.verifier import PutNextInstr
+from minigrid.envs.babyai.core.verifier import SeqInstr
 
 SEQUENCE_CONSTRUCTORS = ["and", ", then", "after you"]
 
@@ -169,6 +171,17 @@ class RuleFeedback(Feedback):
         """
         return self.carrying is not None
 
+    def _is_carrying_key(self):
+        """
+        Check if the agent is carrying a key.
+
+        Returns
+        -------
+        bool
+            True if the agent is carrying a key, False otherwise.
+        """
+        return isinstance(self.carrying, Key)
+
     def _is_carrying_correct_key(self):
         """
         Check if the agent is carrying a correct key to unlock the door it is positioned in front of.
@@ -178,10 +191,7 @@ class RuleFeedback(Feedback):
         bool
             True if the agent is carrying a correct key (of the same color as the door), False otherwise.
         """
-        return (
-            isinstance(self.carrying, Key)
-            and self.carrying.color == self.front_cell.color
-        )
+        return self._is_carrying_key() and self.carrying.color == self.front_cell.color
 
     def _is_valid_move_forward(self):
         """
@@ -242,11 +252,17 @@ class RuleFeedback(Feedback):
             The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "There is nothing to open in front of you."
-        if self._is_open_door():
-            return "You just closed an already open door."
-        if self._is_locked_door() and not self._is_carrying_correct_key():
-            return "You can't open a locked door without a key of the same color as the door."
+            return (
+                "There is nothing in front of you that you can open, just empty space."
+            )
+        if (
+            self._is_locked_door()
+            and self._is_carrying_key()
+            and not self._is_carrying_correct_key()
+        ):
+            return f"You can't open a locked door without a key of the same color as the door. You are carrying a {self.carrying.color}, but the door you are trying to open is {self.front_cell.color}."
+        if self._is_locked_door() and not self._is_carrying_key():
+            return "You can't open a locked door without a key of the same color as the door, and you are not carrying any key."
         if self._is_wall():
             return "You can't open the wall."
         if self._is_obstacle():
@@ -276,7 +292,7 @@ class RuleFeedback(Feedback):
             The feedback for the pickup action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "There is nothing to pick up in front of you."
+            return "There is nothing to pick up in front of you, just empty space."
         if self._is_door():
             return "You can't pick up doors."
         if self._is_wall():
@@ -306,7 +322,7 @@ class RuleFeedback(Feedback):
             The feedback for the drop action with respect to the object the agent is carrying and the cell that the agent is facing.
         """
         if not self._is_carrying():
-            return "You can't drop an object while you're not carrying anything."
+            return "You're not carrying an object so dropping has no effect."
         if self._is_wall():
             return "You can't drop an object while you're facing the wall."
         if self._is_door():
@@ -486,11 +502,6 @@ class TaskFeedback(Feedback):
             return "a"
         return "the"
 
-    def _get_goto_type(self, goal_obj):
-        if goal_obj.type == "door":
-            return "door"
-        return "object"
-
     def _get_completion_level(self):
         if not self.subtasks:
             return ""
@@ -501,7 +512,7 @@ class TaskFeedback(Feedback):
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
-                return f"You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} correct {self._get_goto_type(goal_obj)}."
+                return f"That's correct! You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
         return "No feedback available."
 
     def _get_open_feedback(self, instrs):
@@ -510,15 +521,14 @@ class TaskFeedback(Feedback):
             if self._is_goal(self.front_cell, goal_obj):
                 if self._is_open_door():
                     self.subtasks.pop(self.pop_from)
-                    return f"You've completed {self._get_completion_level()}your task by opening {self._get_article(goal_obj)} correct door."
+                    return f"That's correct! You've completed {self._get_completion_level()}your task by opening {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
         return "No feedback available."
 
     def _get_pickup_feedback(self, instrs):
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
-            # if self._is_goal_pickup(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
-            return f"You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} correct object."
+            return f"That's correct! You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
         return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
@@ -527,7 +537,7 @@ class TaskFeedback(Feedback):
         if self._is_goal(self.front_cell, goal_obj_1):
             if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
                 self.subtasks.pop(self.pop_from)
-                return f"You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} correct move object next to {self._get_article(goal_obj_2)} correct {'fixed object' if self._get_goto_type(goal_obj_2) == 'object' else self._get_goto_type(goal_obj_2)}."
+                return f"That's correct! You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} {goal_obj_1.color} {goal_obj_1.type} next to {self._get_article(goal_obj_2)} {goal_obj_2.color} {goal_obj_2.type}."
         return "No feedback available."
 
     def _get_task_feedback(self):
@@ -565,7 +575,7 @@ class TaskFeedback(Feedback):
         return self._get_task_feedback()
 
 
-class RandomFeedback(Feedback):
+class RandomFeedback:
     """
     Class for generating random feedback (for ablations)
     """
@@ -576,15 +586,42 @@ class RandomFeedback(Feedback):
             OBJ_TYPES + LOC_NAMES + COLOR_NAMES + ACTION_WORDS + SEQUENCE_CONSTRUCTORS
         )
 
-    def verify_feedback(self):
-        if self.random_type == "lorem_ipsum":
-            sentence = lorem.sentence()
-            while len(sentence) > 150:
+    def get_random_sentences(self):
+        """
+        Get random feedback to replace actual feedback with (for ablations).
+
+        Parameters
+        ----------
+        random_type : str
+            The type of random feedback to generate. Can be either 'random' or 'lorem_ipsum'.
+
+        Returns
+        -------
+        str
+            The random feedback.
+        """
+        if self.random_type == "random":
+            generator = DocumentGenerator()
+            babyai_words = (
+                OBJ_TYPES
+                + LOC_NAMES
+                + COLOR_NAMES
+                + ACTION_WORDS
+                + SEQUENCE_CONSTRUCTORS
+            )
+        sentences = []
+
+        while len(sentences) < 100:
+            if "lorem" in self.random_type:
                 sentence = lorem.sentence()
-            return sentence
-        generator = DocumentGenerator()
-        word_list = self.babyai_words
-        while any(word in self.babyai_words for word in word_list):
-            sentence = generator.sentence()
-            word_list = set(re.sub(r"\W+", " ", sentence).lower().split())
-        return sentence
+                while len(sentence) > 150:
+                    sentence = lorem.sentence()
+                sentences.append(sentence)
+            else:
+                word_list = babyai_words
+                while any(word in babyai_words for word in word_list):
+                    sentence = generator.sentence()
+                    word_list = set(re.sub(r"\W+", " ", sentence).lower().split())
+                sentences.append(sentence)
+
+        return sentences

@@ -25,7 +25,7 @@ def get_args():
         "--include_timeout",
         type=bool,
         default=True,
-        help="whether to include episodes terminated by timeout / truncated",
+        help="whether to include episodes terminated by timeout / truncated episodes",
     )
     parser.add_argument(
         "--fully_obs",
@@ -43,19 +43,19 @@ def get_args():
         "--epochs",
         type=int,
         default=10,
-        help="number of epochs to train (default: 10)",
+        help="number of epochs to train",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
         default=64,
-        help="per-device batch size for training (default: 64)",
+        help="per-device batch size for training",
     )
     parser.add_argument(
         "--context_length",
         type=int,
         default=16,
-        help="context length in timesteps (default: 64)",
+        help="context length in timesteps",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
     parser.add_argument(
@@ -83,7 +83,7 @@ def get_args():
         "--log_interval",
         type=int,
         default=10,
-        help="how many training steps between logging output (default: 10)",
+        help="how many training steps between logging output",
     )
     parser.add_argument(
         "--record_video",
@@ -95,7 +95,7 @@ def get_args():
         "--wandb_mode",
         type=str,
         default="offline",
-        help="wandb mode - can be online, offline, or disabled (default: offline)",
+        help="wandb mode - can be online, offline, or disabled",
     )
     parser.add_argument(
         "--checkpoint", type=str, default="", help="path to pytorch checkpoint file"
@@ -105,7 +105,7 @@ def get_args():
         "--output",
         type=str,
         default="/disk/scratch/feedback-DT/output",
-        help="Path to the " "directory to write output to",
+        help="Path to the directory to write output to",
     )
     parser.add_argument(
         "--del_all",
@@ -120,45 +120,93 @@ def get_args():
         help="whether to use feedback during training",
     )
     parser.add_argument(
+        "--use_mission",
+        type=bool,
+        default=True,
+        help="whether to use mission during training",
+    )
+    parser.add_argument(
         "--demo",
         type=str,
         default="from_default_hard",
-        help="the type of demo to make, either from a predefined action sequence corresponding to an easy or a hard task, or from an action sequence corresponding to an episode of the actual training data for a given environment and seed.'",
+        help="the type of demo to make, either from a predefined action sequence corresponding to an easy or a hard task, or from an action sequence corresponding to an episode of the actual training data for a given environment and seed'",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default="demos",
-        help="the directory to save output - such as demo videos - to.",
+        help="the directory to save output - such as demo videos - to",
     )
     parser.add_argument(
         "--demo_episode",
         type=int,
         default=0,
-        help="the index of the episode to make a demo video of.",
+        help="the index of the episode to make a demo video of",
     )
     parser.add_argument(
         "--ppo_frames",
         type=int,
         default=10**7,
-        help="the number of frames to train the PPO agent for.",
+        help="the number of frames to train the PPO agent for",
     )
     parser.add_argument(
         "--feedback_mode",
         type=str,
         default="all",
-        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'random', 'random_lorem_ipsum, or 'numerical_reward'.",
+        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'random', 'random_lorem_ipsum, or 'numerical_reward'",
     )
     parser.add_argument(
         "--level",
         type=str,
         default="GoToRedBallGrey",
-        help="the name of the level to train on.",
+        help="the name of the level to train on",
     )
     parser.add_argument(
         "--train_mode",
         type=str,
         default="single_task",
-        help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum' or 'anti_curriculum.",
+        help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum_default', 'curriculum_custom', or 'anti_curriculum",
+    )
+    parser.add_argument(
+        "--use_pretrained",
+        type=bool,
+        default=True,
+        help="whether to use the pretrained GPT-2 model",
+    )
+    parser.add_argument(
+        "--sample_interval",
+        type=int,
+        default=20000,
+        help="whether to use the pretrained GPT-2 model",
+    )
+    parser.add_argument(
+        "--target_return",
+        type=int,
+        default=90,
+        help="the target return to condition on",
+    )
+    parser.add_argument(
+        "--num_repeats",
+        type=int,
+        default=512,
+        help="number of seeds to evaluate over (for validation, this will be 1 / 4)",
+    )
+    parser.add_argument(
+        "--custom_order",
+        type=str,
+        default="",
+        help="the custom order of tasks to use for the curriculum training mode, in the format 'level1,level9,level5,...'",
+    )
+    parser.add_argument(
+        "--predict_feedback",
+        type=bool,
+        default=False,
+        help="whether to also predict feedback during training (besides the action)",
+    )
+    parser.add_argument(
+        "--load_existing_dataset",
+        type=bool,
+        default=False,
+        help="whether to load the dataset if it already exists",
     )
     return vars(parser.parse_args())

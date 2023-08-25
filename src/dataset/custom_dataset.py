@@ -34,6 +34,7 @@ class CustomDataset:
         self.buffers = []
         self.steps = []
         self.seed_finder = SeedFinder(self.args["num_episodes"])
+        self.level = self.args["level"]
         self.configs = self._get_configs()
         self.category = self._get_category()
 
@@ -64,19 +65,25 @@ class CustomDataset:
         MinariDataset: the dataset object that was retrieved from storage or created.
         """
         dataset_name = name_dataset(self.args)
-        print(f"Creating dataset {dataset_name}")
-        self._initialise_new_dataset()
-        self._generate_new_dataset()
+        minari_fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
+            os.path.expanduser("~"), ".minari", "datasets"
+        )
+        self.fp, self.num_shards = os.path.join(minari_fp, dataset_name), 0
+
+        if self.args["load_existing_dataset"] and os.path.exists(self.fp):
+            print(f"Loading existing dataset {dataset_name}")
+            self._load_dataset(self.fp)
+        else:
+            print(f"Creating dataset {dataset_name}")
+            self._initialise_new_dataset()
+            self._generate_new_dataset()
+
         return self
 
-        # if self.args["load_dataset_if_exists"] and dataset_name in list_local_datasets():
-        #     log(f"Loading dataset {dataset_name} from local storage")
-        #     return MinariDataset.load(dataset_name)
-        # else:
-        #     dataset = self._generate_new_dataset()
-        #     log(f"Created new dataset {dataset_name}, saving to local storage")
-        #     dataset.save()
-        #     return dataset
+    def _load_dataset(self, datset_dir):
+        self.num_shards = 0
+        for _ in os.listdir(datset_dir):
+            self.num_shards += 1
 
     def _get_category(self):
         """
@@ -170,68 +177,45 @@ class CustomDataset:
         # to evaluate success for any of the tasks
         return np.random.randint(0, 6)
 
-    # def _create_feedback_verifiers(self):
-    #     self.rule_feedback_verifier = RuleFeedback()
-    #     self.task_feedback_verifier = TaskFeedback(self.env)
-    #     self.random_feedback_verifier = RandomFeedback(
-    #         "lorem_ipsum"
-    #         if "lorem_ipsum" in self.args["feedback_mode"]
-    #         else "random_sentence"
-    #     )
+    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        for _ in range(num_buffers):
+            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
+            self.steps.append(0)
 
-    # def _get_feedback_constant(self):
-    #     """
-    #     Get the constant feedback string depending on the feedback mode.
+    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        max_steps = self._get_level_max_steps()
+        return {
+            "configs": [config] * ((max_steps + 1) * num_eps),
+            "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
+            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
+            "observations": np.array(
+                [np.zeros(obs_shape)] * (max_steps * num_eps),
+                dtype=np.uint8,
+            ),
+            "actions": np.array(
+                [[0]] * (max_steps * num_eps),
+                dtype=np.float32,
+            ),
+            "rewards": np.array(
+                [[0]] * (max_steps * num_eps),
+                dtype=np.float32,
+            ),
+            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
+            "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
+        }
 
-    #     Returns
-    #     -------
-    #         str: the constant feedback string.
-    #     """
-    #     if self.args["feedback_mode"] == "random_lorem_ipsum":
-    #         return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
-    #     if self.args["feedback_mode"] == "numerical_reward":
-    #         return np.array(0, dtype=np.float32)
-    #     return "No feedback available."
-
-    # def _get_feedback(self, action):
-    #     """
-    #     Get the feedback for a given action.
-
-    #     Parameters
-    #     ----------
-    #         action (int): the action.
-
-    #     Returns
-    #     -------
-    #         str: the feedback.
-    #     """
-    #     rule_feedback = (
-    #         self.rule_feedback_verifier.verify_feedback(self.env, action)
-    #         if self.args["feedback_mode"] in ["all", "rule_only"]
-    #         else None
-    #     )
-    #     task_feedback = (
-    #         self.task_feedback_verifier.verify_feedback(self.env, action)
-    #         if self.args["feedback_mode"] in ["all", "task_only"]
-    #         else None
-    #     )
-
-    #     if self.args["feedback_mode"] == "random":
-    #         return self.random_feedback_verifier.verify_feedback()
-    #     if self.args["feedback_mode"] == "rule_only":
-    #         return rule_feedback
-    #     if self.args["feedback_mode"] == "task_only":
-    #         return task_feedback
-    #     if self.args["feedback_mode"] == "numerical_reward":
-    #         if task_feedback != "No feedback available.":
-    #             return np.array(1)
-    #         if rule_feedback != "No feedback available.":
-    #             return np.array(-1)
-    #         return np.array(0)
-    #     if self.args["feedback_mode"] == "all":
-    #         if rule_feedback == "No feedback available.":
-    #             return task_feedback
-    #         return rule_feedback
+    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        # if buffer exists and isn't empty, first save it to file
+        if (
+            len(self.buffers) > buffer_idx
+            and len(self.buffers[buffer_idx]["observations"]) > 0
+            and np.any(self.buffers[buffer_idx]["observations"])  # check any nonzero
+        ):
+            print("saving buffer to file")
+            self._save_buffer_to_minari_file(buffer_idx)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
+        self.steps[buffer_idx] = 0
 
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
@@ -274,111 +258,60 @@ class CustomDataset:
         md.save(fp)
         self.num_shards += 1
 
-    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
-        for _ in range(num_buffers):
-            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
-            self.steps.append(0)
-
-    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
-        max_steps = self._get_level_max_steps()
-        return {
-            "configs": [config] * ((max_steps + 1) * num_eps),
-            "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
-            "observations": np.array(
-                [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
-                dtype=np.uint8,
-            ),
-            "actions": np.array(
-                [[0]] * ((max_steps + 1) * num_eps),
-                dtype=np.float32,
-            ),
-            "rewards": np.array(
-                [[0]] * ((max_steps + 1) * num_eps),
-                dtype=np.float32,
-            ),
-            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
-            "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
-            "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
-        }
-
-    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
-        # if buffer exists and isn't empty, first save it to file
-        if (
-            len(self.buffers) > buffer_idx
-            and len(self.buffers[buffer_idx]["observations"]) > 0
-            and np.any(self.buffers[buffer_idx]["observations"])  # check any nonzero
-        ):
-            print("saving buffer to file")
-            self._save_buffer_to_minari_file(buffer_idx)
-        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
-        self.steps[buffer_idx] = 0
-
     def _add_to_buffer(
         self,
         buffer_idx,
-        action,
         observation,
+        action,
         reward,
         feedback,
         terminated,
         truncated,
         config,
         seed,
+        mission,
     ):
-        # store action a_t taken after observing o_t
-        self.buffers[buffer_idx]["actions"][self.steps[buffer_idx]] = action
-
-        # store obs o_t+1, reward r_t+1 etc resulting from taking a_t at o_t
-        self.steps[buffer_idx] += 1
         self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = observation
+        self.buffers[buffer_idx]["actions"][self.steps[buffer_idx]] = action
         self.buffers[buffer_idx]["rewards"][self.steps[buffer_idx]] = reward
         self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
         self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
         self.buffers[buffer_idx]["truncations"][self.steps] = truncated
         self.buffers[buffer_idx]["configs"][self.steps[buffer_idx]] = config
         self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
-
-    def _store_initial_obs(self, obs, buffer_idx):
-        self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = obs
+        self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
+        self.steps[buffer_idx] += 1
 
     def _create_episode(self, config, seed, buffer_idx=0):
-        # Storing observation at initial episode timestep t=0 (o_0)
         partial_obs, _ = self.env.reset(seed=seed)
-        obs = get_minigrid_obs(
-            self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-        )
-        self._store_initial_obs(obs["image"], buffer_idx)
-
         terminated, truncated = False, False
         while not (terminated or truncated):
-            # Passing partial observation to policy (PPO) as agent was trained on this
-            # following the original implementation
-            action = self._policy(partial_obs)
-            partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
             obs = get_minigrid_obs(
                 self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
             )
+            mission = partial_obs["mission"]
+            action = self._policy(partial_obs)
+
+            # execute action
+            partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
+
             reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
                 buffer_idx=buffer_idx,
-                action=action,
                 observation=obs["image"],
+                action=action,
                 reward=reward,
                 feedback=feedback,
                 terminated=terminated,
                 truncated=truncated,
                 config=config,
                 seed=seed,
+                mission=mission,
             )
 
     def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
-        fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
-            os.path.expanduser("~"), ".minari", "datasets"
-        )
-        self.fp, self.num_shards = os.path.join(fp, name_dataset(self.args)), 0
         if os.path.exists(self.fp):
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
@@ -439,9 +372,6 @@ class CustomDataset:
                             config=config,
                         )
 
-                    # # feedback verifiers
-                    # self._create_feedback_verifiers()
-
                     # create another episode
                     self._create_episode(config, seed)
 
@@ -456,7 +386,8 @@ class CustomDataset:
                     pbar.update(1)
                     pbar.refresh()
 
-        self.env.close()
+        if hasattr(self, "env"):
+            self.env.close()
         self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
     def load_shard(self, idx=None):
@@ -505,12 +436,14 @@ class CustomDataset:
         # optionally sample a random start timestep for this episode
         start = self.episode_starts[ep_idx]
         if random_start:
-            start += np.random.randint(
-                0,
-                self.episode_lengths[ep_idx] - max(self.episode_lengths[ep_idx] // 4, 1),
+            start += (
+                np.random.randint(0, self.episode_lengths[ep_idx] - 1)
+                if self.episode_lengths[ep_idx] > 1
+                else 0
             )
-        tmp = start + length if length else self.episode_ends[ep_idx]
-        end = min(tmp, self.episode_ends[ep_idx])
+        tmp = start + length - 1 if length else self.episode_ends[ep_idx]
+        end = min(tmp, self.episode_ends[ep_idx]) + 1
+
         s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
 
