@@ -11,7 +11,7 @@ from src.dataset.custom_feedback_verifier import (
 
 
 class FeedbackEnv:
-    def __init__(self, env, feedback_mode) -> None:
+    def __init__(self, env: gym.Env, feedback_mode: Optional[str]) -> None:
         self.env = env
         self.feedback_mode = feedback_mode
         if self.feedback_mode:
@@ -122,3 +122,7 @@ class FeedbackEnv:
     @property
     def grid(self):
         return self.env.grid
+
+    @property
+    def max_steps(self):
+        return self.env.max_steps

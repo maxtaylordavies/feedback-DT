@@ -19,9 +19,7 @@ import seaborn as sns
 
 from src.agent import Agent, AgentInput, RandomAgent
 from src.utils.utils import log, get_minigrid_obs, normalise
-
-# from .atari_env import AtariEnv
-from .visualiser import Visualiser
+from src.env.recorder_env import RecorderEnv
 
 sns.set_theme()
 
@@ -174,15 +172,19 @@ class Evaluator(TrainerCallback):
         # if "atari" in config:
         #     game = config.split(":")[1]
         #     _env = AtariEnv(self.device, game, seed)
-        #     return AtariVisualiser(
+        #     return AtariRecorderEnv(
         #         _env,
+        #         self.user_args["feedback_mode"],
         #         self.output_dir,
         #         filename=f"tmp",
-        #         seed=seed,
         #     )
 
         _env = gym.make(config, render_mode="rgb_array")
-        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
+        env = RecorderEnv(
+            _env, self.user_args["feedback_mode"], self.output_dir, filename=f"tmp"
+        )
+        env.reset(seed=seed)
+        return env
 
     def _record_result(
         self, env, config, seed, ood_type, model_name, ret, ep_length, success
@@ -226,7 +228,7 @@ class Evaluator(TrainerCallback):
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
                 env = self._create_env(config, seed)
-                ret, ep_length, success = run_agent(agent, env, self.target_return)
+                ret, ep_length, success = run_agent(agent, env, seed, self.target_return)
                 self._record_result(
                     env, config, seed, ood_type, agent_name, ret, ep_length, success
                 )
@@ -278,7 +280,9 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-    def _run_agent_on_minigrid_env(self, agent: Agent, env: Visualiser, target_return: float):
+    def _run_agent_on_minigrid_env(
+        self, agent: Agent, env: RecorderEnv, seed: int, target_return: float
+    ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
                 env.get_env(),
@@ -293,7 +297,7 @@ class Evaluator(TrainerCallback):
             )
 
         max_ep_len = env.max_steps if hasattr(env, "max_steps") else 64
-        obs, _ = env.reset(seed=self.user_args["seed"])
+        obs, _ = env.reset(seed=seed)
 
         states = get_state(obs)
         actions = torch.zeros(
@@ -352,7 +356,7 @@ class Evaluator(TrainerCallback):
         return np.sum(rewards.detach().cpu().numpy()), t, success
 
     # def _run_agent_on_atari_env(
-    #     self, agent: Agent, env: AtariVisualiser, target_return: float, stack_size=4
+    #     self, agent: Agent, env: AtariRecorderEnv, target_return: float, stack_size=4
     # ):
     #     def get_state(frames):
     #         frames = frames.permute(1, 2, 0)
