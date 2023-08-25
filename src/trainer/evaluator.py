@@ -206,9 +206,14 @@ class Evaluator(TrainerCallback):
                 n_seeds_to_sample = per_type_repeats
             else:
                 n_seeds_to_sample = n - seeds_sampled
-            seeds[t] = np.random.choice(
-                self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=False
-            )
+            try:
+                seeds[t] = np.random.choice(
+                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=False
+                )
+            except ValueError:
+                seeds[t] = np.random.choice(
+                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=True
+                )
             seeds_sampled += n_seeds_to_sample
         return seeds
 
