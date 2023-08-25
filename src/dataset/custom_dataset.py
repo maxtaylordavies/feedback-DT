@@ -670,7 +670,7 @@ class CustomDataset:
             obss = exps.obs.image.cpu().numpy()
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
-            feedback = exps.feedback.cpu().numpy().reshape(-1, 1)
+            feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
 
             # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
             # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
