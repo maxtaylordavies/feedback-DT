@@ -160,8 +160,6 @@ class CustomDataset:
         -------
             str: the constant feedback string.
         """
-        if self.args["feedback_mode"] == "random_lorem_ipsum":
-            return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
         if self.args["feedback_mode"] == "numerical_reward":
             return np.array(0, dtype=np.float32)
         return "No feedback available."
@@ -178,8 +176,6 @@ class CustomDataset:
         -------
             str: the feedback.
         """
-        if self.args["feedback_mode"] == "random":
-            return self.random_feedback_verifier.verify_feedback()
         if self.args["feedback_mode"] == "rule_only":
             return rule_feedback
         if self.args["feedback_mode"] == "task_only":
@@ -190,10 +186,9 @@ class CustomDataset:
             if rule_feedback != "No feedback available.":
                 return np.array(-1)
             return np.array(0)
-        if self.args["feedback_mode"] == "all":
-            if rule_feedback == "No feedback available.":
-                return task_feedback
-            return rule_feedback
+        if rule_feedback == "No feedback available.":
+            return task_feedback
+        return rule_feedback
 
     # def _clear_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
     #     max_steps = self._get_level_max_steps()
@@ -313,7 +308,7 @@ class CustomDataset:
 
             rule_feedback = (
                 self.rule_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] in ["all", "rule_only"]
+                if self.args["feedback_mode"] != "task_only"
                 else None
             )
 
@@ -321,7 +316,7 @@ class CustomDataset:
 
             task_feedback = (
                 self.task_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] in ["all", "task_only"]
+                if self.args["feedback_mode"] != "task_only"
                 else None
             )
 
@@ -429,11 +424,6 @@ class CustomDataset:
                         # feedback verifiers
                         self.rule_feedback_verifier = RuleFeedback()
                         self.task_feedback_verifier = TaskFeedback(self.env)
-                        self.random_feedback_verifier = RandomFeedback(
-                            "lorem_ipsum"
-                            if "lorem_ipsum" in self.args["feedback_mode"]
-                            else "random_sentence"
-                        )
 
                         # create another episode
                         self._create_episode(config, seed)

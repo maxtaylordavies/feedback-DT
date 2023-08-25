@@ -1,21 +1,22 @@
 import json
 import os
 import random
+import threading
 from itertools import combinations_with_replacement
 
 import gymnasium as gym
 import numpy as np
 from jsonc_parser.parser import JsoncParser
 from minigrid.core.constants import COLOR_NAMES
-from minigrid.envs.babyai.core.verifier import LOC_NAMES, OBJ_TYPES_NOT_DOOR, OpenInstr
+from minigrid.envs.babyai.core.verifier import LOC_NAMES
+from minigrid.envs.babyai.core.verifier import OBJ_TYPES_NOT_DOOR
+from minigrid.envs.babyai.core.verifier import OpenInstr
 
 from src.dataset.custom_feedback_verifier import TaskFeedback
 
-import threading
-
 LEVELS_CONFIGS = {
     "original_tasks": {
-        "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0"],
+        "GoToObj": ["BabyAI-GoToObj-v0", "BabyAI-GoToObjS4-v0", "BabyAI-GoToObjS6-v0"],
         "GoToRedBallGrey": ["BabyAI-GoToRedBallGrey-v0"],
         "GoToRedBall": ["BabyAI-GoToRedBall-v0"],
         "GoToLocal": [

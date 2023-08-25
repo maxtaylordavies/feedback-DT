@@ -176,15 +176,10 @@
                     "BabyAI-GoToObj-v0": {},
                     "BabyAI-GoToObjS4-v0": {
                         "room_size": 4
+                    },
+                    "BabyAI-GoToObjS6-v0": {
+                        "room_size": 6
                     }
-                    // ,
-                    // "BabyAI-GoToObjS6-v0": {
-                    //     "max_steps": 16,
-                    //     "mission_string": "go to the yellow ball",
-                    //     "room_size": 4
-                    // }
-                    // Above config is same as BabyAI-GoToObjS4-v0 due to incorrect registration 
-                    // see https://github.com/Farama-Foundation/Minigrid/blob/26b4f647bc55c73d1101c67da99c198a62142d36/minigrid/__init__.py#L600
                 }
             },
             "GoToLocal": {
@@ -913,15 +908,15 @@
                 "demo_std_n_steps": 4.54,
                 "registered_configs": {
                     "BabyAI-PutNextLocal-v0": {
-                        "num_dists": 6 // = n_obj - 2 
+                        "num_dists": 6 // = n_obj - 2
                     },
                     "BabyAI-PutNextLocalS5N3-v0": {
                         "room_size": 5,
-                        "num_dists": 1 // = n_obj - 2 
+                        "num_dists": 1 // = n_obj - 2
                     },
                     "BabyAI-PutNextLocalS6N4-v0": {
                         "room_size": 6,
-                        "num_dists": 2 // = n_obj - 2 
+                        "num_dists": 2 // = n_obj - 2
                     }
                 }
             },
@@ -974,28 +969,28 @@
                         "room_size": 5,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 2, // = n_obj * 2 - 2 
+                        "num_dists": 2, // = n_obj * 2 - 2
                         "max_steps": 200
                     },
                     "BabyAI-PutNextS6N3-v0": {
                         "room_size": 6,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 4, // = n_obj * 2 - 2 
+                        "num_dists": 4, // = n_obj * 2 - 2
                         "max_steps": 288
                     },
                     "BabyAI-PutNextS7N4-v0": {
                         "room_size": 7,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 6, // = n_obj * 2 - 2 
+                        "num_dists": 6, // = n_obj * 2 - 2
                         "max_steps": 392
                     },
                     "BabyAI-PutNextS5N2Carrying-v0": {
                         "room_size": 5,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 2, // = n_obj * 2 - 2 
+                        "num_dists": 2, // = n_obj * 2 - 2
                         "max_steps": 200,
                         "start_carrying": true,
                         "used_action_space": [
@@ -1010,7 +1005,7 @@
                         "room_size": 6,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 4, // = n_obj * 2 - 2 
+                        "num_dists": 4, // = n_obj * 2 - 2
                         "max_steps": 288,
                         "start_carrying": true,
                         "used_action_space": [
@@ -1025,7 +1020,7 @@
                         "room_size": 7,
                         "num_rows": 1,
                         "num_cols": 2,
-                        "num_dists": 6, // = n_obj * 2 - 2 
+                        "num_dists": 6, // = n_obj * 2 - 2
                         "max_steps": 392,
                         "start_carrying": true,
                         "used_action_space": [
