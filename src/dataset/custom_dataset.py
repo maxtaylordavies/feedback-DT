@@ -5,21 +5,22 @@ import gymnasium as gym
 import numpy as np
 from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
+from tqdm import tqdm
 
-from src.dataset.custom_feedback_verifier import RandomFeedback
-from src.dataset.custom_feedback_verifier import RuleFeedback
-from src.dataset.custom_feedback_verifier import TaskFeedback
+from src.env.feedback_env import FeedbackEnv
 from src.dataset.minari_dataset import MinariDataset
-from src.dataset.minari_storage import name_dataset
-from src.dataset.seeds import LEVELS_CONFIGS
-from src.dataset.seeds import SeedFinder
-from src.utils.utils import discounted_cumsum
-from src.utils.utils import get_minigrid_obs
-from src.utils.utils import log
-from src.utils.utils import normalise
-from src.utils.utils import to_one_hot
+from src.dataset.minari_storage import list_local_datasets, name_dataset
+from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
+from src.ppo.ppo_agent import PPOAgent
+from src.utils.utils import (
+    discounted_cumsum,
+    get_minigrid_obs,
+    log,
+    normalise,
+    to_one_hot,
+)
 
-EPS_PER_SHARD = 100
+EPS_PER_SHARD = 10000
 
 
 class CustomDataset:
@@ -30,6 +31,8 @@ class CustomDataset:
     def __init__(self, args):
         self.args = args
         self.shard = None
+        self.buffers = []
+        self.steps = []
         self.seed_finder = SeedFinder(self.args["num_episodes"])
         self.level = self.args["level"]
         self.configs = self._get_configs()
@@ -72,13 +75,14 @@ class CustomDataset:
             self._load_dataset(self.fp)
         else:
             print(f"Creating dataset {dataset_name}")
+            self._initialise_new_dataset()
             self._generate_new_dataset()
 
         return self
 
     def _load_dataset(self, datset_dir):
         self.num_shards = 0
-        for f in os.listdir(datset_dir):
+        for _ in os.listdir(datset_dir):
             self.num_shards += 1
 
     def _get_category(self):
@@ -152,74 +156,17 @@ class CustomDataset:
             global_max_steps = max(global_max_steps, max_steps)
         return global_max_steps
 
-    def _get_feedback_constant(self):
-        """
-        Get the constant feedback string depending on the feedback mode.
+    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        for _ in range(num_buffers):
+            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
+            self.steps.append(0)
 
-        Returns
-        -------
-            str: the constant feedback string.
-        """
-        if self.args["feedback_mode"] == "numerical_reward":
-            return np.array(0, dtype=np.float32)
-        return "No feedback available."
-
-    def _get_feedback(self, rule_feedback, task_feedback):
-        """
-        Get the feedback for a given action.
-
-        Parameters
-        ----------
-            action (int): the action.
-
-        Returns
-        -------
-            str: the feedback.
-        """
-        if self.args["feedback_mode"] == "rule_only":
-            return rule_feedback
-        if self.args["feedback_mode"] == "task_only":
-            return task_feedback
-        if self.args["feedback_mode"] == "numerical_reward":
-            if task_feedback != "No feedback available.":
-                return np.array(1)
-            if rule_feedback != "No feedback available.":
-                return np.array(-1)
-            return np.array(0)
-        if rule_feedback == "No feedback available.":
-            return task_feedback
-        return rule_feedback
-
-    # def _clear_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
-    #     max_steps = self._get_level_max_steps()
-    #     self.buffer = {
-    #         "configs": [config] * ((max_steps + 1) * num_eps),
-    #         "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-    #         "missions": ["No mission available."] * ((max_steps + 1) * num_eps),
-    #         "observations": np.array(
-    #             [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
-    #             dtype=np.uint8,
-    #         ),
-    #         "actions": np.array(
-    #             [[0]] * ((max_steps + 1) * num_eps),
-    #             dtype=np.float32,
-    #         ),
-    #         "rewards": np.array(
-    #             [[0]] * ((max_steps + 1) * num_eps),
-    #             dtype=np.float32,
-    #         ),
-    #         "feedback": [self._get_feedback_constant()] * ((max_steps + 1) * num_eps),
-    #         "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
-    #         "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
-    #     }
-    #     self.steps = 0
-
-    def _clear_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self._get_level_max_steps()
-        self.buffer = {
-            "configs": [config] * (max_steps * num_eps),
-            "seeds": np.array([[0]] * (max_steps * num_eps)),
-            "missions": ["No mission available."] * (max_steps * num_eps),
+        return {
+            "configs": [config] * ((max_steps + 1) * num_eps),
+            "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
+            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * (max_steps * num_eps),
                 dtype=np.uint8,
@@ -232,111 +179,31 @@ class CustomDataset:
                 [[0]] * (max_steps * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self._get_feedback_constant()] * (max_steps * num_eps),
-            "terminations": np.array([[0]] * (max_steps * num_eps), dtype=bool),
-            "truncations": np.array([[0]] * (max_steps * num_eps), dtype=bool),
+            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
+            "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
-        self.steps = 0
 
-    # Assuming RSA (with R including Feedback) is stored at the same timestep
-    # def _create_episode(self, config, seed):
-    #     partial_obs, _ = self.env.reset(seed=seed)
-    #     # Storing observation at initial episode timestep t=0 (o_0)
-    #     obs = get_minigrid_obs(
-    #         self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-    #     )
-    #     self.buffer["observations"][self.steps] = obs["image"]
-    #     terminated, truncated = False, False
-    #     while not (terminated or truncated):
-    #         # Passing partial observation to policy (PPO) as agent was trained on this
-    #         # following the original implementation
-    #         action = self._policy(partial_obs)
+    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        # if buffer exists and isn't empty, first save it to file
+        if (
+            len(self.buffers) > buffer_idx
+            and len(self.buffers[buffer_idx]["observations"]) > 0
+            and np.any(self.buffers[buffer_idx]["observations"])  # check any nonzero
+        ):
+            print("saving buffer to file")
+            self._save_buffer_to_minari_file(buffer_idx)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
+        self.steps[buffer_idx] = 0
 
-    #         rule_feedback = (
-    #             self.rule_feedback_verifier.verify_feedback(self.env, action)
-    #             if self.args["feedback_mode"] in ["all", "rule_only"]
-    #             else None
-    #         )
-
-    #         partial_obs, reward, terminated, truncated, _ = self.env.step(action)
-    #         task_feedback = (
-    #             self.task_feedback_verifier.verify_feedback(self.env, action)
-    #             if self.args["feedback_mode"] in ["all", "task_only"]
-    #             else None
-    #         )
-    #         # Storing action a_t taken after observing o_t
-    #         self.buffer["actions"][self.steps] = np.array(action)
-
-    #         # Storing observation o_t+1, reward r_t+1, termination r_t+1, truncation r_t+1
-    #         # resulting from taking a_t at o_t
-    #         obs = get_minigrid_obs(
-    #             self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-    #         )
-    #         self.buffer["missions"][self.steps + 1] = partial_obs["mission"]
-    #         self.buffer["observations"][self.steps + 1] = obs["image"]
-    #         self.buffer["rewards"][self.steps + 1] = np.array(reward)
-    #         self.buffer["terminations"][self.steps + 1] = np.array(terminated)
-    #         self.buffer["truncations"][self.steps + 1] = np.array(truncated)
-    #         self.buffer["feedback"][self.steps + 1] = self._get_feedback(
-    #             rule_feedback, task_feedback
-    #         )
-    #         if self.args["feedback_mode"] == "numerical_reward":
-    #             self.buffer["rewards"][self.steps + 1] = self.buffer["feedback"][
-    #                 self.steps + 1
-    #             ]
-    #         self.buffer["configs"][self.steps + 1] = config
-    #         self.buffer["seeds"][self.steps + 1] = seed
-
-    #         self.steps += 1
-
-    # Assuming SAR (and R incl Feedback) is stored at the same time step
-    def _create_episode(self, config, seed):
-        partial_obs, _ = self.env.reset(seed=seed)
-        terminated, truncated = False, False
-        while not (terminated or truncated):
-            self.buffer["configs"][self.steps] = config
-            self.buffer["seeds"][self.steps] = seed
-            self.buffer["missions"][self.steps] = partial_obs["mission"]
-
-            obs = get_minigrid_obs(
-                self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
-            )
-            self.buffer["observations"][self.steps] = obs["image"]
-
-            action = np.random.randint(0, 6)
-            self.buffer["actions"][self.steps] = np.array(action)
-
-            rule_feedback = (
-                self.rule_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] != "task_only"
-                else None
-            )
-
-            partial_obs, reward, terminated, truncated, _ = self.env.step(action)
-
-            task_feedback = (
-                self.task_feedback_verifier.verify_feedback(self.env, action)
-                if self.args["feedback_mode"] != "task_only"
-                else None
-            )
-
-            self.buffer["rewards"][self.steps] = np.array(reward)
-            self.buffer["terminations"][self.steps] = np.array(terminated)
-            self.buffer["truncations"][self.steps] = np.array(truncated)
-            self.buffer["feedback"][self.steps] = self._get_feedback(
-                rule_feedback, task_feedback
-            )
-            if self.args["feedback_mode"] == "numerical_reward":
-                self.buffer["rewards"][self.steps] = self.buffer["feedback"][self.steps]
-
-            self.steps += 1
-
-    def _save_buffer_to_minari_file(self):
-        for key in self.buffer.keys():
-            self.buffer[key] = self.buffer[key][: self.steps + 1]
+    def _save_buffer_to_minari_file(self, buffer_idx):
+        for key in self.buffers[buffer_idx].keys():
+            self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
+                : self.steps[buffer_idx] + 2
+            ]
 
         episode_terminals = (
-            self.buffer["terminations"] + self.buffer["truncations"]
+            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -347,100 +214,160 @@ class CustomDataset:
             dataset_name=name_dataset(self.args),
             policy=self.args["policy"],
             feedback_mode=self.args["feedback_mode"],
-            configs=self.buffer["configs"],
-            seeds=self.buffer["seeds"],
+            configs=self.buffers[buffer_idx]["configs"],
+            seeds=self.buffers[buffer_idx]["seeds"],
             code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
             author="Sabrina McCallum",
             author_email="s2431177@ed.ac.uk",
-            missions=self.buffer["missions"],
-            observations=self.buffer["observations"],
-            actions=self.buffer["actions"],
-            rewards=self.buffer["rewards"],
-            feedback=self.buffer["feedback"],
-            terminations=self.buffer["terminations"],
-            truncations=self.buffer["truncations"],
+            missions=self.buffers[buffer_idx]["missions"],
+            observations=self.buffers[buffer_idx]["observations"],
+            actions=self.buffers[buffer_idx]["actions"],
+            rewards=self.buffers[buffer_idx]["rewards"],
+            feedback=self.buffers[buffer_idx]["feedback"],
+            terminations=self.buffers[buffer_idx]["terminations"],
+            truncations=self.buffers[buffer_idx]["truncations"],
             episode_terminals=episode_terminals,
         )
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffer['observations'])} steps)",
+            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
         md.save(fp)
         self.num_shards += 1
 
-    def _generate_new_dataset(self):
+    def _add_to_buffer(
+        self,
+        buffer_idx,
+        observation,
+        action,
+        reward,
+        feedback,
+        terminated,
+        truncated,
+        config,
+        seed,
+        mission,
+    ):
+        self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = observation
+        self.buffers[buffer_idx]["actions"][self.steps[buffer_idx]] = action
+        self.buffers[buffer_idx]["rewards"][self.steps[buffer_idx]] = reward
+        self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
+        self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
+        self.buffers[buffer_idx]["truncations"][self.steps] = truncated
+        self.buffers[buffer_idx]["configs"][self.steps[buffer_idx]] = config
+        self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
+        self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
+        self.steps[buffer_idx] += 1
+
+    def _create_episode(self, config, seed, buffer_idx=0):
+        partial_obs, _ = self.env.reset(seed=seed)
+        terminated, truncated = False, False
+        while not (terminated or truncated):
+            obs = get_minigrid_obs(
+                self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+            )
+            mission = partial_obs["mission"]
+            action = np.random.randint(0, 6)  # random policy
+
+            # execute action
+            partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
+
+            reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+
+            self._add_to_buffer(
+                buffer_idx=buffer_idx,
+                observation=obs["image"],
+                action=action,
+                reward=reward,
+                feedback=feedback,
+                terminated=terminated,
+                truncated=truncated,
+                config=config,
+                seed=seed,
+                mission=mission,
+            )
+
+    def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
         if os.path.exists(self.fp):
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
+    def _generate_new_dataset(self):
+        pbar = tqdm(total=self.args["num_episodes"], desc="Generating dataset")
+
         episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
             self.args["num_episodes"] % len(self.configs) > 0
         )
+        current_episode = 0
 
-        current_episode = 1
         for config in self.configs:
+            log(f"config: {config}", with_tqdm=True)
+
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
-            current_conf_episode = 1
-            while (
-                current_conf_episode < episodes_per_config
-                and current_episode <= self.args["num_episodes"]
-            ):
-                for seed in range(seed_log["last_seed_tested"] + 1):
-                    if (
-                        current_conf_episode > episodes_per_config
-                        or seed > seed_log["last_seed_tested"]
-                        or current_episode > self.args["num_episodes"]
+            train_seeds = self.seed_finder.get_train_seeds(seed_log)
+            log(f"num train seeds: {len(train_seeds)}", with_tqdm=True)
+
+            current_conf_episode, done = 0, False
+            while not done:
+                for seed in train_seeds:
+                    seed = int(seed)  # from np.int64
+
+                    done = (
+                        current_conf_episode >= episodes_per_config
+                        or current_episode >= self.args["num_episodes"]
+                    )
+
+                    if done or seed >= seed_log["last_seed_tested"]:
                         # the second condition is here in case we want to use the same set of training seeds multiple times
                         # e.g. if we want to create really big random dataset
                         # and likely this will be necessary to train a PPO agent to convergence for harder levels
                         # this should not result in duplicate trajectories despite the same seeds being used multiple times
                         # when used with random policy, and even when used with the PPO agent as the agent will be at different
                         # model checkpoints at the time the seeds get repeated
-                    ):
                         break
 
-                    if not self.seed_finder.is_test_seed(
-                        seed_log, seed
-                    ) and not self.seed_finder.is_validation_seed(seed_log, seed):
-                        # create and initialise environment
-                        self.env = gym.make(config)
-                        partial_obs, _ = self.env.reset(seed=seed)
-                        obs = get_minigrid_obs(
-                            self.env,
-                            partial_obs,
-                            self.args["fully_obs"],
-                            self.args["rgb_obs"],
-                        )["image"]
+                    # create and initialise environment
+                    log("creating env", with_tqdm=True)
+                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
+                    partial_obs, _ = self.env.reset(seed=seed)
+                    obs = get_minigrid_obs(
+                        self.env,
+                        partial_obs,
+                        self.args["fully_obs"],
+                        self.args["rgb_obs"],
+                    )["image"]
 
-                        self.state_dim = np.prod(obs.shape)
+                    self.state_dim = np.prod(obs.shape)
 
-                        # initialise buffer to store replay data
-                        if current_episode == 1:
-                            self._clear_buffer(obs.shape, config)
+                    # initialise buffers to store replay data
+                    if current_episode == 0:
+                        log("initialising buffers", with_tqdm=True)
+                        self._initialise_buffers(
+                            num_buffers=1,
+                            obs_shape=obs.shape,
+                            config=config,
+                        )
 
-                        # feedback verifiers
-                        self.rule_feedback_verifier = RuleFeedback()
-                        self.task_feedback_verifier = TaskFeedback(self.env)
+                    # create another episode
+                    self._create_episode(config, seed)
 
-                        # create another episode
-                        self._create_episode(config, seed)
+                    # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"] - 1
+                    ):
+                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
 
-                        # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                        if (current_episode % EPS_PER_SHARD == 0) or (
-                            current_episode == self.args["num_episodes"]
-                        ):
-                            self._save_buffer_to_minari_file()
-                            self._clear_buffer(obs.shape, config)
-
-                        current_episode += 1
-                        current_conf_episode += 1
+                    current_episode += 1
+                    current_conf_episode += 1
+                    pbar.update(1)
+                    pbar.refresh()
 
         if hasattr(self, "env"):
             self.env.close()
-        self._clear_buffer(obs.shape)
+        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
     def load_shard(self, idx=None):
         if not idx:
@@ -448,9 +375,7 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(
-            self.shard.terminations + self.shard.truncations == 1
-        )[0]
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -491,10 +416,7 @@ class CustomDataset:
         start = self.episode_starts[ep_idx]
         if random_start:
             start += (
-                np.random.randint(
-                    0,
-                    self.episode_lengths[ep_idx] - 1,
-                )
+                np.random.randint(0, self.episode_lengths[ep_idx] - 1)
                 if self.episode_lengths[ep_idx] > 1
                 else 0
             )
@@ -635,6 +557,87 @@ class CustomDataset:
             episode_terminals=None,
             discrete_action=True,
         )
+
+    @classmethod
+    def from_ppo_training(cls, args):
+        # initialise dataset
+        d = cls(args)
+
+        # helper func to set up buffer for env
+        def setup(env, config, num_seeds):
+            d.env = env
+            partial_obs, _ = d.env.reset(seed=args["seed"])
+            obs = get_minigrid_obs(
+                d.env,
+                partial_obs,
+                d.args["fully_obs"],
+                d.args["rgb_obs"],
+            )["image"]
+            d._initialise_buffers(num_buffers=num_seeds, obs_shape=obs.shape, config=config)
+
+        # define callback func for storing data
+        def callback(exps, logs, config, seeds):
+            obss = exps.obs.image.cpu().numpy()
+            actions = exps.action.cpu().numpy().reshape(-1, 1)
+            rewards = exps.reward.cpu().numpy().reshape(-1, 1)
+            feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
+
+            # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
+            # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
+            terminations = 1 - exps.mask.cpu().numpy()
+
+            # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
+            tensors = [obss, actions, rewards, feedback, terminations]
+            for i in range(len(tensors)):
+                tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
+            obss, actions, rewards, feedback, terminations = tensors
+
+            for i, seed in enumerate(seeds):
+                for t in range(obss.shape[1]):
+                    o = get_minigrid_obs(  # process partial observation
+                        d.env, obss[i, t], args["fully_obs"], args["rgb_obs"]
+                    )["image"]
+                    r = (
+                        feedback[i, t]
+                        if args["feedback_mode"] == "numerical_reward"
+                        else rewards[i, t]
+                    )
+                    d._add_to_buffer(
+                        buffer_idx=0,
+                        action=actions[i, t],
+                        observation=o,
+                        reward=r,
+                        feedback=feedback[i, t],
+                        terminated=terminations[i, t],
+                        truncated=0,
+                        config=config,
+                        seed=seed,
+                        mission=d.env.get_mission(),
+                    )
+
+        # train a PPO agent for each config
+        for config in tqdm(d.configs):
+            log(f"config: {config}", with_tqdm=True)
+
+            # choose random subset of train seeds for this config
+            seed_log = d.seed_finder.load_seeds(d.args["level"], config)
+            train_seeds = d.seed_finder.get_train_seeds(seed_log)
+            seeds = [
+                int(s)  # from np.int64
+                for s in np.random.choice(
+                    train_seeds, size=args["ppo_seeds_per_config"], replace=False
+                )
+            ]
+
+            log(f"using seeds: {seeds}", with_tqdm=True)
+
+            # train PPO agent
+            ppo = PPOAgent(env_name=config, seeds=seeds, n_frames=args["ppo_frames"])
+            setup(ppo.env, config, len(seeds))
+            ppo._train_agent(callback=callback)
+
+        # return dataset
+        return d
 
 
 # helper func to load a dopamine buffer from dqn replay logs

@@ -4,12 +4,23 @@ import time
 
 # import tensorboardX
 import torch_ac
+import gymnasium as gym
 
 import external_rl.utils as utils
 from external_rl.model import ACModel
 from external_rl.utils import device
+from src.env.feedback_env import FeedbackEnv
+from src.constants import GLOBAL_SEED
+from .ppo_algo import PPOAlgo
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
+
+
+def make_env(env_key, seed=None, render_mode=None, feedback_mode=None):
+    _env = gym.make(env_key, render_mode=render_mode)
+    env = FeedbackEnv(_env, feedback_mode=feedback_mode)
+    env.reset(seed=seed)
+    return env
 
 
 class PPOAgent:
@@ -18,15 +29,15 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seed, n_frames, medium=True):
+    def __init__(self, env_name, seeds, n_frames, medium=True, feedback_mode=None):
         self.args = {
             "algo": "ppo",
             "env": env_name,
             "model": None,
-            "seed": seed,
+            "seeds": seeds,
             "log_interval": 1,
             "save_interval": 10,
-            "procs": 16,
+            "procs": len(seeds),
             "frames": n_frames,
             "epochs": 4,
             "batch_size_ppo": 256,
@@ -45,19 +56,23 @@ class PPOAgent:
             else 1,
             "text": True,
             "argmax": True,
+            "feedback_mode": feedback_mode,
         }
-        self.args["mem"] = self.args["recurrence"] > 1
-        self.env = utils.make_env(self.args["env"], self.args["seed"])
-        self.env.reset()
-        self.model_dir = self._get_model_dir()
-        self.model = self._get_model()
         self.medium = medium
+        self.args["mem"] = self.args["recurrence"] > 1
+        self.env = make_env(
+            self.args["env"], self.args["seeds"][0], feedback_mode=feedback_mode
+        )
+        self.model_dir = self._get_model_dir()
+        # self.model = self._get_model()
 
     def _get_model_dir(self):
         """
         Returns the path to the directory where the model weights are saved.
         """
-        default_model_name = f"{self.args['env']}_{self.args['algo']}_seed{self.args['seed']}_frames{self.args['frames']}"
+        default_model_name = (
+            f"{self.args['env']}_{self.args['algo']}_frames{self.args['frames']}"
+        )
         model_name = self.args["model"] or default_model_name
         return os.path.join("external_rl", utils.get_model_dir(model_name))
 
@@ -66,9 +81,7 @@ class PPOAgent:
         Returns the model instance for the env and trained weights.
         """
         if not os.path.exists(
-            os.path.join(
-                self.model_dir, f"status_{'medium' if self.medium else 'expert'}.pt"
-            )
+            os.path.join(self.model_dir, f"status_{'medium' if self.medium else 'expert'}.pt")
         ):
             self._train_agent()
 
@@ -82,7 +95,7 @@ class PPOAgent:
             use_text=self.args["text"],
         )
 
-    def _train_agent(self):
+    def _train_agent(self, callback=None):
         """
         Trains the agent for the specified number of frames.
         This corresponds to the train.py script in the original implementation.
@@ -90,22 +103,24 @@ class PPOAgent:
         # Load loggers and Tensorboard writer
         txt_logger = utils.get_txt_logger(self.model_dir)
         csv_file, csv_logger = utils.get_csv_logger(self.model_dir)
-        tb_writer = tensorboardX.SummaryWriter(self.model_dir)
+        # tb_writer = tensorboardX.SummaryWriter(self.model_dir)
 
         # Log command and all script arguments
         txt_logger.info(f"{' '.join(sys.argv)}\n")
         txt_logger.info(f"{self.args}\n")
 
         # Set seed for all randomness sources
-        utils.seed(self.args["seed"])
+        utils.seed(GLOBAL_SEED)
 
         # Set device
         txt_logger.info(f"Device: {device}\n")
 
         # Load environments
         envs = []
-        for i in range(self.args["procs"]):
-            envs.append(utils.make_env(self.args["env"], self.args["seed"] + 10000 * i))
+        for s in self.args["seeds"]:
+            envs.append(
+                make_env(self.args["env"], s, feedback_mode=self.args["feedback_mode"])
+            )
         txt_logger.info("Environments loaded\n")
 
         # Load training status
@@ -116,9 +131,7 @@ class PPOAgent:
         txt_logger.info("Training status loaded\n")
 
         # Load observations preprocessor
-        obs_space, preprocess_obss = utils.get_obss_preprocessor(
-            envs[0].observation_space
-        )
+        obs_space, preprocess_obss = utils.get_obss_preprocessor(envs[0].observation_space)
         if "vocab" in status:
             preprocess_obss.vocab.load_vocab(status["vocab"])
         txt_logger.info("Observations preprocessor loaded")
@@ -134,7 +147,7 @@ class PPOAgent:
         txt_logger.info(f"{acmodel}\n")
 
         # Load algo
-        algo = torch_ac.PPOAlgo(
+        algo = PPOAlgo(
             envs,
             acmodel,
             device,
@@ -173,17 +186,16 @@ class PPOAgent:
             num_frames += logs["num_frames"]
             update += 1
 
+            if callback is not None:
+                callback(exps, logs, self.args["env"], self.args["seeds"])
+
             # Print logs
             if update % self.args["log_interval"] == 0:
                 fps = logs["num_frames"] / (update_end_time - update_start_time)
                 duration = int(time.time() - start_time)
                 return_per_episode = utils.synthesize(logs["return_per_episode"])
-                rreturn_per_episode = utils.synthesize(
-                    logs["reshaped_return_per_episode"]
-                )
-                num_frames_per_episode = utils.synthesize(
-                    logs["num_frames_per_episode"]
-                )
+                rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
+                num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
 
                 header = ["update", "frames", "FPS", "duration"]
                 data = [update, num_frames, fps, duration]
@@ -214,14 +226,11 @@ class PPOAgent:
                 csv_logger.writerow(data)
                 csv_file.flush()
 
-                for field, value in zip(header, data):
-                    tb_writer.add_scalar(field, value, num_frames)
+                # for field, value in zip(header, data):
+                #     tb_writer.add_scalar(field, value, num_frames)
 
             # Save status
-            if (
-                self.args["save_interval"] > 0
-                and update % self.args["save_interval"] == 0
-            ):
+            if self.args["save_interval"] > 0 and update % self.args["save_interval"] == 0:
                 status = {
                     "num_frames": num_frames,
                     "update": update,

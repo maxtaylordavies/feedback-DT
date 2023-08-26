@@ -7,22 +7,16 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers.training_args import TrainingArguments
 from jsonc_parser.parser import JsoncParser
-from transformers import TrainerCallback
-from transformers import TrainerControl
-from transformers import TrainerState
-from transformers import TrainingArguments
+from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
-from .visualiser import Visualiser
-from src.agent import Agent
-from src.agent import AgentInput
-from src.agent import RandomAgent
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
+from src.agent import Agent, AgentInput, RandomAgent
+from src.utils.utils import log, get_minigrid_obs, normalise
+from src.env.recorder_env import RecorderEnv
+from src.collator import CurriculumCollator, RoundRobinCollator
 from src.dataset.custom_feedback_verifier import TaskFeedback
-from src.utils.utils import get_minigrid_obs
-from src.utils.utils import log
-from src.utils.utils import normalise
 
 warnings.filterwarnings("ignore")
 
@@ -52,9 +46,7 @@ class Evaluator(TrainerCallback):
         self.seeds = None
 
         # create the output directory if it doesn't exist
-        self.output_dir = os.path.join(
-            self.user_args["output"], self.user_args["run_name"]
-        )
+        self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -100,6 +92,38 @@ class Evaluator(TrainerCallback):
             "pw_success": [],  # path-weighted success rate (float)
         }
 
+    def on_train_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        log("on_train_begin called", with_tqdm=True)
+
+        # run initial eval (before any training steps)
+        self._run_eval_and_plot(model, state, eval_type="efficiency")
+
+        return super().on_train_begin(args, state, control, **kwargs)
+
+    def on_epoch_begin(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
+        log("on_epoch_begin called", with_tqdm=True)
+        return super().on_epoch_begin(args, state, control, **kwargs)
+
+    def on_epoch_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        log(f"saving model checkpoint after epoch {state.epoch}", with_tqdm=True)
+        model.save_checkpoint(self.output_dir, state.epoch)
+
     def on_step_begin(
         self,
         args: TrainingArguments,
@@ -108,11 +132,13 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
+        log("on_step_begin called", with_tqdm=True)
+
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if self.samples_processed == 0 or sample_diff >= self.sample_interval:
+        if sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
 
@@ -136,10 +162,10 @@ class Evaluator(TrainerCallback):
         if eval_type not in ["efficiency", "generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
-        # log(
-        #     f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-        #     with_tqdm=True,
-        # )
+        log(
+            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            with_tqdm=True,
+        )
 
         if isinstance(self.collator, CurriculumCollator) or isinstance(
             self.collator, RoundRobinCollator
@@ -187,18 +213,14 @@ class Evaluator(TrainerCallback):
             raise Exception("No seeds loaded")
 
         # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
-        return {
-            "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
-        }
+        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
 
     def _sample_test_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
 
         seeds = {}
-        types = [
-            k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]
-        ]
+        types = [k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]]
         per_type_repeats = n // len(types) + (n % len(types) > 0)
 
         seeds_sampled = 0
@@ -219,8 +241,22 @@ class Evaluator(TrainerCallback):
         return seeds
 
     def _create_env(self, config, seed):
+        # if "atari" in config:
+        #     game = config.split(":")[1]
+        #     _env = AtariEnv(self.device, game, seed)
+        #     return AtariRecorderEnv(
+        #         _env,
+        #         self.user_args["feedback_mode"],
+        #         self.output_dir,
+        #         filename=f"tmp",
+        #     )
+
         _env = gym.make(config, render_mode="rgb_array")
-        return Visualiser(_env, self.output_dir, filename=f"tmp", seed=seed)
+        env = RecorderEnv(
+            _env, self.user_args["feedback_mode"], self.output_dir, filename=f"tmp"
+        )
+        env.reset(seed=seed)
+        return env
 
     def _record_result(
         self,
@@ -317,11 +353,11 @@ class Evaluator(TrainerCallback):
         return success * (demo_length / max(episode_length, demo_length))
 
     def _run_agent_on_minigrid_env(
-        self, agent: Agent, env: Visualiser, seed: int, target_return: float
+        self, agent: Agent, env: RecorderEnv, seed: int, target_return: float
     ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
-                env.get_env(),
+                env,
                 partial_obs,
                 self.user_args["fully_obs"],
                 self.user_args["rgb_obs"],
@@ -332,7 +368,7 @@ class Evaluator(TrainerCallback):
                 .to(device=self.device, dtype=torch.float32)
             )
 
-        max_ep_len = env.get_env().max_steps
+        max_ep_len = env.max_steps
         obs, _ = env.reset(seed=seed)
 
         states = get_state(obs)
@@ -345,7 +381,7 @@ class Evaluator(TrainerCallback):
         ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
-        task_feedback_verifier = TaskFeedback(env.get_env())
+        task_feedback_verifier = TaskFeedback(env)
         goal_conditions = len(task_feedback_verifier.subtasks)
         goal_conditions_met = 0
 
@@ -390,7 +426,7 @@ class Evaluator(TrainerCallback):
             )
 
             goal_conditions_met += (
-                task_feedback_verifier.verify_feedback(env.get_env(), np.argmax(a))
+                task_feedback_verifier.verify_feedback(env, np.argmax(a))
                 != "No feedback available."
             )
 
@@ -401,6 +437,104 @@ class Evaluator(TrainerCallback):
         gc_sr = goal_conditions_met / goal_conditions
         return np.sum(rewards.detach().cpu().numpy()), t, success, gc_sr
 
+    # def _run_agent_on_atari_env(
+    #     self, agent: Agent, env: AtariRecorderEnv, target_return: float, stack_size=4
+    # ):
+    #     def get_state(frames):
+    #         frames = frames.permute(1, 2, 0)
+    #         return normalise(frames.reshape(1, self.collator.state_dim)).to(
+    #             device=self.device, dtype=torch.float32
+    #         )
+
+    #     max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
+
+    #     obs = env.reset(seed=self.user_args["seed"])
+    #     init_s = get_state(obs).detach().cpu().numpy()
+
+    #     _start_idx = 655
+    #     NUM_INITIAL_ACTIONS = 10
+
+    #     # ref_states = normalise(self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS])
+
+    #     # states = get_state(obs)
+    #     states = torch.zeros(0, device=self.device, dtype=torch.float32)
+    #     actions = torch.tensor(
+    #         self.collator.actions[_start_idx : _start_idx + NUM_INITIAL_ACTIONS],
+    #         device=self.device,
+    #     )
+    #     rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
+    #     returns_to_go = torch.zeros(0, device=self.device, dtype=torch.float32)
+    #     timesteps = torch.zeros(0, device=self.device, dtype=torch.long)
+
+    #     # execute set of initial actions to get going
+    #     a_idxs = []
+    #     for i, a in enumerate(actions):
+    #         a_idx = np.argmax(a.detach().cpu().numpy())
+    #         a_idxs.append(a_idx)
+
+    #         obs, r, _ = env.step(a_idx)
+    #         s = get_state(obs)
+
+    #         states = torch.cat([states, s], dim=0)
+    #         rewards = torch.cat(
+    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
+    #         )
+
+    #         if i == 0:
+    #             returns_to_go = torch.tensor(
+    #                 target_return, device=self.device, dtype=torch.float32
+    #             ).reshape(1, 1)
+    #         else:
+    #             returns_to_go = torch.cat(
+    #                 [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
+    #             )
+
+    #     for t in range(NUM_INITIAL_ACTIONS, max_ep_len):
+    #         # get action from agent
+    #         a = agent.get_action(
+    #             AgentInput(
+    #                 mission_embeddings=self.mission_embeddings,
+    #                 states=states,
+    #                 actions=actions,
+    #                 rewards=rewards,
+    #                 returns_to_go=returns_to_go,
+    #                 timesteps=timesteps,
+    #                 feedback_embeddings=self.feedback_embeddings,
+    #                 attention_mask=None,
+    #             ),
+    #             context=self.user_args["context_length"],
+    #             one_hot=True,
+    #         )
+
+    #         # take action, get next state and reward
+    #         a_idx = np.argmax(a.detach().cpu().numpy())
+    #         a_idxs.append(a_idx)
+    #         obs, r, done = env.step(a_idx)
+    #         s = get_state(obs)
+
+    #         # update state, reward, return, timestep tensors
+    #         states = torch.cat([states, s], dim=0)
+    #         actions = torch.cat([actions, a.reshape((1, 4))], dim=0)
+    #         rewards = torch.cat(
+    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
+    #         )
+    #         returns_to_go = torch.cat(
+    #             [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
+    #         )
+
+    #         timesteps = torch.cat(
+    #             [
+    #                 timesteps,
+    #                 torch.ones((1, 1), device=self.device, dtype=torch.long) * t,
+    #             ],
+    #             dim=1,
+    #         )
+
+    #         if done:
+    #             break
+
+    #     # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
+    #     return np.sum(rewards.detach().cpu().numpy()), t
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
@@ -430,9 +564,7 @@ class Evaluator(TrainerCallback):
             fig, ax = plt.subplots()
             sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
             for fmt in formats:
-                fig.savefig(
-                    os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")
-                )
+                fig.savefig(os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}"))
             plt.close(fig)
 
             # then, do bar plot (for generalisation) (if we have data yet)
@@ -441,8 +573,6 @@ class Evaluator(TrainerCallback):
                 sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
                 for fmt in formats:
                     fig.savefig(
-                        os.path.join(
-                            self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}"
-                        )
+                        os.path.join(self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}")
                     )
                 plt.close(fig)
