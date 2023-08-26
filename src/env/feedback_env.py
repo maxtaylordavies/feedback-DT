@@ -4,7 +4,6 @@ import gymnasium as gym
 import numpy as np
 
 from src.dataset.custom_feedback_verifier import (
-    RandomFeedback,
     RuleFeedback,
     TaskFeedback,
 )
@@ -18,9 +17,6 @@ class FeedbackEnv:
             self.env.reset()
             self.rule_fv = RuleFeedback()
             self.task_fv = TaskFeedback(self.env)
-            self.random_fv = RandomFeedback(
-                "lorem_ipsum" if "lorem_ipsum" in self.feedback_mode else "random_sentence"
-            )
 
     def get_base_env(self):
         return self.env
@@ -28,14 +24,14 @@ class FeedbackEnv:
     def rule_feedback(self, action):
         return (
             self.rule_fv.verify_feedback(self.env, action)
-            if self.feedback_mode in ["all", "rule_only"]
+            if self.feedback_mode != "task_only"
             else None
         )
 
     def task_feedback(self, action):
         return (
             self.task_fv.verify_feedback(self.env, action)
-            if self.feedback_mode in ["all", "task_only"]
+            if self.feedback_mode != "rule_only"
             else None
         )
 
@@ -47,15 +43,11 @@ class FeedbackEnv:
         -------
             str: the constant feedback string.
         """
-        if self.feedback_mode == "random_lorem_ipsum":
-            return "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
         if self.feedback_mode == "numerical_reward":
             return np.array(0, dtype=np.float32)
         return "No feedback available."
 
     def get_feedback(self, rule_feedback, task_feedback):
-        if self.feedback_mode == "random":
-            return self.random_fv.verify_feedback()
         if self.feedback_mode == "rule_only":
             return rule_feedback
         if self.feedback_mode == "task_only":
@@ -66,11 +58,10 @@ class FeedbackEnv:
             if rule_feedback != "No feedback available.":
                 return np.array(-1)
             return np.array(0)
-        if self.feedback_mode == "all":
+        else:
             if rule_feedback == "No feedback available.":
                 return task_feedback
             return rule_feedback
-        raise ValueError(f"Unknown feedback mode: {self.feedback_mode}")
 
     def step(self, action):
         if not self.feedback_mode:
