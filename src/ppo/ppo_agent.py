@@ -10,6 +10,7 @@ import external_rl.utils as utils
 from external_rl.model import ACModel
 from external_rl.utils import device
 from src.env.feedback_env import FeedbackEnv
+from src.constants import GLOBAL_SEED
 from .ppo_algo import PPOAlgo
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
@@ -109,7 +110,7 @@ class PPOAgent:
         txt_logger.info(f"{self.args}\n")
 
         # Set seed for all randomness sources
-        utils.seed(self.args["seeds"][0])
+        utils.seed(GLOBAL_SEED)
 
         # Set device
         txt_logger.info(f"Device: {device}\n")
