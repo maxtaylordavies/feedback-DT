@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers.training_args import TrainingArguments
 from jsonc_parser.parser import JsoncParser
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
@@ -90,6 +92,27 @@ class Evaluator(TrainerCallback):
             "pw_success": [],  # path-weighted success rate (float)
         }
 
+    def on_train_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Agent,
+        **kwargs,
+    ):
+        log("on_train_begin called", with_tqdm=True)
+
+        # run initial eval (before any training steps)
+        self._run_eval_and_plot(model, state, eval_type="efficiency")
+
+        return super().on_train_begin(args, state, control, **kwargs)
+
+    def on_epoch_begin(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
+        log("on_epoch_begin called", with_tqdm=True)
+        return super().on_epoch_begin(args, state, control, **kwargs)
+
     def on_step_begin(
         self,
         args: TrainingArguments,
@@ -98,11 +121,13 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
+        log("on_step_begin called", with_tqdm=True)
+
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
         sample_diff = self.collator.samples_processed - self.samples_processed
-        if self.samples_processed == 0 or sample_diff >= self.sample_interval:
+        if sample_diff >= self.sample_interval:
             self._run_eval_and_plot(model, state, eval_type="efficiency")
             self.samples_processed = self.collator.samples_processed
 
@@ -126,10 +151,10 @@ class Evaluator(TrainerCallback):
         if eval_type not in ["efficiency", "generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
-        # log(
-        #     f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
-        #     with_tqdm=True,
-        # )
+        log(
+            f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
+            with_tqdm=True,
+        )
 
         if isinstance(self.collator, CurriculumCollator) or isinstance(
             self.collator, RoundRobinCollator
@@ -321,7 +346,7 @@ class Evaluator(TrainerCallback):
     ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
-                env.get_env(),
+                env,
                 partial_obs,
                 self.user_args["fully_obs"],
                 self.user_args["rgb_obs"],
@@ -345,7 +370,7 @@ class Evaluator(TrainerCallback):
         ).reshape(1, 1)
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
 
-        task_feedback_verifier = TaskFeedback(env.get_env())
+        task_feedback_verifier = TaskFeedback(env)
         goal_conditions = len(task_feedback_verifier.subtasks)
         goal_conditions_met = 0
 
@@ -390,7 +415,7 @@ class Evaluator(TrainerCallback):
             )
 
             goal_conditions_met += (
-                task_feedback_verifier.verify_feedback(env.get_env(), np.argmax(a))
+                task_feedback_verifier.verify_feedback(env, np.argmax(a))
                 != "No feedback available."
             )
 

@@ -4,18 +4,13 @@ import torch
 from transformers import DecisionTransformerConfig
 
 from src.agent.fdt import MinigridFDTAgent
-from src.collator import Collator
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
-from src.constants import ENV_METADATA_PATH
-from src.constants import GLOBAL_SEED
-from src.constants import OUTPUT_PATH
+from src.collator import Collator, CurriculumCollator, RoundRobinCollator
+from src.constants import ENV_METADATA_PATH, GLOBAL_SEED, OUTPUT_PATH
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
-from src.utils.utils import log
-from src.utils.utils import seed
+from src.utils.utils import log, seed
 
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH

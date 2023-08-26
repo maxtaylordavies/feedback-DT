@@ -156,27 +156,6 @@ class CustomDataset:
             global_max_steps = max(global_max_steps, max_steps)
         return global_max_steps
 
-    def _policy(self, observation):
-        """
-        Get the next action from a given policy.
-
-        Parameters
-        ----------
-        observation (np.ndarray): the observation.
-
-        Returns
-        -------
-        int: the next action.
-        """
-
-        if self.args["policy"] == "random_used_action_space_only":
-            return np.random.choice(self._get_used_action_space())
-        if "ppo" in self.args["policy"]:
-            raise NotImplementedError
-        # Excluding the 'done' action (integer representation: 6), as by default, this is not used
-        # to evaluate success for any of the tasks
-        return np.random.randint(0, 6)
-
     def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
@@ -290,7 +269,7 @@ class CustomDataset:
                 self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
             )
             mission = partial_obs["mission"]
-            action = self._policy(partial_obs)
+            action = np.random.randint(0, 6)  # random policy
 
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)

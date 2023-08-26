@@ -117,8 +117,20 @@ class FeedbackEnv:
         return self.env.observation_space
 
     @property
+    def actions(self):
+        return self.env.actions
+
+    @property
     def agent_pos(self):
         return self.env.agent_pos
+
+    @property
+    def front_pos(self):
+        return self.env.front_pos
+
+    @property
+    def carrying(self):
+        return self.env.carrying
 
     @property
     def grid(self):
@@ -127,6 +139,10 @@ class FeedbackEnv:
     @property
     def max_steps(self):
         return self.env.max_steps
+
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
 
     @property
     def instrs(self):
