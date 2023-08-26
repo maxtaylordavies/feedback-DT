@@ -480,7 +480,7 @@ class CustomDataset:
         def setup(env, config, num_seeds):
             self.env = env
             self.eps_count = 0
-            partial_obs, _ = self.env.reset(seed=self.args["seed"])
+            partial_obs, _ = self.env.reset(seed=0)
             obs = get_minigrid_obs(
                 self.env,
                 partial_obs,

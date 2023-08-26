@@ -19,7 +19,8 @@ def get_args():
     parser.add_argument(
         "--policy",
         type=str,
-        default="random",
+        default="ppo",
+        help="the policy to use for training; can be either 'ppo' or 'random'",
     )
     parser.add_argument(
         "--include_timeout",
@@ -72,12 +73,6 @@ def get_args():
     )
     parser.add_argument(
         "--no_gpu", action="store_true", default=False, help="disables GPU training"
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="random seed (default: 42)",
     )
     parser.add_argument(
         "--log_interval",
