@@ -563,9 +563,15 @@ class CustomDataset:
         # initialise dataset
         d = cls(args)
 
+        # compute number of eps to sample per config
+        episodes_per_config = (args["num_episodes"] // len(d.configs)) + (
+            args["num_episodes"] % len(d.configs) > 0
+        )
+
         # helper func to set up buffer for env
         def setup(env, config, num_seeds):
             d.env = env
+            d.eps_count = 0
             partial_obs, _ = d.env.reset(seed=args["seed"])
             obs = get_minigrid_obs(
                 d.env,
@@ -615,6 +621,12 @@ class CustomDataset:
                         mission=d.env.get_mission(),
                     )
 
+            # number of new episodes = number of nonzero elements in terminations
+            d.eps_count += np.count_nonzero(terminations)
+
+            # return True if we've collected enough episodes for this config
+            return d.eps_count >= episodes_per_config
+
         # train a PPO agent for each config
         for config in tqdm(d.configs):
             log(f"config: {config}", with_tqdm=True)
@@ -632,7 +644,7 @@ class CustomDataset:
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds, n_frames=args["ppo_frames"])
+            ppo = PPOAgent(env_name=config, seeds=seeds)
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 
