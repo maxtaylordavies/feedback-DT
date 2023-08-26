@@ -29,7 +29,7 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seeds, n_frames, medium=True, feedback_mode=None):
+    def __init__(self, env_name, seeds, medium=True, feedback_mode=None):
         self.args = {
             "algo": "ppo",
             "env": env_name,
@@ -38,7 +38,6 @@ class PPOAgent:
             "log_interval": 1,
             "save_interval": 10,
             "procs": len(seeds),
-            "frames": n_frames,
             "epochs": 4,
             "batch_size_ppo": 256,
             "frames_per_proc": 128,
@@ -70,9 +69,7 @@ class PPOAgent:
         """
         Returns the path to the directory where the model weights are saved.
         """
-        default_model_name = (
-            f"{self.args['env']}_{self.args['algo']}_frames{self.args['frames']}"
-        )
+        default_model_name = f"{self.args['env']}_{self.args['algo']}"
         model_name = self.args["model"] or default_model_name
         return os.path.join("external_rl", utils.get_model_dir(model_name))
 
@@ -95,7 +92,7 @@ class PPOAgent:
             use_text=self.args["text"],
         )
 
-    def _train_agent(self, callback=None):
+    def _train_agent(self, callback):
         """
         Trains the agent for the specified number of frames.
         This corresponds to the train.py script in the original implementation.
@@ -175,7 +172,8 @@ class PPOAgent:
         update = status["update"]
         start_time = time.time()
 
-        while num_frames < self.args["frames"]:
+        should_stop = False
+        while not should_stop:
             # Update model parameters
             update_start_time = time.time()
             exps, logs1 = algo.collect_experiences()
@@ -186,8 +184,7 @@ class PPOAgent:
             num_frames += logs["num_frames"]
             update += 1
 
-            if callback is not None:
-                callback(exps, logs, self.args["env"], self.args["seeds"])
+            should_stop = callback(exps, logs, self.args["env"], self.args["seeds"])
 
             # Print logs
             if update % self.args["log_interval"] == 0:

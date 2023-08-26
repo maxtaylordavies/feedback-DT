@@ -470,10 +470,17 @@ class CustomDataset:
         }
 
     def _from_ppo_training(self):
+        # initialise dataset
+        # compute number of eps to sample per config
+        episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
+            self.args["num_episodes"] % len(self.configs) > 0
+        )
+
         # helper func to set up buffer for env
         def setup(env, config, num_seeds):
             self.env = env
-            partial_obs, _ = self.env.reset(seed=0)
+            self.eps_count = 0
+            partial_obs, _ = self.env.reset(seed=self.args["seed"])
             obs = get_minigrid_obs(
                 self.env,
                 partial_obs,
@@ -527,6 +534,12 @@ class CustomDataset:
                         mission=self.env.get_mission(),
                     )
 
+            # number of new episodes = number of nonzero elements in terminations
+            self.eps_count += np.count_nonzero(terminations)
+
+            # return True if we've collected enough episodes for this config
+            return self.eps_count >= episodes_per_config
+
         # train a PPO agent for each config
         for config in tqdm(self.configs):
             log(f"config: {config}", with_tqdm=True)
@@ -536,17 +549,13 @@ class CustomDataset:
             train_seeds = self.seed_finder.get_train_seeds(seed_log)
             seeds = [
                 int(s)  # from np.int64
-                for s in np.random.choice(
-                    train_seeds, size=self.args["ppo_seeds_per_config"], replace=False
-                )
+                for s in np.random.choice(train_seeds, size=128, replace=False)
             ]
 
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(
-                env_name=config, seeds=seeds, n_frames=self.args["ppo_frames"]
-            )
+            ppo = PPOAgent(env_name=config, seeds=seeds)
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 
