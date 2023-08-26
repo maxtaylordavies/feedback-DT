@@ -20,7 +20,7 @@ from src.utils.utils import (
     to_one_hot,
 )
 
-EPS_PER_SHARD = 100
+EPS_PER_SHARD = 10000
 
 
 class CustomDataset:
