@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict
+import os
 
 import numpy as np
 import torch
@@ -39,6 +40,12 @@ class Agent(nn.Module):
 
     def get_action(self, input: AgentInput, context=1, one_hot=False):
         pass
+
+    def save_checkpoint(self, expt_dir, epoch):
+        dir = f"{expt_dir}/checkpoints"
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        torch.save(self.state_dict(), f"{dir}/epoch_{epoch}.pt")
 
 
 class RandomAgent(Agent):
