@@ -7,18 +7,18 @@ from dopamine.replay_memory import circular_replay_buffer
 from jsonc_parser.parser import JsoncParser
 from tqdm import tqdm
 
-from src.env.feedback_env import FeedbackEnv
 from src.dataset.minari_dataset import MinariDataset
-from src.dataset.minari_storage import list_local_datasets, name_dataset
-from src.dataset.seeds import LEVELS_CONFIGS, SeedFinder
+from src.dataset.minari_storage import list_local_datasets
+from src.dataset.minari_storage import name_dataset
+from src.dataset.seeds import LEVELS_CONFIGS
+from src.dataset.seeds import SeedFinder
+from src.env.feedback_env import FeedbackEnv
 from src.ppo.ppo_agent import PPOAgent
-from src.utils.utils import (
-    discounted_cumsum,
-    get_minigrid_obs,
-    log,
-    normalise,
-    to_one_hot,
-)
+from src.utils.utils import discounted_cumsum
+from src.utils.utils import get_minigrid_obs
+from src.utils.utils import log
+from src.utils.utils import normalise
+from src.utils.utils import to_one_hot
 
 EPS_PER_SHARD = 10000
 
@@ -75,8 +75,11 @@ class CustomDataset:
             self._load_dataset(self.fp)
         else:
             print(f"Creating dataset {dataset_name}")
-            self._initialise_new_dataset()
-            self._generate_new_dataset()
+            if self.args["policy"] == "random":
+                self._initialise_new_dataset()
+                self._generate_new_dataset()
+            else:
+                self._from_ppo_training()
 
         return self
 
@@ -156,7 +159,9 @@ class CustomDataset:
             global_max_steps = max(global_max_steps, max_steps)
         return global_max_steps
 
-    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _initialise_buffers(
+        self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
+    ):
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
             self.steps.append(0)
@@ -179,7 +184,8 @@ class CustomDataset:
                 [[0]] * (max_steps * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()]
+            * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -203,7 +209,8 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"]
+            + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -274,7 +281,9 @@ class CustomDataset:
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
 
-            reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+            reward = (
+                feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+            )
 
             self._add_to_buffer(
                 buffer_idx=buffer_idx,
@@ -355,10 +364,12 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
-                        current_episode == self.args["num_episodes"] - 1
-                    ):
-                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
+                    if (
+                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
+                    ) or (current_episode == self.args["num_episodes"] - 1):
+                        self._flush_buffer(
+                            buffer_idx=0, obs_shape=obs.shape, config=config
+                        )
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -375,7 +386,9 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_ends = np.where(
+            self.shard.terminations + self.shard.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -455,6 +468,90 @@ class CustomDataset:
             "feedback": f,
             "attention_mask": np.ones((1, end - start)),
         }
+
+    def _from_ppo_training(self):
+        # helper func to set up buffer for env
+        def setup(env, config, num_seeds):
+            self.env = env
+            partial_obs, _ = self.env.reset(seed=0)
+            obs = get_minigrid_obs(
+                self.env,
+                partial_obs,
+                self.args["fully_obs"],
+                self.args["rgb_obs"],
+            )["image"]
+            self._initialise_buffers(
+                num_buffers=num_seeds, obs_shape=obs.shape, config=config
+            )
+
+        # define callback func for storing data
+        def callback(exps, logs, config, seeds):
+            obss = exps.obs.image.cpu().numpy()
+            actions = exps.action.cpu().numpy().reshape(-1, 1)
+            rewards = exps.reward.cpu().numpy().reshape(-1, 1)
+            feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
+
+            # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
+            # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
+            terminations = 1 - exps.mask.cpu().numpy()
+
+            # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
+            tensors = [obss, actions, rewards, feedback, terminations]
+            for i in range(len(tensors)):
+                tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
+            obss, actions, rewards, feedback, terminations = tensors
+
+            for i, seed in enumerate(seeds):
+                for t in range(obss.shape[1]):
+                    o = get_minigrid_obs(  # process partial observation
+                        self.env,
+                        obss[i, t],
+                        self.args["fully_obs"],
+                        self.args["rgb_obs"],
+                    )["image"]
+                    r = (
+                        feedback[i, t]
+                        if self.args["feedback_mode"] == "numerical_reward"
+                        else rewards[i, t]
+                    )
+                    self._add_to_buffer(
+                        buffer_idx=0,
+                        action=actions[i, t],
+                        observation=o,
+                        reward=r,
+                        feedback=feedback[i, t],
+                        terminated=terminations[i, t],
+                        truncated=0,
+                        config=config,
+                        seed=seed,
+                        mission=self.env.get_mission(),
+                    )
+
+        # train a PPO agent for each config
+        for config in tqdm(self.configs):
+            log(f"config: {config}", with_tqdm=True)
+
+            # choose random subset of train seeds for this config
+            seed_log = self.seed_finder.load_seeds(self.args["level"], config)
+            train_seeds = self.seed_finder.get_train_seeds(seed_log)
+            seeds = [
+                int(s)  # from np.int64
+                for s in np.random.choice(
+                    train_seeds, size=self.args["ppo_seeds_per_config"], replace=False
+                )
+            ]
+
+            log(f"using seeds: {seeds}", with_tqdm=True)
+
+            # train PPO agent
+            ppo = PPOAgent(
+                env_name=config, seeds=seeds, n_frames=self.args["ppo_frames"]
+            )
+            setup(ppo.env, config, len(seeds))
+            ppo._train_agent(callback=callback)
+
+        # return dataset
+        return self
 
     def __len__(self):
         return self.args["num_episodes"]
@@ -557,87 +654,6 @@ class CustomDataset:
             episode_terminals=None,
             discrete_action=True,
         )
-
-    @classmethod
-    def from_ppo_training(cls, args):
-        # initialise dataset
-        d = cls(args)
-
-        # helper func to set up buffer for env
-        def setup(env, config, num_seeds):
-            d.env = env
-            partial_obs, _ = d.env.reset(seed=args["seed"])
-            obs = get_minigrid_obs(
-                d.env,
-                partial_obs,
-                d.args["fully_obs"],
-                d.args["rgb_obs"],
-            )["image"]
-            d._initialise_buffers(num_buffers=num_seeds, obs_shape=obs.shape, config=config)
-
-        # define callback func for storing data
-        def callback(exps, logs, config, seeds):
-            obss = exps.obs.image.cpu().numpy()
-            actions = exps.action.cpu().numpy().reshape(-1, 1)
-            rewards = exps.reward.cpu().numpy().reshape(-1, 1)
-            feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
-
-            # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
-            # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
-            terminations = 1 - exps.mask.cpu().numpy()
-
-            # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
-            tensors = [obss, actions, rewards, feedback, terminations]
-            for i in range(len(tensors)):
-                tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
-            obss, actions, rewards, feedback, terminations = tensors
-
-            for i, seed in enumerate(seeds):
-                for t in range(obss.shape[1]):
-                    o = get_minigrid_obs(  # process partial observation
-                        d.env, obss[i, t], args["fully_obs"], args["rgb_obs"]
-                    )["image"]
-                    r = (
-                        feedback[i, t]
-                        if args["feedback_mode"] == "numerical_reward"
-                        else rewards[i, t]
-                    )
-                    d._add_to_buffer(
-                        buffer_idx=0,
-                        action=actions[i, t],
-                        observation=o,
-                        reward=r,
-                        feedback=feedback[i, t],
-                        terminated=terminations[i, t],
-                        truncated=0,
-                        config=config,
-                        seed=seed,
-                        mission=d.env.get_mission(),
-                    )
-
-        # train a PPO agent for each config
-        for config in tqdm(d.configs):
-            log(f"config: {config}", with_tqdm=True)
-
-            # choose random subset of train seeds for this config
-            seed_log = d.seed_finder.load_seeds(d.args["level"], config)
-            train_seeds = d.seed_finder.get_train_seeds(seed_log)
-            seeds = [
-                int(s)  # from np.int64
-                for s in np.random.choice(
-                    train_seeds, size=args["ppo_seeds_per_config"], replace=False
-                )
-            ]
-
-            log(f"using seeds: {seeds}", with_tqdm=True)
-
-            # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds, n_frames=args["ppo_frames"])
-            setup(ppo.env, config, len(seeds))
-            ppo._train_agent(callback=callback)
-
-        # return dataset
-        return d
 
 
 # helper func to load a dopamine buffer from dqn replay logs
