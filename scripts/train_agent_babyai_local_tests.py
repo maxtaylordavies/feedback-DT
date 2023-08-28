@@ -1,4 +1,5 @@
 import os
+from datetime import date
 
 import torch
 from transformers import DecisionTransformerConfig
@@ -25,15 +26,14 @@ seed(GLOBAL_SEED)
 args = get_args()
 
 args["output"] = OUTPUT_PATH
-args["run_name"] = "24-aug-test"
-# args["level"] = "GoToRedBallGrey"
+args["run_name"] = f"{date.today()}_test"
+args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
 args["policy"] = "random"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
-args["train_mode"] = "anti_curriculum"
 
 frame_size = 64 if args["fully_obs"] else 56
 
