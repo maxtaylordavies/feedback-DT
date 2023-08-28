@@ -113,7 +113,7 @@ conda activate ${VENV_NAME}
 
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
-PROJECT_NAME=feedback-dt
+PROJECT_NAME=feedback-DT
 EXPERIMENT_NAME=feedback-1
 
 # input data directory path on the DFS

@@ -89,9 +89,9 @@ SCRATCH_HOME=${SCRATCH_DISK}/${USER}
 mkdir -p ${SCRATCH_HOME}
 
 # Activate your conda environment
-CONDA_ENV_NAME=feedbackdt
-echo "Activating conda environment: ${CONDA_ENV_NAME}"
-conda activate ${CONDA_ENV_NAME}
+VENV_NAME=.venv
+echo "Activating conda environment: ${VENV_NAME}"
+conda activate ${VENV_NAME}
 
 
 # =================================

@@ -6,10 +6,10 @@ import os
 # define some paths
 USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_fast"
 PROJECT_HOME, SCRATCH_HOME = (
-    f"/home/{USER}/projects/feedback-dt",
+    f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-dt/data/feedback-1"
+DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/feedback-1"
 
 
 def run_name(combo, keys):
