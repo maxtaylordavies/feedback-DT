@@ -6,10 +6,10 @@ import os
 # define some paths
 USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_fast"
 PROJECT_HOME, SCRATCH_HOME = (
-    f"/home/{USER}/projects/feedback-DT",
+    f"/home/{USER}/projects/feedback-dt",
     f"{SCRATCH_DISK}/{USER}",
 )
-DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/feedback-1"
+DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-dt/data/feedback-1"
 
 
 def run_name(combo, keys):
@@ -18,7 +18,7 @@ def run_name(combo, keys):
     return f"feedback-{level}-{combo[1]}-{combo[2]}-{combo[3]}"
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py --policy random"
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line

@@ -89,9 +89,9 @@ SCRATCH_HOME=${SCRATCH_DISK}/${USER}
 mkdir -p ${SCRATCH_HOME}
 
 # Activate your conda environment
-CONDA_ENV_NAME=feedbackdt
-echo "Activating conda environment: ${CONDA_ENV_NAME}"
-conda activate ${CONDA_ENV_NAME}
+VENV_NAME=.venv
+echo "Activating environment: ${VENV_NAME}"
+conda activate ${VENV_NAME}
 
 
 # =================================
@@ -113,7 +113,7 @@ conda activate ${CONDA_ENV_NAME}
 
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
-PROJECT_NAME=feedback-DT
+PROJECT_NAME=feedback-dt
 EXPERIMENT_NAME=feedback-1
 
 # input data directory path on the DFS
