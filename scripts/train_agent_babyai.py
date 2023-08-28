@@ -23,6 +23,7 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
+args["num_repeats"] = 128
 args["output"] = OUTPUT_PATH
 frame_size = 64 if args["fully_obs"] else 56
 
