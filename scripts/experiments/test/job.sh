@@ -39,19 +39,19 @@
 # #SBATCH --nodes=1
 
 # Generic resources to use - typically you'll want gpu:n to get n gpus
-# #SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:1
 
 # Megabytes of RAM required. Check `cluster-status` for node configurations
 # #SBATCH --mem=14000
 
 # Number of CPUs to use. Check `cluster-status` for node configurations
-# #SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=4
 
 # Maximum time for the job to run, format: days-hours:minutes:seconds
 # #SBATCH --time=1-04:00:00
 
 # Partition of the cluster to pick nodes from (check `sinfo`)
-# #SBATCH --partition=PGR-Standard
+#SBATCH --partition=PGR-Standard
 
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
@@ -84,15 +84,34 @@ set -e
 # N.B. disk could be at /disk/scratch_big, or /disk/scratch_fast. Check
 # yourself using an interactive session, or check the docs:
 #     http://computing.help.inf.ed.ac.uk/cluster-computing
-SCRATCH_DISK=/disk/scratch_fast
+if [[ -e /disk/scratch_big ]]
+    then
+        SCRATCH_DISK=/disk/scratch_big
+elif [[ -e /disk/scratch_fast ]]
+    then
+        SCRATCH_DISK=/disk/scratch_fast
+elif [[ -e /disk/scratch ]]
+    then
+        SCRATCH_DISK=/disk/scratch
+elif [[ -e /disk/scratch1 ]]
+    then
+        SCRATCH_DISK=/disk/scratch1
+elif [[ -e /disk/scratch2 ]]
+    then
+        SCRATCH_DISK=/disk/scratch2
+else
+    echo "Could not establish which scratch disk"
+fi
+
+echo "Scratch disk is: $SCRATCH_DISK"
+
 SCRATCH_HOME=${SCRATCH_DISK}/${USER}
 mkdir -p ${SCRATCH_HOME}
 
 # Activate your conda environment
 VENV_NAME=.venv
-echo "Activating conda environment: ${VENV_NAME}"
+echo "Activating virtual environment: ${VENV_NAME}"
 source ${VENV_NAME}/bin/activate
-
 
 # =================================
 # Move input data to scratch disk
@@ -114,14 +133,25 @@ source ${VENV_NAME}/bin/activate
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
 PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=feedback-1
+EXPERIMENT_NAME=test
 
-# input data directory path on the DFS
+# input data directory path on the DFS (make if required)
 src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
+if [[ -e src_path ]]
+    then echo "${src_path} exists"
+else
+    echo "${src_path} does not exist yet - making it!"
+    mkdir -p ${src_path}
+fi
 
-# input data directory path on the scratch disk of the node
+# data directory path on the scratch disk of the node (make if required)
 dest_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
-mkdir -p ${dest_path}  # make it if required
+if [[ -e dest_path ]]
+    then echo "${dest_path} exists"
+else
+    echo "${dest_path} does not exist yet - making it!"
+    mkdir -p ${dest_path}
+fi
 
 # Important notes about rsync:
 # * the --compress option is going to compress the data before transfer to send
@@ -159,7 +189,21 @@ echo "Command ran successfully!"
 echo "Moving output data back to DFS"
 
 src_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
+if [[ -e src_path ]]
+    then echo "${src_path} exists"
+else
+    echo "${src_path} does not exist yet - making it!"
+    mkdir -p ${src_path}
+fi
+
 dest_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
+if [[ -e dest_path ]]
+    then echo "${dest_path} exists"
+else
+    echo "${dest_path} does not exist yet - making it!"
+    mkdir -p ${dest_path}
+fi
+
 rsync --archive --update --compress --progress ${src_path}/ ${dest_path}
 
 
