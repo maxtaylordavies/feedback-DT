@@ -25,7 +25,7 @@ def run_name(combo, keys):
 
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -num_repeats 128 -policy random -o {DATA_HOME}/output"
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py --num_repeats 128 --policy random -o {DATA_HOME}/output"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
