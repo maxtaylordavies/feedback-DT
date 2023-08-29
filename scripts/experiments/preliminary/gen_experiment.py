@@ -16,7 +16,10 @@ DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
 def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
     combo_strings = "-".join(
-        [f"{key}_{value.lower()}" for key, value in zip(keys, combo)]
+        [
+            f"{key}_{value.lower() if isinstance(value, str) else value}"
+            for key, value in zip(keys, combo)
+        ]
     )
     return f"feedback-{combo_strings}"
 
