@@ -29,11 +29,11 @@ args["output"] = OUTPUT_PATH
 args["run_name"] = f"{date.today()}_test"
 args["level"] = "GoToRedBallGrey"
 args["num_episodes"] = 20
-args["policy"] = "random"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5
 args["log_interval"] = 1
+
 
 frame_size = 64 if args["fully_obs"] else 56
 
@@ -42,7 +42,7 @@ if torch.cuda.is_available():
     device = torch.device("cuda")
     device_str = f"{device.type}:{device.index}" if device.index else f"{device.type}"
     os.environ["CUDA_VISIBLE_DEVICES"] = device_str
-    log(f"Using device: {torch.cuda.get_device_name()}")
+    # log(f"Using device: {torch.cuda.get_device_name()}")
     log("using gpu")
 elif not torch.backends.mps.is_available():
     if not torch.backends.mps.is_built():

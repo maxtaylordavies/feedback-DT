@@ -4,18 +4,21 @@ import itertools
 import os
 
 # define some paths
-USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_fast"
+USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_big"
 PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/feedback-1"
+EXPERIMENT_NAME = "preliminary"
+DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
 
 
 def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
-    level = combo[0].split("-")[1].lower()
-    return f"feedback-{level}-{combo[1]}-{combo[2]}-{combo[3]}"
+    combo_strings = "-".join(
+        [f"{key}_{value.lower()}" for key, value in zip(keys[:1], combo[1:])]
+    )
+    return f"feedback-{combo_strings}"
 
 
 # this is the base command that will be used for the experiment
@@ -41,7 +44,9 @@ variables = {
 combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
-output_file = open("experiment.txt", "w")
+output_file = open(
+    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt", "w"
+)
 
 for c in combinations:
     expt_call = base_call
