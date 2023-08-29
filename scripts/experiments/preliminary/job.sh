@@ -93,6 +93,10 @@ VENV_NAME=.venv
 echo "Activating environment: ${VENV_NAME}"
 conda activate ${VENV_NAME}
 
+# CONDA_ENV_NAME=feedbackdt
+# echo "Activating conda environment: ${CONDA_ENV_NAME}"
+# conda activate ${CONDA_ENV_NAME}
+
 
 # =================================
 # Move input data to scratch disk

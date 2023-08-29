@@ -17,6 +17,7 @@ def run_name(combo, keys):
     level = combo[0].split("-")[1].lower()
     return f"feedback-{level}-{combo[1]}-{combo[2]}-{combo[3]}"
 
+
 # this is the base command that will be used for the experiment
 base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py"
 
@@ -27,7 +28,7 @@ variables = {
     "level": [
         "GoToLocal",
         "PutNextLocal",
-        "GoTo,
+        "GoTo",
         "PutNext",
         "GoToSeq",
         "BossLevel",
@@ -47,7 +48,7 @@ for c in combinations:
     for i, var in enumerate(variables.keys()):
         expt_call += f" --{var} {c[i]}"
 
-    expt_call += f"--run_name {run_name(c, variables.keys())}"
+    expt_call += f" --run_name {run_name(c, variables.keys())}"
     print(expt_call, file=output_file)
 
 output_file.close()

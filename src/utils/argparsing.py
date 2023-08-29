@@ -89,7 +89,7 @@ def get_args():
     parser.add_argument(
         "--wandb_mode",
         type=str,
-        default="offline",
+        default="disabled",
         help="wandb mode - can be online, offline, or disabled",
     )
     parser.add_argument(

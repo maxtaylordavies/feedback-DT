@@ -23,16 +23,17 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
-args["num_repeats"] = 128
 args["output"] = OUTPUT_PATH
 frame_size = 64 if args["fully_obs"] else 56
 
+args["wandb_mode"] = "disabled"
+args["report_to"] = "none"
 log("setting up devices")
 if torch.cuda.is_available():
     device = torch.device("cuda")
     device_str = f"{device.type}:{device.index}" if device.index else f"{device.type}"
     os.environ["CUDA_VISIBLE_DEVICES"] = device_str
-    log(f"Using device: {torch.cuda.get_device_name()}")
+    # log(f"Using device: {torch.cuda.get_device_name()}")
     log("using gpu")
 elif not torch.backends.mps.is_available():
     if not torch.backends.mps.is_built():
