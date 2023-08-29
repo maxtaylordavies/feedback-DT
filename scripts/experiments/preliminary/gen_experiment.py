@@ -47,7 +47,7 @@ for c in combinations:
     for i, var in enumerate(variables.keys()):
         expt_call += f" --{var} {c[i]}"
 
-    expt_call += f"--run_name {run_name(c, variables.keys())}"
+    expt_call += f" --run_name {run_name(c, variables.keys())}"
     print(expt_call, file=output_file)
 
 output_file.close()
