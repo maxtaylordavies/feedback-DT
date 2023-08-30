@@ -10,7 +10,6 @@ cython = "*"
 gymnasium-robotics = "*"
 huggingface = "*"
 datasets = "*"
-black = "*"
 scipy = "*"
 tqdm = "*"
 transformers = "*"
@@ -27,19 +26,17 @@ seaborn = "*"
 tensorboardx = "*"
 essential-generators = "*"
 lorem-text = "*"
-feedback-dt = {editable = true, path = "."}
+feedback-dt = {file = "."}
 accelerate = "*"
 torch = "*"
 torchvision = "*"
 torchaudio = "*"
 torch-ac = "*"
-pre-commit = "*"
 
 [dev-packages]
+pre-commit = "*"
+black = "*"
 ipykernel = "*"
 
 [requires]
-python_version = "3.7"
-
-[pipenv]
-allow_prereleases = true
+python_version = "3.8"

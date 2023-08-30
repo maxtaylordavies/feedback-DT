@@ -390,9 +390,9 @@ class SeedFinder:
             tuple: tuple of tuple of x and y quadrant of the agent in the room and maze.
         """
         if self._is_maze(env):
-            return self._agent_pos_to_room_quadrant(env), self._agent_pos_to_maze_quadrant(
+            return self._agent_pos_to_room_quadrant(
                 env
-            )
+            ), self._agent_pos_to_maze_quadrant(env)
         return self._agent_pos_to_room_quadrant(env), None
 
     def _get_possible_room_quadrants(self):
@@ -423,7 +423,9 @@ class SeedFinder:
         """
         return [
             q
-            for q in combinations_with_replacement([self.iid_num_cols, self.iid_num_rows], 2)
+            for q in combinations_with_replacement(
+                [self.iid_num_cols, self.iid_num_rows], 2
+            )
         ]
 
     def _pick_random_room_quadrant(self):
@@ -436,7 +438,6 @@ class SeedFinder:
         """
         return random.sample(
             self._get_possible_room_quadrants(),
-            counts=[100] * len(self._get_possible_room_quadrants()),
             k=1,
         )[0]
 
@@ -450,7 +451,6 @@ class SeedFinder:
         """
         return random.sample(
             self._get_possible_maze_quadrants(),
-            counts=[100] * len(self._get_possible_maze_quadrants()),
             k=1,
         )[0]
 
@@ -618,9 +618,9 @@ class SeedFinder:
                 if task.desc.loc and task.desc.loc == self.random_rel_loc:
                     return True
             except AttributeError:
-                if (task.desc_move.loc and task.desc_move.loc == self.random_rel_loc) or (
-                    task.desc_fixed and task.desc_fixed.loc == self.random_rel_loc
-                ):
+                if (
+                    task.desc_move.loc and task.desc_move.loc == self.random_rel_loc
+                ) or (task.desc_fixed and task.desc_fixed.loc == self.random_rel_loc):
                     return True
         return False
 
@@ -755,7 +755,9 @@ class SeedFinder:
                         continue
                     seed_log[ood_type]["test_seeds"].append(seed)
             if not self.is_test_seed(seed_log, seed):
-                if len(seed_log["validation_seeds"]) < (self.n_validation_seeds_required):
+                if len(seed_log["validation_seeds"]) < (
+                    self.n_validation_seeds_required
+                ):
                     seed_log["validation_seeds"].append(seed)
                 seed_log["n_train_seeds"] += 1
             seed_log["last_seed_tested"] = seed

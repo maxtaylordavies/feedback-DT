@@ -7,7 +7,6 @@ debugging/
 **/__pycache__
 **/.ipynb_checkpoints
 **/experiment.txt
-Pipfile.lock
 **/*.pdf
 **/*.png
 **/*.svg
