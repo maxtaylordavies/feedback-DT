@@ -9,13 +9,13 @@ from src.collator import CurriculumCollator
 from src.collator import RoundRobinCollator
 from src.constants import ENV_METADATA_PATH
 from src.constants import GLOBAL_SEED
-from src.constants import OUTPUT_PATH
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
 from src.utils.utils import log
 from src.utils.utils import seed
+# from src.constants import OUTPUT_PATH
 
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
@@ -23,7 +23,7 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
-args["output"] = OUTPUT_PATH
+# args["output"] = OUTPUT_PATH
 frame_size = 64 if args["fully_obs"] else 56
 
 args["wandb_mode"] = "disabled"
