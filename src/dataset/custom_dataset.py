@@ -8,7 +8,6 @@ from jsonc_parser.parser import JsoncParser
 from tqdm import tqdm
 
 from src.dataset.minari_dataset import MinariDataset
-from src.dataset.minari_storage import list_local_datasets
 from src.dataset.minari_storage import name_dataset
 from src.dataset.seeds import LEVELS_CONFIGS
 from src.dataset.seeds import SeedFinder
@@ -119,6 +118,7 @@ class CustomDataset:
         seq_instrs_factor = 4 if level_metadata["mission_space"]["sequence"] else 1
         putnext_instrs_factor = 2 if level_metadata["putnext"] else 1
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
+        step_ceiling = 8**2 * 3**2
 
         global_max_steps = 0
         for config in self.configs:
@@ -147,7 +147,7 @@ class CustomDataset:
                     )
                 max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(global_max_steps, max_steps)
-        return global_max_steps
+        return min(global_max_steps, step_ceiling)
 
     def _initialise_buffers(
         self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
