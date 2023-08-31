@@ -312,6 +312,7 @@ class CustomDataset:
     def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
         if os.path.exists(self.fp):
+            print("Overwriting existing dataset folder")
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
