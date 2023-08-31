@@ -20,7 +20,8 @@ from src.utils.utils import log
 from src.utils.utils import normalise
 from src.utils.utils import to_one_hot
 
-EPS_PER_SHARD = 10000
+
+EPS_PER_SHARD = 100
 
 
 class CustomDataset:
@@ -33,6 +34,7 @@ class CustomDataset:
         self.shard = None
         self.buffers = []
         self.steps = []
+        self.ep_counts = []
         self.seed_finder = SeedFinder(self.args["num_episodes"])
         self.level = self.args["level"]
         self.configs = self._get_configs()
@@ -75,8 +77,8 @@ class CustomDataset:
             self._load_dataset(self.fp)
         else:
             print(f"Creating dataset {dataset_name}")
+            self._initialise_new_dataset()
             if self.args["policy"] == "random":
-                self._initialise_new_dataset()
                 self._generate_new_dataset()
             else:
                 self._from_ppo_training()
@@ -159,12 +161,12 @@ class CustomDataset:
             global_max_steps = max(global_max_steps, max_steps)
         return global_max_steps
 
-    def _initialise_buffers(
-        self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
-    ):
+    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+        log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
             self.steps.append(0)
+            self.ep_counts.append(0)
 
     def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self._get_level_max_steps()
@@ -184,8 +186,7 @@ class CustomDataset:
                 [[0]] * (max_steps * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()]
-            * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -197,10 +198,14 @@ class CustomDataset:
             and len(self.buffers[buffer_idx]["observations"]) > 0
             and np.any(self.buffers[buffer_idx]["observations"])  # check any nonzero
         ):
-            print("saving buffer to file")
             self._save_buffer_to_minari_file(buffer_idx)
+
+        if obs_shape is None:
+            obs_shape = self.buffers[buffer_idx]["observations"][0].shape
+
         self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
         self.steps[buffer_idx] = 0
+        self.ep_counts[buffer_idx] = 0
 
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
@@ -209,8 +214,7 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"]
-            + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -241,6 +245,7 @@ class CustomDataset:
             f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
+
         md.save(fp)
         self.num_shards += 1
 
@@ -266,7 +271,10 @@ class CustomDataset:
         self.buffers[buffer_idx]["configs"][self.steps[buffer_idx]] = config
         self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
         self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
+
         self.steps[buffer_idx] += 1
+        if terminated or truncated:
+            self.ep_counts[buffer_idx] += 1
 
     def _create_episode(self, config, seed, buffer_idx=0):
         partial_obs, _ = self.env.reset(seed=seed)
@@ -280,10 +288,7 @@ class CustomDataset:
 
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
-
-            reward = (
-                feedback if self.args["feedback_mode"] == "numerical_reward" else reward
-            )
+            reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
 
             self._add_to_buffer(
                 buffer_idx=buffer_idx,
@@ -353,7 +358,6 @@ class CustomDataset:
 
                     # initialise buffers to store replay data
                     if current_episode == 0:
-                        log("initialising buffers", with_tqdm=True)
                         self._initialise_buffers(
                             num_buffers=1,
                             obs_shape=obs.shape,
@@ -364,12 +368,10 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (
-                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
-                    ) or (current_episode == self.args["num_episodes"] - 1):
-                        self._flush_buffer(
-                            buffer_idx=0, obs_shape=obs.shape, config=config
-                        )
+                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"] - 1
+                    ):
+                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -386,9 +388,7 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(
-            self.shard.terminations + self.shard.truncations == 1
-        )[0]
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -470,7 +470,6 @@ class CustomDataset:
         }
 
     def _from_ppo_training(self):
-        # initialise dataset
         # compute number of eps to sample per config
         episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
             self.args["num_episodes"] % len(self.configs) > 0
@@ -479,7 +478,6 @@ class CustomDataset:
         # helper func to set up buffer for env
         def setup(env, config, num_seeds):
             self.env = env
-            self.eps_count = 0
             partial_obs, _ = self.env.reset(seed=0)
             obs = get_minigrid_obs(
                 self.env,
@@ -490,6 +488,7 @@ class CustomDataset:
             self._initialise_buffers(
                 num_buffers=num_seeds, obs_shape=obs.shape, config=config
             )
+            self.config_eps = 0
 
         # define callback func for storing data
         def callback(exps, logs, config, seeds):
@@ -510,19 +509,24 @@ class CustomDataset:
 
             for i, seed in enumerate(seeds):
                 for t in range(obss.shape[1]):
-                    o = get_minigrid_obs(  # process partial observation
+                    # process partial observation
+                    o = get_minigrid_obs(
                         self.env,
                         obss[i, t],
                         self.args["fully_obs"],
                         self.args["rgb_obs"],
                     )["image"]
+
+                    # determine reward
                     r = (
                         feedback[i, t]
                         if self.args["feedback_mode"] == "numerical_reward"
                         else rewards[i, t]
                     )
+
+                    # add step to buffer i
                     self._add_to_buffer(
-                        buffer_idx=0,
+                        buffer_idx=i,
                         action=actions[i, t],
                         observation=o,
                         reward=r,
@@ -534,11 +538,15 @@ class CustomDataset:
                         mission=self.env.get_mission(),
                     )
 
+                    # if buffer i is full, flush it
+                    if terminations[i, t] and self.ep_counts[i] >= EPS_PER_SHARD:
+                        self._flush_buffer(buffer_idx=i, obs_shape=o.shape, config=config)
+
             # number of new episodes = number of nonzero elements in terminations
-            self.eps_count += np.count_nonzero(terminations)
+            self.config_eps += np.count_nonzero(terminations)
 
             # return True if we've collected enough episodes for this config
-            return self.eps_count >= episodes_per_config
+            return self.config_eps >= episodes_per_config
 
         # train a PPO agent for each config
         for config in tqdm(self.configs):
@@ -549,7 +557,7 @@ class CustomDataset:
             train_seeds = self.seed_finder.get_train_seeds(seed_log)
             seeds = [
                 int(s)  # from np.int64
-                for s in np.random.choice(train_seeds, size=128, replace=False)
+                for s in np.random.choice(train_seeds, size=128, replace=True)
             ]
 
             log(f"using seeds: {seeds}", with_tqdm=True)
@@ -558,6 +566,11 @@ class CustomDataset:
             ppo = PPOAgent(env_name=config, seeds=seeds)
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
+
+            # flush any remaining data to file
+            for i in range(len(self.buffers)):
+                if self.ep_counts[i] > 0:
+                    self._save_buffer_to_minari_file(i)
 
         # return dataset
         return self
