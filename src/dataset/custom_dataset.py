@@ -104,18 +104,6 @@ class CustomDataset:
             if self.args["level"] in levels:
                 return level_group
 
-    def _get_used_action_space(self):
-        """
-        Get the used action space for the environment.
-
-        Returns
-        -------
-        list: the used action space.
-        """
-        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
-        metadata = JsoncParser.parse_file(metadata_path)["levels"]
-        return metadata[self.category][self.args["level"]]["used_action_space"]
-
     def _get_level_max_steps(self):
         """
         Get the max steps for the environment.

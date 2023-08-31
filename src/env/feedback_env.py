@@ -2,11 +2,10 @@ from typing import Optional
 
 import gymnasium as gym
 import numpy as np
+from gymnasium.spaces.discrete import Discrete
 
-from src.dataset.custom_feedback_verifier import (
-    RuleFeedback,
-    TaskFeedback,
-)
+from src.dataset.custom_feedback_verifier import RuleFeedback
+from src.dataset.custom_feedback_verifier import TaskFeedback
 
 
 class FeedbackEnv:
@@ -101,7 +100,8 @@ class FeedbackEnv:
 
     @property
     def action_space(self):
-        return self.env.action_space
+        # Excluding the "Done" action
+        return Discrete(6)
 
     @property
     def observation_space(self):
