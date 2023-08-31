@@ -15,6 +15,7 @@ from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
 from src.utils.utils import log
 from src.utils.utils import seed
+
 # from src.constants import OUTPUT_PATH
 
 os.environ["WANDB_DISABLED"] = "true"
@@ -29,6 +30,7 @@ frame_size = 64 if args["fully_obs"] else 56
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["num_repeats"] = 128
+
 log("setting up devices")
 if torch.cuda.is_available():
     device = torch.device("cuda")

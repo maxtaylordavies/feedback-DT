@@ -24,7 +24,6 @@ seed(GLOBAL_SEED)
 
 args = get_args()
 
-args["num_episodes"] = 10
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
 args["epochs"] = 5

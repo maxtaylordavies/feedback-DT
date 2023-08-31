@@ -56,6 +56,7 @@
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
 
+#BATCH --mem-per-cpu=24G
 
 # =====================
 # Logging information
