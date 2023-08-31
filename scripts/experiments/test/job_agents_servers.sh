@@ -94,7 +94,7 @@ source ${VENV_NAME}/bin/activate
 # inclusive.
 
 experiment_text_file=$1
-COMMAND="'sed \"${SLURM_ARRAY_TASK_ID}q;d\" ${experiment_text_file}'"
+COMMAND="`sed \"${SLURM_ARRAY_TASK_ID}q;d\" ${experiment_text_file}`"
 echo "Running provided command: ${COMMAND}"
 eval "${COMMAND}"
 echo "Command ran successfully!"
