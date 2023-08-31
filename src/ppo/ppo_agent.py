@@ -2,16 +2,17 @@ import os
 import sys
 import time
 
-# import tensorboardX
-import torch_ac
 import gymnasium as gym
+import torch_ac
 
 import external_rl.utils as utils
+from .ppo_algo import PPOAlgo
 from external_rl.model import ACModel
 from external_rl.utils import device
-from src.env.feedback_env import FeedbackEnv
 from src.constants import GLOBAL_SEED
-from .ppo_algo import PPOAlgo
+from src.env.feedback_env import FeedbackEnv
+
+# import tensorboardX
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
@@ -78,7 +79,9 @@ class PPOAgent:
         Returns the model instance for the env and trained weights.
         """
         if not os.path.exists(
-            os.path.join(self.model_dir, f"status_{'medium' if self.medium else 'expert'}.pt")
+            os.path.join(
+                self.model_dir, f"status_{'medium' if self.medium else 'expert'}.pt"
+            )
         ):
             self._train_agent()
 
@@ -128,7 +131,9 @@ class PPOAgent:
         txt_logger.info("Training status loaded\n")
 
         # Load observations preprocessor
-        obs_space, preprocess_obss = utils.get_obss_preprocessor(envs[0].observation_space)
+        obs_space, preprocess_obss = utils.get_obss_preprocessor(
+            envs[0].observation_space
+        )
         if "vocab" in status:
             preprocess_obss.vocab.load_vocab(status["vocab"])
         txt_logger.info("Observations preprocessor loaded")
@@ -191,8 +196,12 @@ class PPOAgent:
                 fps = logs["num_frames"] / (update_end_time - update_start_time)
                 duration = int(time.time() - start_time)
                 return_per_episode = utils.synthesize(logs["return_per_episode"])
-                rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
-                num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
+                rreturn_per_episode = utils.synthesize(
+                    logs["reshaped_return_per_episode"]
+                )
+                num_frames_per_episode = utils.synthesize(
+                    logs["num_frames_per_episode"]
+                )
 
                 header = ["update", "frames", "FPS", "duration"]
                 data = [update, num_frames, fps, duration]
@@ -227,7 +236,10 @@ class PPOAgent:
                 #     tb_writer.add_scalar(field, value, num_frames)
 
             # Save status
-            if self.args["save_interval"] > 0 and update % self.args["save_interval"] == 0:
+            if (
+                self.args["save_interval"] > 0
+                and update % self.args["save_interval"] == 0
+            ):
                 status = {
                     "num_frames": num_frames,
                     "update": update,

@@ -16,7 +16,6 @@ from src.utils.argparsing import get_args
 from src.utils.utils import log
 from src.utils.utils import seed
 
-# from src.constants import OUTPUT_PATH
 
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
@@ -24,12 +23,13 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
-# args["output"] = OUTPUT_PATH
-frame_size = 64 if args["fully_obs"] else 56
 
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
-args["num_repeats"] = 128
+args["epochs"] = 5
+args["log_interval"] = 1
+
+frame_size = 64 if args["fully_obs"] else 56
 
 log("setting up devices")
 if torch.cuda.is_available():
@@ -40,12 +40,12 @@ if torch.cuda.is_available():
     log("using gpu")
 elif not torch.backends.mps.is_available():
     if not torch.backends.mps.is_built():
-        print(
+        log(
             "MPS not available because the current PyTorch install was not "
             "built with MPS enabled."
         )
     else:
-        print(
+        log(
             "MPS not available because the current MacOS version is not 12.3+ "
             "and/or you do not have an MPS-enabled device on this machine."
         )

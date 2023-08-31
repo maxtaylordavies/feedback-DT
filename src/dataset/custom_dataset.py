@@ -8,7 +8,6 @@ from jsonc_parser.parser import JsoncParser
 from tqdm import tqdm
 
 from src.dataset.minari_dataset import MinariDataset
-from src.dataset.minari_storage import list_local_datasets
 from src.dataset.minari_storage import name_dataset
 from src.dataset.seeds import LEVELS_CONFIGS
 from src.dataset.seeds import SeedFinder
@@ -104,18 +103,6 @@ class CustomDataset:
             if self.args["level"] in levels:
                 return level_group
 
-    def _get_used_action_space(self):
-        """
-        Get the used action space for the environment.
-
-        Returns
-        -------
-        list: the used action space.
-        """
-        metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
-        metadata = JsoncParser.parse_file(metadata_path)["levels"]
-        return metadata[self.category][self.args["level"]]["used_action_space"]
-
     def _get_level_max_steps(self):
         """
         Get the max steps for the environment.
@@ -131,6 +118,7 @@ class CustomDataset:
         seq_instrs_factor = 4 if level_metadata["mission_space"]["sequence"] else 1
         putnext_instrs_factor = 2 if level_metadata["putnext"] else 1
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
+        step_ceiling = 8**2 * 3**2
 
         global_max_steps = 0
         for config in self.configs:
@@ -159,9 +147,11 @@ class CustomDataset:
                     )
                 max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(global_max_steps, max_steps)
-        return global_max_steps
+        return min(global_max_steps, step_ceiling)
 
-    def _initialise_buffers(self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _initialise_buffers(
+        self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
+    ):
         log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
@@ -175,18 +165,19 @@ class CustomDataset:
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
             "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
             "observations": np.array(
-                [np.zeros(obs_shape)] * (max_steps * num_eps),
+                [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
             ),
             "actions": np.array(
-                [[0]] * (max_steps * num_eps),
+                [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
             "rewards": np.array(
-                [[0]] * (max_steps * num_eps),
+                [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()]
+            * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -214,7 +205,8 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"]
+            + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -288,7 +280,9 @@ class CustomDataset:
 
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
-            reward = feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+            reward = (
+                feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+            )
 
             self._add_to_buffer(
                 buffer_idx=buffer_idx,
@@ -306,6 +300,7 @@ class CustomDataset:
     def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
         if os.path.exists(self.fp):
+            print("Overwriting existing dataset folder")
             shutil.rmtree(self.fp)
         os.makedirs(self.fp)
 
@@ -368,10 +363,12 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
-                        current_episode == self.args["num_episodes"] - 1
-                    ):
-                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
+                    if (
+                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
+                    ) or (current_episode == self.args["num_episodes"] - 1):
+                        self._flush_buffer(
+                            buffer_idx=0, obs_shape=obs.shape, config=config
+                        )
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -388,7 +385,9 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_ends = np.where(
+            self.shard.terminations + self.shard.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -396,7 +395,7 @@ class CustomDataset:
         # store state and action dimensions
         self.state_dim, self.act_dim = (
             np.prod(self.shard.observations.shape[1:]),
-            self.shard.get_action_size(),
+            6,
         )
 
     def sample_episode_indices(self, num_eps, dist="uniform"):
@@ -540,7 +539,9 @@ class CustomDataset:
 
                     # if buffer i is full, flush it
                     if terminations[i, t] and self.ep_counts[i] >= EPS_PER_SHARD:
-                        self._flush_buffer(buffer_idx=i, obs_shape=o.shape, config=config)
+                        self._flush_buffer(
+                            buffer_idx=i, obs_shape=o.shape, config=config
+                        )
 
             # number of new episodes = number of nonzero elements in terminations
             self.config_eps += np.count_nonzero(terminations)
