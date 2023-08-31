@@ -36,7 +36,8 @@ combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
 output_file = open(
-    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt", "w+"
+    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment_agents_servers.txt",
+    "w+",
 )
 
 for c in combinations:
