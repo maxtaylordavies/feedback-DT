@@ -153,13 +153,17 @@ class CustomDataset:
         self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
     ):
         log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
-        for _ in range(num_buffers):
+        for i in range(num_buffers):
+            log(f"initialising buffer {i}", with_tqdm=True)
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
             self.steps.append(0)
             self.ep_counts.append(0)
 
     def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self._get_level_max_steps()
+
+        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
@@ -234,7 +238,7 @@ class CustomDataset:
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
+            f"writing buffer {buffer_idx} to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
 
@@ -547,6 +551,11 @@ class CustomDataset:
 
             # number of new episodes = number of nonzero elements in terminations
             self.config_eps += np.count_nonzero(terminations)
+
+            log(
+                f"config_eps:{self.config_eps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
+                with_tqdm=True,
+            )
 
             # return True if we've collected enough episodes for this config
             return self.config_eps >= episodes_per_config
