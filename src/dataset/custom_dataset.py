@@ -153,13 +153,17 @@ class CustomDataset:
         self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
     ):
         log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
-        for _ in range(num_buffers):
+        for i in range(num_buffers):
+            log(f"initialising buffer {i}", with_tqdm=True)
             self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
             self.steps.append(0)
             self.ep_counts.append(0)
 
     def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
         max_steps = self._get_level_max_steps()
+
+        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
@@ -234,7 +238,7 @@ class CustomDataset:
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
+            f"writing buffer {buffer_idx} to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
 
@@ -340,7 +344,11 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
+                    self.env = FeedbackEnv(
+                        env=gym.make(config),
+                        feedback_mode=self.args["feedback_mode"],
+                        max_steps=self._get_level_max_steps(),
+                    )
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -363,12 +371,10 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (
-                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
-                    ) or (current_episode == self.args["num_episodes"] - 1):
-                        self._flush_buffer(
-                            buffer_idx=0, obs_shape=obs.shape, config=config
-                        )
+                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"] - 1
+                    ):
+                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -546,6 +552,11 @@ class CustomDataset:
             # number of new episodes = number of nonzero elements in terminations
             self.config_eps += np.count_nonzero(terminations)
 
+            log(
+                f"config_eps:{self.config_eps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
+                with_tqdm=True,
+            )
+
             # return True if we've collected enough episodes for this config
             return self.config_eps >= episodes_per_config
 
@@ -564,7 +575,9 @@ class CustomDataset:
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds)
+            ppo = PPOAgent(
+                env_name=config, seeds=seeds, max_steps=self._get_level_max_steps()
+            )
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 

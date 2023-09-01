@@ -9,9 +9,13 @@ from src.dataset.custom_feedback_verifier import TaskFeedback
 
 
 class FeedbackEnv:
-    def __init__(self, env: gym.Env, feedback_mode: Optional[str]) -> None:
+    def __init__(
+        self, env: gym.Env, feedback_mode: Optional[str], max_steps: Optional[int]
+    ) -> None:
         self.env = env
         self.feedback_mode = feedback_mode
+        self._max_steps = max_steps
+        self.steps_taken = 0
         if self.feedback_mode:
             self.env.reset()
             self.rule_fv = RuleFeedback()
@@ -73,6 +77,11 @@ class FeedbackEnv:
         # call env.step
         obs, reward, terminated, truncated, _ = self.env.step(action)
 
+        # check if max steps reached
+        self.steps_taken += 1
+        if self.max_steps is not None and self.steps_taken >= self.max_steps:
+            truncated = True
+
         # get task feedback (after taking action)
         task_feedback = self.task_feedback(action)
 
@@ -81,6 +90,7 @@ class FeedbackEnv:
         return obs, reward, terminated, truncated, feedback
 
     def reset(self, *args, **kwargs):
+        self.steps_taken = 0
         return self.env.reset(*args, **kwargs)
 
     def render(self, *args, **kwargs):
@@ -129,7 +139,10 @@ class FeedbackEnv:
 
     @property
     def max_steps(self):
-        return self.env.max_steps
+        # if self._max_steps is set, return the minimum of self._max_steps
+        # and self.env.max_steps; otherwise just return self.env.max_steps
+        tmp = self._max_steps or np.inf
+        return min(tmp, self.env.max_steps)
 
     @property
     def unwrapped(self):
