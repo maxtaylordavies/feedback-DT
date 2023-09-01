@@ -198,4 +198,10 @@ def get_args():
         default=False,
         help="whether to load the dataset if it already exists",
     )
+    parser.add_argument(
+        "--eps_per_shard",
+        type=int,
+        default=10,
+        help="the number of episodes to collect per dataset shard",
+    )
     return vars(parser.parse_args())

@@ -19,8 +19,7 @@ from src.utils.utils import log
 from src.utils.utils import normalise
 from src.utils.utils import to_one_hot
 
-
-EPS_PER_SHARD = 100
+from memory_profiler import profile
 
 
 class CustomDataset:
@@ -56,6 +55,7 @@ class CustomDataset:
                 configs.append(config)
         return configs
 
+    @profile
     def _get_dataset(self):
         """
         Get a MinariDataset object, either by loading an existing dataset from local storage
@@ -81,6 +81,9 @@ class CustomDataset:
                 self._generate_new_dataset()
             else:
                 self._from_ppo_training()
+            self.buffer = []
+            self.steps = []
+            self.ep_counts = []
 
         return self
 
@@ -147,18 +150,20 @@ class CustomDataset:
                     )
                 max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(global_max_steps, max_steps)
-        return min(global_max_steps, step_ceiling)
+        # return min(global_max_steps, step_ceiling)
+        return global_max_steps
 
     def _initialise_buffers(
-        self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
+        self, num_buffers, obs_shape, config=""
     ):
-        log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
+        log(f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}", with_tqdm=True)
         for _ in range(num_buffers):
-            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
+            self.buffers.append(self._create_buffer(obs_shape, config))
             self.steps.append(0)
             self.ep_counts.append(0)
 
-    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _create_buffer(self, obs_shape, config=""):
+        num_eps = self.args["eps_per_shard"]
         max_steps = self._get_level_max_steps()
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
@@ -182,7 +187,7 @@ class CustomDataset:
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
 
-    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _flush_buffer(self, buffer_idx, obs_shape, config=""):
         # if buffer exists and isn't empty, first save it to file
         if (
             len(self.buffers) > buffer_idx
@@ -194,7 +199,7 @@ class CustomDataset:
         if obs_shape is None:
             obs_shape = self.buffers[buffer_idx]["observations"][0].shape
 
-        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config)
         self.steps[buffer_idx] = 0
         self.ep_counts[buffer_idx] = 0
 
@@ -301,7 +306,7 @@ class CustomDataset:
         # create folder to store MinariDataset files
         if os.path.exists(self.fp):
             print("Overwriting existing dataset folder")
-            shutil.rmtree(self.fp)
+            shutil.rmtree(self.fp, ignore_errors=True)
         os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
@@ -364,7 +369,7 @@ class CustomDataset:
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
                     if (
-                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
+                        current_episode > 0 and current_episode % self.args["eps_per_shard"] == 0
                     ) or (current_episode == self.args["num_episodes"] - 1):
                         self._flush_buffer(
                             buffer_idx=0, obs_shape=obs.shape, config=config
@@ -538,7 +543,7 @@ class CustomDataset:
                     )
 
                     # if buffer i is full, flush it
-                    if terminations[i, t] and self.ep_counts[i] >= EPS_PER_SHARD:
+                    if terminations[i, t] and self.ep_counts[i] >= self.args["eps_per_shard"]:
                         self._flush_buffer(
                             buffer_idx=i, obs_shape=o.shape, config=config
                         )
@@ -588,7 +593,6 @@ class CustomDataset:
         return idxs
 
     # -------------------------------------------------------------------------------------------
-
     @classmethod
     def get_dataset(cls, args):
         print("Generating dataset...")
