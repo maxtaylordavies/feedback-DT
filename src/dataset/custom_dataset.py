@@ -340,7 +340,11 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
+                    self.env = FeedbackEnv(
+                        env=gym.make(config),
+                        feedback_mode=self.args["feedback_mode"],
+                        max_steps=self._get_level_max_steps(),
+                    )
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -363,12 +367,10 @@ class CustomDataset:
                     self._create_episode(config, seed)
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (
-                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
-                    ) or (current_episode == self.args["num_episodes"] - 1):
-                        self._flush_buffer(
-                            buffer_idx=0, obs_shape=obs.shape, config=config
-                        )
+                    if (current_episode > 0 and current_episode % EPS_PER_SHARD == 0) or (
+                        current_episode == self.args["num_episodes"] - 1
+                    ):
+                        self._flush_buffer(buffer_idx=0, obs_shape=obs.shape, config=config)
 
                     current_episode += 1
                     current_conf_episode += 1
@@ -564,7 +566,9 @@ class CustomDataset:
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds)
+            ppo = PPOAgent(
+                env_name=config, seeds=seeds, max_steps=self._get_level_max_steps()
+            )
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 
