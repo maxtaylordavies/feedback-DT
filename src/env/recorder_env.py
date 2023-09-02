@@ -19,8 +19,9 @@ class RecorderEnv(FeedbackEnv):
         size=None,
         fps=30,
         rgb=True,
+        max_steps=None
     ):
-        super().__init__(env, feedback_mode)
+        super().__init__(env, feedback_mode, max_steps)
         self.directory = directory
         self.path = os.path.join(self.directory, f"{filename}.mp4")
         self.auto_release = auto_release

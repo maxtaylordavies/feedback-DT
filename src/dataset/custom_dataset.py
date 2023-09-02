@@ -152,6 +152,8 @@ class CustomDataset:
     def _initialise_buffers(
         self, num_buffers, obs_shape, config=""
     ):
+        if self._get_level_max_steps() <= 576: 
+            self.args['eps_per_shard'] = 100
         log(f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}", with_tqdm=True)
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config))
@@ -587,6 +589,9 @@ class CustomDataset:
             for i in range(len(self.buffers)):
                 if self.ep_counts[i] > 0:
                     self._save_buffer_to_minari_file(i)
+            self.buffers = []
+            self.steps = []
+            self.ep_counts = []
 
         # return dataset
         return self
