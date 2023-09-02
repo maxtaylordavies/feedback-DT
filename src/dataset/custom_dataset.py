@@ -19,8 +19,6 @@ from src.utils.utils import log
 from src.utils.utils import normalise
 from src.utils.utils import to_one_hot
 
-from memory_profiler import profile
-
 
 class CustomDataset:
     """
@@ -55,7 +53,6 @@ class CustomDataset:
                 configs.append(config)
         return configs
 
-    @profile
     def _get_dataset(self):
         """
         Get a MinariDataset object, either by loading an existing dataset from local storage
@@ -81,7 +78,7 @@ class CustomDataset:
                 self._generate_new_dataset()
             else:
                 self._from_ppo_training()
-            self.buffer = []
+            self.buffers = []
             self.steps = []
             self.ep_counts = []
 
@@ -121,7 +118,7 @@ class CustomDataset:
         seq_instrs_factor = 4 if level_metadata["mission_space"]["sequence"] else 1
         putnext_instrs_factor = 2 if level_metadata["putnext"] else 1
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
-        step_ceiling = 8**2 * 3**2
+        step_ceiling = 8**2 * 3**2 * 2
 
         global_max_steps = 0
         for config in self.configs:
@@ -202,7 +199,7 @@ class CustomDataset:
         self.buffers[buffer_idx] = self._create_buffer(obs_shape, config)
         self.steps[buffer_idx] = 0
         self.ep_counts[buffer_idx] = 0
-
+    
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
             self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
