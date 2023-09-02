@@ -147,8 +147,7 @@ class CustomDataset:
                     )
                 max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(global_max_steps, max_steps)
-        # return min(global_max_steps, step_ceiling)
-        return global_max_steps
+        return min(global_max_steps, step_ceiling)
 
     def _initialise_buffers(
         self, num_buffers, obs_shape, config=""
@@ -162,6 +161,9 @@ class CustomDataset:
     def _create_buffer(self, obs_shape, config=""):
         num_eps = self.args["eps_per_shard"]
         max_steps = self._get_level_max_steps()
+
+        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
@@ -236,7 +238,7 @@ class CustomDataset:
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
+            f"writing buffer {buffer_idx} to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
 
@@ -342,7 +344,11 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
+                    self.env = FeedbackEnv(
+                        env=gym.make(config),
+                        feedback_mode=self.args["feedback_mode"],
+                        max_steps=self._get_level_max_steps(),
+                    )
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -548,6 +554,11 @@ class CustomDataset:
             # number of new episodes = number of nonzero elements in terminations
             self.config_eps += np.count_nonzero(terminations)
 
+            log(
+                f"config_eps:{self.config_eps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
+                with_tqdm=True,
+            )
+
             # return True if we've collected enough episodes for this config
             return self.config_eps >= episodes_per_config
 
@@ -566,7 +577,9 @@ class CustomDataset:
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds)
+            ppo = PPOAgent(
+                env_name=config, seeds=seeds, max_steps=self._get_level_max_steps()
+            )
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 

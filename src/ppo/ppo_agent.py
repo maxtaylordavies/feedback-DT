@@ -17,9 +17,9 @@ from src.env.feedback_env import FeedbackEnv
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
 
-def make_env(env_key, seed=None, render_mode=None, feedback_mode=None):
+def make_env(env_key, seed=None, render_mode=None, feedback_mode=None, max_steps=None):
     _env = gym.make(env_key, render_mode=render_mode)
-    env = FeedbackEnv(_env, feedback_mode=feedback_mode)
+    env = FeedbackEnv(_env, feedback_mode=feedback_mode, max_steps=max_steps)
     env.reset(seed=seed)
     return env
 
@@ -30,7 +30,7 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seeds, medium=True, feedback_mode=None):
+    def __init__(self, env_name, seeds, medium=True, feedback_mode=None, max_steps=None):
         self.args = {
             "algo": "ppo",
             "env": env_name,
@@ -41,7 +41,7 @@ class PPOAgent:
             "procs": len(seeds),
             "epochs": 4,
             "batch_size_ppo": 256,
-            "frames_per_proc": 128,
+            "frames_per_proc": min(max_steps, 128),
             "discount": 0.99,
             "lr": 0.001,
             "gae_lambda": 0.95,
@@ -57,11 +57,15 @@ class PPOAgent:
             "text": True,
             "argmax": True,
             "feedback_mode": feedback_mode,
+            "max_steps": max_steps,
         }
         self.medium = medium
         self.args["mem"] = self.args["recurrence"] > 1
         self.env = make_env(
-            self.args["env"], self.args["seeds"][0], feedback_mode=feedback_mode
+            self.args["env"],
+            self.args["seeds"][0],
+            feedback_mode=feedback_mode,
+            max_steps=max_steps,
         )
         self.model_dir = self._get_model_dir()
         # self.model = self._get_model()
@@ -119,9 +123,14 @@ class PPOAgent:
         envs = []
         for s in self.args["seeds"]:
             envs.append(
-                make_env(self.args["env"], s, feedback_mode=self.args["feedback_mode"])
+                make_env(
+                    self.args["env"],
+                    s,
+                    feedback_mode=self.args["feedback_mode"],
+                    max_steps=self.args["max_steps"],
+                )
             )
-        txt_logger.info("Environments loaded\n")
+        txt_logger.info(f"Environments loaded (using max_steps = {self.args['max_steps']})\n")
 
         # Load training status
         try:
