@@ -32,23 +32,21 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
-        "GoToLocal",
         "PutNextLocal",
-        "GoTo",
         "PutNext",
-        "GoToSeq",
-        "BossLevel",
+        "SynthSeq",
     ],
-    "num_episodes": [100000, 250000, 500000],
+    "num_episodes": [100000],
     "batch_size": [32, 64, 128],
-    "context_length": [8, 16, 32, 64],
+    "context_length": [16, 32, 64],
+    "policy": ["random"]
 }
 
 combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
 output_file = open(
-    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment_agents_servers.txt",
+    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt",
     "w",
 )
 
