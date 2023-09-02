@@ -169,7 +169,7 @@ class CustomDataset:
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
+            "missions": ["No mission available."] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
@@ -305,10 +305,16 @@ class CustomDataset:
 
     def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
-        if os.path.exists(self.fp):
-            print("Overwriting existing dataset folder")
-            shutil.rmtree(self.fp, ignore_errors=True)
-        os.makedirs(self.fp)
+        try:
+            if os.path.exists(self.fp):
+                print("Overwriting existing dataset folder")
+                shutil.rmtree(self.fp, ignore_errors=True)
+            os.makedirs(self.fp)
+        except:
+            if os.path.exists(self.fp):
+                print("Overwriting existing dataset folder")
+                shutil.rmtree(self.fp, ignore_errors=True)
+            os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
         pbar = tqdm(total=self.args["num_episodes"], desc="Generating dataset")
