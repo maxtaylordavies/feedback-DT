@@ -120,41 +120,42 @@ class CustomDataset:
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
         step_ceiling = 8**2 * 3**2 * 2
 
-        global_max_steps = 0
         for config in self.configs:
             try:
                 max_steps = level_metadata[config]["max_steps"]
             except KeyError:
-                try:
-                    room_size = level_metadata[config]["room_size"]
-                except KeyError:
-                    room_size = metadata["defaults"]["room"]["room_size"]
-                try:
-                    num_rows = level_metadata[config]["num_rows"]
-                except KeyError:
-                    num_rows = (
-                        metadata["defaults"]["maze"]["num_rows"]
-                        if level_metadata["maze"]
-                        else 1
-                    )
-                try:
-                    num_cols = level_metadata[config]["num_cols"]
-                except KeyError:
-                    num_cols = (
-                        metadata["defaults"]["maze"]["num_cols"]
-                        if level_metadata["maze"]
-                        else 1
-                    )
-                max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
-            global_max_steps = max(global_max_steps, max_steps)
+                max_steps = 0
+            try:
+                room_size = level_metadata[config]["room_size"]
+            except KeyError:
+                room_size = metadata["defaults"]["room"]["room_size"]
+            try:
+                num_rows = level_metadata[config]["num_rows"]
+            except KeyError:
+                num_rows = (
+                    metadata["defaults"]["maze"]["num_rows"]
+                    if level_metadata["maze"]
+                    else 1
+                )
+            try:
+                num_cols = level_metadata[config]["num_cols"]
+            except KeyError:
+                num_cols = (
+                    metadata["defaults"]["maze"]["num_cols"]
+                    if level_metadata["maze"]
+                    else 1
+                )
+            tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
+            global_max_steps = max(tmp_max_steps, max_steps)
         return min(global_max_steps, step_ceiling)
 
-    def _initialise_buffers(
-        self, num_buffers, obs_shape, config=""
-    ):
-        if self._get_level_max_steps() <= 576: 
-            self.args['eps_per_shard'] = 100
-        log(f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}", with_tqdm=True)
+    def _initialise_buffers(self, num_buffers, obs_shape, config=""):
+        if self._get_level_max_steps() <= 576:
+            self.args["eps_per_shard"] = 100
+        log(
+            f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}",
+            with_tqdm=True,
+        )
         for _ in range(num_buffers):
             self.buffers.append(self._create_buffer(obs_shape, config))
             self.steps.append(0)
@@ -164,7 +165,9 @@ class CustomDataset:
         num_eps = self.args["eps_per_shard"]
         max_steps = self._get_level_max_steps()
 
-        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+        log(
+            f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True
+        )
 
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
@@ -203,7 +206,7 @@ class CustomDataset:
         self.buffers[buffer_idx] = self._create_buffer(obs_shape, config)
         self.steps[buffer_idx] = 0
         self.ep_counts[buffer_idx] = 0
-    
+
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
             self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
@@ -380,7 +383,8 @@ class CustomDataset:
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
                     if (
-                        current_episode > 0 and current_episode % self.args["eps_per_shard"] == 0
+                        current_episode > 0
+                        and current_episode % self.args["eps_per_shard"] == 0
                     ) or (current_episode == self.args["num_episodes"] - 1):
                         self._flush_buffer(
                             buffer_idx=0, obs_shape=obs.shape, config=config
@@ -554,7 +558,10 @@ class CustomDataset:
                     )
 
                     # if buffer i is full, flush it
-                    if terminations[i, t] and self.ep_counts[i] >= self.args["eps_per_shard"]:
+                    if (
+                        terminations[i, t]
+                        and self.ep_counts[i] >= self.args["eps_per_shard"]
+                    ):
                         self._flush_buffer(
                             buffer_idx=i, obs_shape=o.shape, config=config
                         )
