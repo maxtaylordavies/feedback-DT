@@ -34,9 +34,10 @@ variables = {
         "GoToSeq",
         "BossLevel",
     ],
-    "num_episodes": [100000, 250000, 500000],
+    "num_episodes": [100000, 500000],
     "batch_size": [32, 64, 128],
     "context_length": [16, 32, 64],
+    "policy": ["random"]
 }
 
 combinations = list(itertools.product(*variables.values()))

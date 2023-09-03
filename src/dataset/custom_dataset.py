@@ -20,9 +20,6 @@ from src.utils.utils import normalise
 from src.utils.utils import to_one_hot
 
 
-EPS_PER_SHARD = 100
-
-
 class CustomDataset:
     """
     Class for generating a custom dataset for a given environment, seed and policy.
@@ -81,6 +78,9 @@ class CustomDataset:
                 self._generate_new_dataset()
             else:
                 self._from_ppo_training()
+            self.buffers = []
+            self.steps = []
+            self.ep_counts = []
 
         return self
 
@@ -118,7 +118,7 @@ class CustomDataset:
         seq_instrs_factor = 4 if level_metadata["mission_space"]["sequence"] else 1
         putnext_instrs_factor = 2 if level_metadata["putnext"] else 1
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
-        step_ceiling = 8**2 * 3**2
+        step_ceiling = 8**2 * 3**2 * 2
 
         global_max_steps = 0
         for config in self.configs:
@@ -150,20 +150,26 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _initialise_buffers(
-        self, num_buffers, obs_shape, config="", num_eps=EPS_PER_SHARD
+        self, num_buffers, obs_shape, config=""
     ):
-        log(f"initialising {num_buffers} buffers of size {num_eps}", with_tqdm=True)
+        if self._get_level_max_steps() <= 576: 
+            self.args['eps_per_shard'] = 100
+        log(f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}", with_tqdm=True)
         for _ in range(num_buffers):
-            self.buffers.append(self._create_buffer(obs_shape, config, num_eps))
+            self.buffers.append(self._create_buffer(obs_shape, config))
             self.steps.append(0)
             self.ep_counts.append(0)
 
-    def _create_buffer(self, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _create_buffer(self, obs_shape, config=""):
+        num_eps = self.args["eps_per_shard"]
         max_steps = self._get_level_max_steps()
+
+        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+
         return {
             "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": [self.env.get_mission()] * ((max_steps + 1) * num_eps),
+            "missions": ["No mission available."] * ((max_steps + 1) * num_eps),
             "observations": np.array(
                 [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
                 dtype=np.uint8,
@@ -182,7 +188,7 @@ class CustomDataset:
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
 
-    def _flush_buffer(self, buffer_idx, obs_shape, config="", num_eps=EPS_PER_SHARD):
+    def _flush_buffer(self, buffer_idx, obs_shape, config=""):
         # if buffer exists and isn't empty, first save it to file
         if (
             len(self.buffers) > buffer_idx
@@ -194,10 +200,10 @@ class CustomDataset:
         if obs_shape is None:
             obs_shape = self.buffers[buffer_idx]["observations"][0].shape
 
-        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config, num_eps)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config)
         self.steps[buffer_idx] = 0
         self.ep_counts[buffer_idx] = 0
-
+    
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
             self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
@@ -234,7 +240,7 @@ class CustomDataset:
 
         fp = os.path.join(self.fp, str(self.num_shards))
         log(
-            f"writing buffer to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
+            f"writing buffer {buffer_idx} to file {fp}.hdf5 ({len(self.buffers[buffer_idx]['observations'])} steps)",
             with_tqdm=True,
         )
 
@@ -299,10 +305,16 @@ class CustomDataset:
 
     def _initialise_new_dataset(self):
         # create folder to store MinariDataset files
-        if os.path.exists(self.fp):
-            print("Overwriting existing dataset folder")
-            shutil.rmtree(self.fp)
-        os.makedirs(self.fp)
+        try:
+            if os.path.exists(self.fp):
+                print("Overwriting existing dataset folder")
+                shutil.rmtree(self.fp, ignore_errors=True)
+            os.makedirs(self.fp)
+        except:
+            if os.path.exists(self.fp):
+                print("Overwriting existing dataset folder")
+                shutil.rmtree(self.fp, ignore_errors=True)
+            os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
         pbar = tqdm(total=self.args["num_episodes"], desc="Generating dataset")
@@ -340,7 +352,11 @@ class CustomDataset:
 
                     # create and initialise environment
                     log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv(gym.make(config), self.args["feedback_mode"])
+                    self.env = FeedbackEnv(
+                        env=gym.make(config),
+                        feedback_mode=self.args["feedback_mode"],
+                        max_steps=self._get_level_max_steps(),
+                    )
                     partial_obs, _ = self.env.reset(seed=seed)
                     obs = get_minigrid_obs(
                         self.env,
@@ -364,7 +380,7 @@ class CustomDataset:
 
                     # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
                     if (
-                        current_episode > 0 and current_episode % EPS_PER_SHARD == 0
+                        current_episode > 0 and current_episode % self.args["eps_per_shard"] == 0
                     ) or (current_episode == self.args["num_episodes"] - 1):
                         self._flush_buffer(
                             buffer_idx=0, obs_shape=obs.shape, config=config
@@ -538,13 +554,18 @@ class CustomDataset:
                     )
 
                     # if buffer i is full, flush it
-                    if terminations[i, t] and self.ep_counts[i] >= EPS_PER_SHARD:
+                    if terminations[i, t] and self.ep_counts[i] >= self.args["eps_per_shard"]:
                         self._flush_buffer(
                             buffer_idx=i, obs_shape=o.shape, config=config
                         )
 
             # number of new episodes = number of nonzero elements in terminations
             self.config_eps += np.count_nonzero(terminations)
+
+            log(
+                f"config_eps:{self.config_eps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
+                with_tqdm=True,
+            )
 
             # return True if we've collected enough episodes for this config
             return self.config_eps >= episodes_per_config
@@ -564,7 +585,9 @@ class CustomDataset:
             log(f"using seeds: {seeds}", with_tqdm=True)
 
             # train PPO agent
-            ppo = PPOAgent(env_name=config, seeds=seeds)
+            ppo = PPOAgent(
+                env_name=config, seeds=seeds, max_steps=self._get_level_max_steps()
+            )
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
 
@@ -572,6 +595,9 @@ class CustomDataset:
             for i in range(len(self.buffers)):
                 if self.ep_counts[i] > 0:
                     self._save_buffer_to_minari_file(i)
+            self.buffers = []
+            self.steps = []
+            self.ep_counts = []
 
         # return dataset
         return self
@@ -588,7 +614,6 @@ class CustomDataset:
         return idxs
 
     # -------------------------------------------------------------------------------------------
-
     @classmethod
     def get_dataset(cls, args):
         print("Generating dataset...")
