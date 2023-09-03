@@ -27,7 +27,7 @@ def list_local_datasets():
 def name_dataset(args):
     level = f"{args['level']}"
     size = f"{args['num_episodes']}-eps"
-    return level + "_" + size + "_" + args["policy"] + "_" + args["feedback_mode"]
+    return level + "_size" + size + "_policy-" + args["policy"] + "_feedback-" + args["feedback_mode"] + "_buffer-" + str(args["batch_size"]) + "_context-" + str(args["context_length"])
 
 
 def delete_dataset(dataset_name):
