@@ -45,7 +45,7 @@
 # #SBATCH --mem=14000
 
 # Number of CPUs to use. Check `cluster-status` for node configurations
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 
 # Maximum time for the job to run, format: days-hours:minutes:seconds
 # #SBATCH --time=1-04:00:00
@@ -56,7 +56,7 @@
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
 
-#SBATCH --mem-per-cpu=24G
+#SBATCH --mem-per-cpu=128G
 
 
 # =====================

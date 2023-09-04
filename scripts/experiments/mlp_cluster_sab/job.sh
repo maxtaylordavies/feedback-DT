@@ -45,7 +45,7 @@
 # #SBATCH --mem=14000
 
 # Number of CPUs to use. Check `cluster-status` for node configurations
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 
 # Maximum time for the job to run, format: days-hours:minutes:seconds
 # #SBATCH --time=1-04:00:00
@@ -56,6 +56,7 @@
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
 
+#BATCH --mem-per-cpu=64G
 
 # =====================
 # Logging information
@@ -133,7 +134,7 @@ source ${VENV_NAME}/bin/activate
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
 PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=test
+EXPERIMENT_NAME=mlp_cluster_sab
 
 # input data directory path on the DFS (make if required)
 src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input

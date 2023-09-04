@@ -9,7 +9,7 @@ PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-EXPERIMENT_NAME = "preliminary"
+EXPERIMENT_NAME = "mlp_cluster_max"
 DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
 
 
@@ -32,14 +32,14 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
-        "PutNextLocal",
+        "GoToObjMaze",
+        "GoTo",
+        "Pickup",
+        "UnblockPickup",
+        "Open",
+        "Unlock",
         "PutNext",
-        "SynthSeq",
     ],
-    "num_episodes": [100000],
-    "batch_size": [32, 64, 128],
-    "context_length": [16, 32, 64],
-    "policy": ["random"]
 }
 
 combinations = list(itertools.product(*variables.values()))

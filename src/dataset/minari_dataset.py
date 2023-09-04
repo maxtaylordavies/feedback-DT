@@ -1,12 +1,18 @@
 import os
 import pathlib
 import warnings
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
-
-# from dopamine.replay_memory import circular_replay_buffer
+from typing import Any
+from typing import Dict
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Union
 
 import h5py
 import numpy as np
+
+# from dopamine.replay_memory import circular_replay_buffer
 
 
 class Transition:
@@ -815,21 +821,39 @@ class MinariDataset:
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("policy", data=self._policy)
             f.create_dataset("feedback_mode", data=self._feedback_mode)
-            f.create_dataset("configs", data=np.asarray(self._configs, dtype="S"))
-            f.create_dataset("seeds", data=np.asarray(self._seeds, dtype="S"))
+            f.create_dataset(
+                "configs", data=np.asarray(self._configs, dtype="S"), compression="gzip"
+            )
+            f.create_dataset(
+                "seeds", data=np.asarray(self._seeds, dtype="S"), compression="gzip"
+            )
             f.create_dataset(
                 "code_permalink", data=str(self._code_permalink)
             )  # allows saving of NoneType
             f.create_dataset("author", data=str(self._author))
             f.create_dataset("author_email", data=str(self._author_email))
-            f.create_dataset("missions", data=np.asarray(self._missions, dtype="S"))
-            f.create_dataset("observations", data=self._observations)
-            f.create_dataset("actions", data=self._actions)
-            f.create_dataset("rewards", data=self._rewards)
-            f.create_dataset("feedback", data=np.asarray(self._feedback, dtype="S"))
-            f.create_dataset("terminations", data=self._terminations)
-            f.create_dataset("truncations", data=self._truncations)
-            f.create_dataset("episode_terminals", data=self._episode_terminals)
+            f.create_dataset(
+                "missions",
+                data=np.asarray(self._missions, dtype="S"),
+                compression="gzip",
+            )
+            f.create_dataset(
+                "observations", data=self._observations, compression="gzip"
+            )
+            f.create_dataset("actions", data=self._actions, compression="gzip")
+            f.create_dataset("rewards", data=self._rewards, compression="gzip")
+            f.create_dataset(
+                "feedback",
+                data=np.asarray(self._feedback, dtype="S"),
+                compression="gzip",
+            )
+            f.create_dataset(
+                "terminations", data=self._terminations, compression="gzip"
+            )
+            f.create_dataset("truncations", data=self._truncations, compression="gzip")
+            f.create_dataset(
+                "episode_terminals", data=self._episode_terminals, compression="gzip"
+            )
             f.create_dataset("discrete_action", data=self.discrete_action)
             f.create_dataset("version", data="1.0")
             f.flush()

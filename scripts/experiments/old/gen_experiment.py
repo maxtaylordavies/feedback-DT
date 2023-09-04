@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Script for generating experiment.txt"""
-
 import itertools
 import os
 
@@ -33,7 +32,11 @@ base_call = f"python {PROJECT_HOME}/src/train.py -o {DATA_HOME}/output --env_nam
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
-    "env_name": ["BabyAI-GoToRedBallGrey-v0", "BabyAI-GoToRedBall-v0", "BabyAI-GoToObj-v0"],
+    "env_name": [
+        "BabyAI-GoToRedBallGrey-v0",
+        "BabyAI-GoToRedBall-v0",
+        "BabyAI-GoToObj-v0",
+    ],
     "num_episodes": [10000, 100000, 250000, 500000],
     "feedback_type": ["adjacency", "action"],
     "feedback_freq_steps": [1, 5, 10, 20],
