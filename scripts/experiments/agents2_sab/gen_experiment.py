@@ -6,7 +6,7 @@ import os
 # define some paths
 USER = os.environ["USER"]
 PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "preliminary"
+EXPERIMENT_NAME = "ppo_with_feedback_mission"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 
@@ -27,24 +27,13 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
-variables = {
-    "level": [
-        "GoToLocal",
-        "GoTo",
-        "GoToSeq",
-        "BossLevel",
-    ],
-    "num_episodes": [100000, 500000],
-    "batch_size": [32, 64, 128],
-    "context_length": [16, 32, 64],
-    "policy": ["random"]
-}
+variables = {"level": ["SynthLoc", "GoToSeq", "Synth"]}
 
 combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
 output_file = open(
-    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment_agents_servers.txt",
+    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt",
     "w+",
 )
 

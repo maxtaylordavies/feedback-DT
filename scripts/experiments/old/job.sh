@@ -4,13 +4,13 @@
 # Template for running an sbatch arrayjob with a file containing a list of
 # commands to run. Copy this, remove the .template, and edit as you wish to
 # fit your needs.
-# 
+#
 # Assuming this file has been edited and renamed slurm_arrayjob.sh, here's an
 # example usage:
 # ```
 # EXPT_FILE=experiments.txt  # <- this has a command to run on each line
 # NR_EXPTS=`cat ${EXPT_FILE} | wc -l`
-# MAX_PARALLEL_JOBS=12 
+# MAX_PARALLEL_JOBS=12
 # sbatch --array=1-${NR_EXPTS}%${MAX_PARALLEL_JOBS} slurm_arrayjob.sh $EXPT_FILE
 # ```
 #
@@ -105,7 +105,7 @@ conda activate ${CONDA_ENV_NAME}
 # results in much network traffic and waiting time for you!
 #
 # This example assumes you have a folder containing all your input data on the
-# DFS, and it copies all that data  file to the scratch space, and unzips it. 
+# DFS, and it copies all that data  file to the scratch space, and unzips it.
 #
 # For more guidelines about moving files between the distributed filesystem and
 # the scratch space on the nodes, see:

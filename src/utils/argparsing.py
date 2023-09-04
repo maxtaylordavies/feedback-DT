@@ -13,7 +13,7 @@ def get_args():
     parser.add_argument(
         "--num_episodes",
         type=int,
-        default=100,
+        default=100000,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -55,7 +55,7 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=16,
+        default=32,
         help="context length in timesteps",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
@@ -177,7 +177,7 @@ def get_args():
     parser.add_argument(
         "--num_repeats",
         type=int,
-        default=512,
+        default=128,
         help="number of seeds to evaluate over (for validation, this will be 1 / 4)",
     )
     parser.add_argument(

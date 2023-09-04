@@ -29,7 +29,6 @@ frame_size = 64 if args["fully_obs"] else 56
 
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
-args["num_repeats"] = 128
 
 log("setting up devices")
 if torch.cuda.is_available():

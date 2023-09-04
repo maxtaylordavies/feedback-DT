@@ -4,13 +4,10 @@ import itertools
 import os
 
 # define some paths
-USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_big"
-PROJECT_HOME, SCRATCH_HOME = (
-    f"/home/{USER}/projects/feedback-DT",
-    f"{SCRATCH_DISK}/{USER}",
-)
-EXPERIMENT_NAME = "preliminary"
-DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
+USER = os.environ["USER"]
+PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
+EXPERIMENT_NAME = "ppo_with_feedback_mission"
+DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 
 def run_name(combo, keys):
@@ -30,24 +27,14 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
-variables = {
-    "level": [
-        "PutNextLocal",
-        "PutNext",
-        "SynthSeq",
-    ],
-    "num_episodes": [100000],
-    "batch_size": [32, 64, 128],
-    "context_length": [16, 32, 64],
-    "policy": ["random"]
-}
+variables = {"level": ["SynthSeq", "GoToImpUnlock", "BossLevel"]}
 
 combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
 output_file = open(
     f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt",
-    "w",
+    "w+",
 )
 
 for c in combinations:
