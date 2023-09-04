@@ -35,10 +35,6 @@ def name_dataset(args):
         + args["policy"]
         + "_feedback-"
         + args["feedback_mode"]
-        + "_batchsize-"
-        + str(args["batch_size"])
-        + "_context-"
-        + str(args["context_length"])
     )
 
 
