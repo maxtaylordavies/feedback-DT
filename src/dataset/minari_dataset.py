@@ -816,15 +816,11 @@ class MinariDataset:
         fp = os.path.join(fp, f"{fname if fname else self._dataset_name}.hdf5")
 
         with h5py.File(fp, "w") as f:
-            f.create_dataset("level_group", data=self._level_group, compression="gzip")
-            f.create_dataset("level_name", data=self._level_name, compression="gzip")
-            f.create_dataset(
-                "dataset_name", data=self._dataset_name, compression="gzip"
-            )
-            f.create_dataset("policy", data=self._policy, compression="gzip")
-            f.create_dataset(
-                "feedback_mode", data=self._feedback_mode, compression="gzip"
-            )
+            f.create_dataset("level_group", data=self._level_group)
+            f.create_dataset("level_name", data=self._level_name)
+            f.create_dataset("dataset_name", data=self._dataset_name)
+            f.create_dataset("policy", data=self._policy)
+            f.create_dataset("feedback_mode", data=self._feedback_mode)
             f.create_dataset(
                 "configs", data=np.asarray(self._configs, dtype="S"), compression="gzip"
             )
@@ -832,12 +828,10 @@ class MinariDataset:
                 "seeds", data=np.asarray(self._seeds, dtype="S"), compression="gzip"
             )
             f.create_dataset(
-                "code_permalink", data=str(self._code_permalink), compression="gzip"
+                "code_permalink", data=str(self._code_permalink)
             )  # allows saving of NoneType
-            f.create_dataset("author", data=str(self._author), compression="gzip")
-            f.create_dataset(
-                "author_email", data=str(self._author_email), compression="gzip"
-            )
+            f.create_dataset("author", data=str(self._author))
+            f.create_dataset("author_email", data=str(self._author_email))
             f.create_dataset(
                 "missions",
                 data=np.asarray(self._missions, dtype="S"),
@@ -863,7 +857,7 @@ class MinariDataset:
             f.create_dataset(
                 "discrete_action", data=self.discrete_action, compression="gzip"
             )
-            f.create_dataset("version", data="1.0", compression="gzip")
+            f.create_dataset("version", data="1.0")
             f.flush()
 
     @classmethod
