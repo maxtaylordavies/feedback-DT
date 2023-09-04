@@ -171,7 +171,7 @@ def get_args():
     parser.add_argument(
         "--target_return",
         type=int,
-        default=90,
+        default=1,
         help="the target return to condition on",
     )
     parser.add_argument(
