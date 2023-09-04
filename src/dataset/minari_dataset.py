@@ -854,9 +854,7 @@ class MinariDataset:
             f.create_dataset(
                 "episode_terminals", data=self._episode_terminals, compression="gzip"
             )
-            f.create_dataset(
-                "discrete_action", data=self.discrete_action, compression="gzip"
-            )
+            f.create_dataset("discrete_action", data=self.discrete_action)
             f.create_dataset("version", data="1.0")
             f.flush()
 
