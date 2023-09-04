@@ -150,7 +150,7 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _initialise_buffers(self, num_buffers, obs_shape, config=""):
-        if self._get_level_max_steps() <= 128:
+        if self._get_level_max_steps() < 128:
             self.args["eps_per_shard"] = 100
         log(
             f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}",
