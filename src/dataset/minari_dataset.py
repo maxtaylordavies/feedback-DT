@@ -11,6 +11,7 @@ from typing import Union
 
 import h5py
 import numpy as np
+
 # from dopamine.replay_memory import circular_replay_buffer
 
 
@@ -816,26 +817,52 @@ class MinariDataset:
 
         with h5py.File(fp, "w") as f:
             f.create_dataset("level_group", data=self._level_group, compression="gzip")
-            f.create_dataset("level_name", data=self._level_nam, compression="gzip"e)
-            f.create_dataset("dataset_name", data=self._dataset_name, compression="gzip")
+            f.create_dataset("level_name", data=self._level_name, compression="gzip")
+            f.create_dataset(
+                "dataset_name", data=self._dataset_name, compression="gzip"
+            )
             f.create_dataset("policy", data=self._policy, compression="gzip")
-            f.create_dataset("feedback_mode", data=self._feedback_mode, compression="gzip")
-            f.create_dataset("configs", data=np.asarray(self._configs, dtype="S"), compression="gzip")
-            f.create_dataset("seeds", data=np.asarray(self._seeds, dtype="S"), compression="gzip")
+            f.create_dataset(
+                "feedback_mode", data=self._feedback_mode, compression="gzip"
+            )
+            f.create_dataset(
+                "configs", data=np.asarray(self._configs, dtype="S"), compression="gzip"
+            )
+            f.create_dataset(
+                "seeds", data=np.asarray(self._seeds, dtype="S"), compression="gzip"
+            )
             f.create_dataset(
                 "code_permalink", data=str(self._code_permalink), compression="gzip"
             )  # allows saving of NoneType
             f.create_dataset("author", data=str(self._author), compression="gzip")
-            f.create_dataset("author_email", data=str(self._author_email), compression="gzip")
-            f.create_dataset("missions", data=np.asarray(self._missions, dtype="S"), compression="gzip")
-            f.create_dataset("observations", data=self._observations, compression="gzip")
+            f.create_dataset(
+                "author_email", data=str(self._author_email), compression="gzip"
+            )
+            f.create_dataset(
+                "missions",
+                data=np.asarray(self._missions, dtype="S"),
+                compression="gzip",
+            )
+            f.create_dataset(
+                "observations", data=self._observations, compression="gzip"
+            )
             f.create_dataset("actions", data=self._actions, compression="gzip")
             f.create_dataset("rewards", data=self._rewards, compression="gzip")
-            f.create_dataset("feedback", data=np.asarray(self._feedback, dtype="S"), compression="gzip")
-            f.create_dataset("terminations", data=self._terminations, compression="gzip")
+            f.create_dataset(
+                "feedback",
+                data=np.asarray(self._feedback, dtype="S"),
+                compression="gzip",
+            )
+            f.create_dataset(
+                "terminations", data=self._terminations, compression="gzip"
+            )
             f.create_dataset("truncations", data=self._truncations, compression="gzip")
-            f.create_dataset("episode_terminals", data=self._episode_terminals, compression="gzip")
-            f.create_dataset("discrete_action", data=self.discrete_action, compression="gzip")
+            f.create_dataset(
+                "episode_terminals", data=self._episode_terminals, compression="gzip"
+            )
+            f.create_dataset(
+                "discrete_action", data=self.discrete_action, compression="gzip"
+            )
             f.create_dataset("version", data="1.0", compression="gzip")
             f.flush()
 
