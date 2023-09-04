@@ -6,7 +6,7 @@ import os
 # define some paths
 USER = os.environ["USER"]
 PROJECT_HOME = f"/scratch/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "ppo_with_feedback_mission"
+EXPERIMENT_NAME = "agents2_sab"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 

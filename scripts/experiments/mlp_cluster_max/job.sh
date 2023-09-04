@@ -134,7 +134,7 @@ source ${VENV_NAME}/bin/activate
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
 PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=ppo_with_feedback_mission
+EXPERIMENT_NAME=mlp_cluster_max
 
 # input data directory path on the DFS (make if required)
 src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input

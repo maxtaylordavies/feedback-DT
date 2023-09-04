@@ -9,7 +9,7 @@ PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-EXPERIMENT_NAME = "ppo_with_feedback_mission"
+EXPERIMENT_NAME = "mlp_cluster_sab"
 DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
 
 
