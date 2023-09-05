@@ -47,7 +47,7 @@ class FeedbackEnv:
             str: the constant feedback string.
         """
         if self.feedback_mode == "numerical_reward":
-            return np.array(0, dtype=np.float32)
+            return "0"
         return "No feedback available."
 
     def get_feedback(self, rule_feedback, task_feedback):
@@ -57,10 +57,10 @@ class FeedbackEnv:
             return task_feedback
         if self.feedback_mode == "numerical_reward":
             if task_feedback != "No feedback available.":
-                return np.array(1)
+                return "1"
             if rule_feedback != "No feedback available.":
-                return np.array(-1)
-            return np.array(0)
+                return "-1"
+            return "0"
         else:
             if rule_feedback == "No feedback available.":
                 return task_feedback

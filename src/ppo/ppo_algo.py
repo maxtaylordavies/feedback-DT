@@ -3,15 +3,16 @@ import torch
 import torch_ac
 from torch_ac.utils import DictList
 
+from src.utils.utils import flatten_list
+
 
 class PPOAlgo(torch_ac.PPOAlgo):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.feedbacks = np.array(
-            [["" for _ in range(self.num_procs)] for _ in range(self.num_frames_per_proc)]
-        )
-        print("self.feedbacks")
-        print(len(self.feedbacks), len(self.feedbacks[0]))
+
+        self.feedbacks = []
+        for _ in range(self.num_frames_per_proc):
+            self.feedbacks.append(["" for _ in range(self.num_procs)])
 
     def collect_experiences(self):
         """Collects rollouts and computes advantages.
@@ -146,7 +147,7 @@ class PPOAlgo(torch_ac.PPOAlgo):
         exps.advantage = self.advantages.transpose(0, 1).reshape(-1)
         exps.returnn = exps.value + exps.advantage
         exps.log_prob = self.log_probs.transpose(0, 1).reshape(-1)
-        exps.feedback = self.feedbacks.reshape(exps.action.shape)
+        exps.feedback = np.array(flatten_list(self.feedbacks), dtype=str)
 
         # Preprocess experiences
 
