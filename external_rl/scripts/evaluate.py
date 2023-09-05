@@ -3,10 +3,10 @@ import os
 import time
 
 import torch
-from torch_ac.utils.penv import ParallelEnv
 
 import external_rl.utils as utils
 from external_rl.utils import device
+from src.env.parallel_env import ParallelEnv
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
@@ -14,9 +14,7 @@ os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--env", required=True, help="name of the environment (REQUIRED)")
-parser.add_argument(
-    "--model", required=True, help="name of the trained model (REQUIRED)"
-)
+parser.add_argument("--model", required=True, help="name of the trained model (REQUIRED)")
 parser.add_argument(
     "--episodes",
     type=int,
@@ -24,9 +22,7 @@ parser.add_argument(
     help="number of episodes of evaluation (default: 100)",
 )
 parser.add_argument("--seed", type=int, default=0, help="random seed (default: 0)")
-parser.add_argument(
-    "--procs", type=int, default=16, help="number of processes (default: 16)"
-)
+parser.add_argument("--procs", type=int, default=16, help="number of processes (default: 16)")
 parser.add_argument(
     "--argmax",
     action="store_true",
@@ -149,3 +145,5 @@ if __name__ == "__main__":
                     i, logs["return_per_episode"][i], logs["num_frames_per_episode"][i]
                 )
             )
+
+    env.close()
