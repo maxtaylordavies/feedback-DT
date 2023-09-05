@@ -4,7 +4,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.spaces.discrete import Discrete
 
-from src.dataset.custom_feedback_verifier import RuleFeedback, TaskFeedback
+from src.dataset.custom_feedback_verifier import RuleFeedback
+from src.dataset.custom_feedback_verifier import TaskFeedback
 
 
 class FeedbackEnv:
@@ -102,7 +103,7 @@ class FeedbackEnv:
         return self.env.get_frame(*args, **kwargs)
 
     def get_mission(self):
-        return self.env.instrs.surface(self)
+        return self.env.instrs.surface(self.env)
 
     def room_from_pos(self, *args, **kwargs):
         return self.env.room_from_pos(*args, **kwargs)
