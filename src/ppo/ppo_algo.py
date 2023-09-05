@@ -92,7 +92,7 @@ class PPOAlgo(BaseAlgo):
                     dist, value = self.acmodel(preprocessed_obs)
             action = dist.sample()
 
-            obs, reward, terminated, truncated, feedback = self.env.step(action.cpu().np())
+            obs, reward, terminated, truncated, feedback = self.env.step(action.cpu().numpy())
 
             done = tuple(a | b for a, b in zip(terminated, truncated))
 

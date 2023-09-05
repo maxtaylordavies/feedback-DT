@@ -2,7 +2,7 @@ import multiprocessing
 import gymnasium as gym
 
 
-multiprocessing.set_start_method("fork")
+multiprocessing.set_start_method("fork", force=True)
 
 
 def worker(conn, env):
