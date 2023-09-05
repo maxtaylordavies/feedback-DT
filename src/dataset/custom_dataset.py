@@ -290,7 +290,9 @@ class CustomDataset:
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
             reward = (
-                feedback if self.args["feedback_mode"] == "numerical_reward" else reward
+                float(feedback)
+                if self.args["feedback_mode"] == "numerical_reward"
+                else reward
             )
 
             self._add_to_buffer(
@@ -538,7 +540,7 @@ class CustomDataset:
 
                     # determine reward
                     r = (
-                        feedback[i, t]
+                        float(feedback[i, t])
                         if self.args["feedback_mode"] == "numerical_reward"
                         else rewards[i, t]
                     )
@@ -593,7 +595,10 @@ class CustomDataset:
 
             # train PPO agent
             ppo = PPOAgent(
-                env_name=config, seeds=seeds, max_steps=self._get_level_max_steps()
+                env_name=config,
+                seeds=seeds,
+                feedback_mode=self.args["feedback_mode"],
+                max_steps=self._get_level_max_steps(),
             )
             setup(ppo.env, config, len(seeds))
             ppo._train_agent(callback=callback)
