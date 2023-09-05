@@ -130,12 +130,14 @@ class PPOAgent:
                     max_steps=self.args["max_steps"],
                 )
             )
-        txt_logger.info(f"Environments loaded (using max_steps = {self.args['max_steps']})\n")
+        txt_logger.info(
+            f"Environments loaded (using feedback_mode = {self.args['feedback_mode']}, max_steps = {self.args['max_steps']})\n"
+        )
 
         # Load training status
         try:
             status = utils.get_status(self.model_dir)
-        except OSError:
+        except:
             status = {"num_frames": 0, "update": 0}
         txt_logger.info("Training status loaded\n")
 
