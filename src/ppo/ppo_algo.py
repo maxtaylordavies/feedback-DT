@@ -10,6 +10,9 @@ class PPOAlgo(torch_ac.PPOAlgo):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.terminations = torch.zeros_like(self.actions)
+        self.truncations = torch.zeros_like(self.actions)
+
         self.feedbacks = []
         for _ in range(self.num_frames_per_proc):
             self.feedbacks.append(["" for _ in range(self.num_procs)])
@@ -77,6 +80,8 @@ class PPOAlgo(torch_ac.PPOAlgo):
                 )
             else:
                 self.rewards[i] = torch.tensor(reward, device=self.device)
+            self.terminations[i] = torch.tensor(terminated, device=self.device)
+            self.truncations[i] = torch.tensor(truncated, device=self.device)
             self.feedbacks[i] = feedback
             self.log_probs[i] = dist.log_prob(action)
 
@@ -163,6 +168,8 @@ class PPOAlgo(torch_ac.PPOAlgo):
         exps.advantage = self.advantages.transpose(0, 1).reshape(-1)
         exps.returnn = exps.value + exps.advantage
         exps.log_prob = self.log_probs.transpose(0, 1).reshape(-1)
+        exps.terminations = self.terminations.transpose(0, 1).reshape(-1)
+        exps.truncations = self.truncations.transpose(0, 1).reshape(-1)
         exps.feedback = np.array(flatten_list(self.feedbacks), dtype=str)
 
         # Preprocess experiences

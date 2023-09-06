@@ -492,16 +492,18 @@ class CustomDataset:
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
             feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
+            terminations = exps.terminations.cpu().numpy().reshape(-1, 1)
+            truncations = exps.truncations.cpu().numpy().reshape(-1, 1)
 
-            # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
-            # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
-            terminations = 1 - exps.mask.cpu().numpy()
+            # # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
+            # # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
+            # terminations = 1 - exps.mask.cpu().numpy()
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
-            tensors = [obss, actions, rewards, feedback, terminations]
+            tensors = [obss, actions, rewards, feedback, terminations, truncations]
             for i in range(len(tensors)):
                 tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
-            obss, actions, rewards, feedback, terminations = tensors
+            obss, actions, rewards, feedback, terminations, truncations = tensors
 
             for i, seed in enumerate(seeds):
                 for t in range(obss.shape[1]):
@@ -528,7 +530,7 @@ class CustomDataset:
                         reward=r,
                         feedback=feedback[i, t],
                         terminated=terminations[i, t],
-                        truncated=0,
+                        truncated=truncations[i, t],
                         seed=seed,
                         mission=self.env.get_mission(),
                     )
@@ -536,12 +538,10 @@ class CustomDataset:
                     # if buffer i is full, flush it
                     if (
                         terminations[i, t]
+                        or truncations[i, t]
                         and self.ep_counts[i] >= self.args["eps_per_shard"]
                     ):
                         self._flush_buffer(buffer_idx=i, obs_shape=o.shape)
-
-            # number of new episodes = number of nonzero elements in terminations
-            self.ep_counts += np.count_nonzero(terminations)
 
             log(
                 f"total_steps:{self.total_steps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
