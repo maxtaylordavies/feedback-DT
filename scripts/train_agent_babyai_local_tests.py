@@ -27,7 +27,7 @@ args = get_args()
 
 args["output"] = OUTPUT_PATH
 args["run_name"] = f"{date.today()}_test"
-args["level"] = "GoToRedBallGrey"
+args["level"] = "PutNextLocal"
 args["num_steps"] = 12800
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
