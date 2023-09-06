@@ -26,7 +26,7 @@ def list_local_datasets():
 
 def name_dataset(args):
     level = f"{args['level']}"
-    size = f"{args['num_episodes']}-eps"
+    size = f"{args['num_steps']}-eps"
     return (
         level
         + "_size"

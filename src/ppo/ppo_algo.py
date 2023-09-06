@@ -48,7 +48,9 @@ class PPOAlgo(torch_ac.PPOAlgo):
                     dist, value = self.acmodel(preprocessed_obs)
             action = dist.sample()
 
-            obs, reward, terminated, truncated, feedback = self.env.step(action.cpu().numpy())
+            obs, reward, terminated, truncated, feedback = self.env.step(
+                action.cpu().numpy()
+            )
 
             done = tuple(a | b for a, b in zip(terminated, truncated))
 
@@ -67,7 +69,9 @@ class PPOAlgo(torch_ac.PPOAlgo):
                 self.rewards[i] = torch.tensor(
                     [
                         self.reshape_reward(obs_, action_, reward_, done_)
-                        for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
+                        for obs_, action_, reward_, done_ in zip(
+                            obs, action, reward, done
+                        )
                     ],
                     device=self.device,
                 )
@@ -82,7 +86,9 @@ class PPOAlgo(torch_ac.PPOAlgo):
                 reward, device=self.device, dtype=torch.float
             )
             self.log_episode_reshaped_return += self.rewards[i]
-            self.log_episode_num_frames += torch.ones(self.num_procs, device=self.device)
+            self.log_episode_num_frames += torch.ones(
+                self.num_procs, device=self.device
+            )
 
             for i, done_ in enumerate(done):
                 if done_:
@@ -109,13 +115,21 @@ class PPOAlgo(torch_ac.PPOAlgo):
                 _, next_value = self.acmodel(preprocessed_obs)
 
         for i in reversed(range(self.num_frames_per_proc)):
-            next_mask = self.masks[i + 1] if i < self.num_frames_per_proc - 1 else self.mask
+            next_mask = (
+                self.masks[i + 1] if i < self.num_frames_per_proc - 1 else self.mask
+            )
             next_value = (
                 self.values[i + 1] if i < self.num_frames_per_proc - 1 else next_value
             )
-            next_advantage = self.advantages[i + 1] if i < self.num_frames_per_proc - 1 else 0
+            next_advantage = (
+                self.advantages[i + 1] if i < self.num_frames_per_proc - 1 else 0
+            )
 
-            delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+            delta = (
+                self.rewards[i]
+                + self.discount * next_value * next_mask
+                - self.values[i]
+            )
             self.advantages[i] = (
                 delta + self.discount * self.gae_lambda * next_advantage * next_mask
             )
@@ -136,7 +150,9 @@ class PPOAlgo(torch_ac.PPOAlgo):
         ]
         if self.acmodel.recurrent:
             # T x P x D -> P x T x D -> (P * T) x D
-            exps.memory = self.memories.transpose(0, 1).reshape(-1, *self.memories.shape[2:])
+            exps.memory = self.memories.transpose(0, 1).reshape(
+                -1, *self.memories.shape[2:]
+            )
             # T x P -> P x T -> (P * T) x 1
             exps.mask = self.masks.transpose(0, 1).reshape(-1).unsqueeze(1)
 

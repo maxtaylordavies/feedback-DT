@@ -31,9 +31,12 @@ class CustomDataset:
         self.buffers = []
         self.steps = []
         self.ep_counts = []
-        self.seed_finder = SeedFinder(self.args["num_episodes"])
+        self.total_steps = 0
+        self.total_episodes = 0
+        self.seed_finder = SeedFinder()
         self.level = self.args["level"]
-        self.configs = self._get_configs()
+        self.train_config, self.test_configs = self._get_configs()
+        self.train_seeds = self._get_train_seeds()
         self.category = self._get_category()
 
     def _get_configs(self):
@@ -46,12 +49,13 @@ class CustomDataset:
         -------
             list: the configs.
         """
-        configs = []
+        test_configs = []
         for config in LEVELS_CONFIGS["original_tasks"][self.args["level"]]:
             seed_log = self.seed_finder.load_seeds(self.args["level"], config)
             if seed_log["n_train_seeds"]:
-                configs.append(config)
-        return configs
+                train_config = config
+            test_configs.append(config)
+        return train_config, test_configs
 
     def _get_dataset(self):
         """
@@ -103,6 +107,12 @@ class CustomDataset:
             if self.args["level"] in levels:
                 return level_group
 
+    def _get_train_seeds(self):
+        # choose random subset of train seeds for the train config
+        seed_log = self.seed_finder.load_seeds(self.args["level"], self.train_config)
+        train_seeds = self.seed_finder.get_train_seeds(seed_log)
+        return [int(s) for s in np.random.choice(train_seeds, size=128)]
+
     def _get_level_max_steps(self):
         """
         Get the max steps for the environment.
@@ -120,36 +130,35 @@ class CustomDataset:
         max_instrs_factor = 1 * seq_instrs_factor * putnext_instrs_factor
         step_ceiling = 8**2 * 3**2 * 2
 
-        for config in self.configs:
-            try:
-                max_steps = level_metadata[config]["max_steps"]
-            except KeyError:
-                max_steps = 0
-            try:
-                room_size = level_metadata[config]["room_size"]
-            except KeyError:
-                room_size = metadata["defaults"]["room"]["room_size"]
-            try:
-                num_rows = level_metadata[config]["num_rows"]
-            except KeyError:
-                num_rows = (
-                    metadata["defaults"]["maze"]["num_rows"]
-                    if level_metadata["maze"]
-                    else 1
-                )
-            try:
-                num_cols = level_metadata[config]["num_cols"]
-            except KeyError:
-                num_cols = (
-                    metadata["defaults"]["maze"]["num_cols"]
-                    if level_metadata["maze"]
-                    else 1
-                )
+        try:
+            max_steps = level_metadata[self.train_config]["max_steps"]
+        except KeyError:
+            max_steps = 0
+        try:
+            room_size = level_metadata[self.train_config]["room_size"]
+        except KeyError:
+            room_size = metadata["defaults"]["room"]["room_size"]
+        try:
+            num_rows = level_metadata[self.train_config]["num_rows"]
+        except KeyError:
+            num_rows = (
+                metadata["defaults"]["maze"]["num_rows"]
+                if level_metadata["maze"]
+                else 1
+            )
+        try:
+            num_cols = level_metadata[self.train_config]["num_cols"]
+        except KeyError:
+            num_cols = (
+                metadata["defaults"]["maze"]["num_cols"]
+                if level_metadata["maze"]
+                else 1
+            )
             tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(tmp_max_steps, max_steps)
         return min(global_max_steps, step_ceiling)
 
-    def _initialise_buffers(self, num_buffers, obs_shape, config=""):
+    def _initialise_buffers(self, num_buffers, obs_shape):
         if self._get_level_max_steps() < 128:
             self.args["eps_per_shard"] = 100
         log(
@@ -157,11 +166,11 @@ class CustomDataset:
             with_tqdm=True,
         )
         for _ in range(num_buffers):
-            self.buffers.append(self._create_buffer(obs_shape, config))
+            self.buffers.append(self._create_buffer(obs_shape))
             self.steps.append(0)
             self.ep_counts.append(0)
 
-    def _create_buffer(self, obs_shape, config=""):
+    def _create_buffer(self, obs_shape):
         num_eps = self.args["eps_per_shard"]
         max_steps = self._get_level_max_steps()
 
@@ -170,7 +179,6 @@ class CustomDataset:
         )
 
         return {
-            "configs": [config] * ((max_steps + 1) * num_eps),
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
             "missions": ["No mission available."] * ((max_steps + 1) * num_eps),
             "observations": np.array(
@@ -191,7 +199,7 @@ class CustomDataset:
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
 
-    def _flush_buffer(self, buffer_idx, obs_shape, config=""):
+    def _flush_buffer(self, buffer_idx, obs_shape):
         # if buffer exists and isn't empty, first save it to file
         if (
             len(self.buffers) > buffer_idx
@@ -203,7 +211,7 @@ class CustomDataset:
         if obs_shape is None:
             obs_shape = self.buffers[buffer_idx]["observations"][0].shape
 
-        self.buffers[buffer_idx] = self._create_buffer(obs_shape, config)
+        self.buffers[buffer_idx] = self._create_buffer(obs_shape)
         self.steps[buffer_idx] = 0
         self.ep_counts[buffer_idx] = 0
 
@@ -223,10 +231,10 @@ class CustomDataset:
         md = MinariDataset(
             level_group=self.category,
             level_name=self.args["level"],
+            train_config=self.train_config,
             dataset_name=name_dataset(self.args),
             policy=self.args["policy"],
             feedback_mode=self.args["feedback_mode"],
-            configs=self.buffers[buffer_idx]["configs"],
             seeds=self.buffers[buffer_idx]["seeds"],
             code_permalink="https://github.com/maxtaylordavies/feedback-DT/blob/master/src/_datasets.py",
             author="Sabrina McCallum",
@@ -259,7 +267,6 @@ class CustomDataset:
         feedback,
         terminated,
         truncated,
-        config,
         seed,
         mission,
     ):
@@ -269,15 +276,16 @@ class CustomDataset:
         self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
         self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
         self.buffers[buffer_idx]["truncations"][self.steps] = truncated
-        self.buffers[buffer_idx]["configs"][self.steps[buffer_idx]] = config
         self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
         self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
 
         self.steps[buffer_idx] += 1
+        self.total_steps += 1
         if terminated or truncated:
             self.ep_counts[buffer_idx] += 1
+            self.total_episodes += 1
 
-    def _create_episode(self, config, seed, buffer_idx=0):
+    def _create_episode(self, seed, buffer_idx=0):
         partial_obs, _ = self.env.reset(seed=seed)
         terminated, truncated = False, False
         while not (terminated or truncated):
@@ -303,7 +311,6 @@ class CustomDataset:
                 feedback=feedback,
                 terminated=terminated,
                 truncated=truncated,
-                config=config,
                 seed=seed,
                 mission=mission,
             )
@@ -322,80 +329,56 @@ class CustomDataset:
             os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
-        pbar = tqdm(total=self.args["num_episodes"], desc="Generating dataset")
+        pbar = tqdm(total=self.args["num_steps"], desc="Generating dataset")
 
-        episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
-            self.args["num_episodes"] % len(self.configs) > 0
-        )
-        current_episode = 0
+        log(f"num train seeds: {len(self.train_seeds)}", with_tqdm=True)
 
-        for config in self.configs:
-            log(f"config: {config}", with_tqdm=True)
+        current_episode, done = 0, False
+        while not done:
+            for seed in self.train_seeds:
+                done = self.total_steps >= self.args["num_steps"]
 
-            seed_log = self.seed_finder.load_seeds(self.args["level"], config)
-            train_seeds = self.seed_finder.get_train_seeds(seed_log)
-            log(f"num train seeds: {len(train_seeds)}", with_tqdm=True)
+                # start looping through train seeds again
+                if done or seed == self.train_seeds[:-1]:
+                    break
 
-            current_conf_episode, done = 0, False
-            while not done:
-                for seed in train_seeds:
-                    seed = int(seed)  # from np.int64
+                # create and initialise environment
+                log("creating env", with_tqdm=True)
+                self.env = FeedbackEnv(
+                    env=gym.make(self.train_config),
+                    feedback_mode=self.args["feedback_mode"],
+                    max_steps=self._get_level_max_steps(),
+                )
+                partial_obs, _ = self.env.reset(seed=seed)
+                obs = get_minigrid_obs(
+                    self.env,
+                    partial_obs,
+                    self.args["fully_obs"],
+                    self.args["rgb_obs"],
+                )["image"]
 
-                    done = (
-                        current_conf_episode >= episodes_per_config
-                        or current_episode >= self.args["num_episodes"]
+                self.state_dim = np.prod(obs.shape)
+
+                # initialise buffers to store replay data
+                if current_episode == 0:
+                    self._initialise_buffers(
+                        num_buffers=1,
+                        obs_shape=obs.shape,
                     )
 
-                    if done or seed >= seed_log["last_seed_tested"]:
-                        # the second condition is here in case we want to use the same set of training seeds multiple times
-                        # e.g. if we want to create really big random dataset
-                        # and likely this will be necessary to train a PPO agent to convergence for harder levels
-                        # this should not result in duplicate trajectories despite the same seeds being used multiple times
-                        # when used with random policy, and even when used with the PPO agent as the agent will be at different
-                        # model checkpoints at the time the seeds get repeated
-                        break
+                # create another episode
+                self._create_episode(seed)
 
-                    # create and initialise environment
-                    log("creating env", with_tqdm=True)
-                    self.env = FeedbackEnv(
-                        env=gym.make(config),
-                        feedback_mode=self.args["feedback_mode"],
-                        max_steps=self._get_level_max_steps(),
-                    )
-                    partial_obs, _ = self.env.reset(seed=seed)
-                    obs = get_minigrid_obs(
-                        self.env,
-                        partial_obs,
-                        self.args["fully_obs"],
-                        self.args["rgb_obs"],
-                    )["image"]
+                # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+                if (
+                    current_episode > 0
+                    and current_episode % self.args["eps_per_shard"] == 0
+                ) or (self.total_steps >= self.args["num_steps"]):
+                    self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
-                    self.state_dim = np.prod(obs.shape)
-
-                    # initialise buffers to store replay data
-                    if current_episode == 0:
-                        self._initialise_buffers(
-                            num_buffers=1,
-                            obs_shape=obs.shape,
-                            config=config,
-                        )
-
-                    # create another episode
-                    self._create_episode(config, seed)
-
-                    # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                    if (
-                        current_episode > 0
-                        and current_episode % self.args["eps_per_shard"] == 0
-                    ) or (current_episode == self.args["num_episodes"] - 1):
-                        self._flush_buffer(
-                            buffer_idx=0, obs_shape=obs.shape, config=config
-                        )
-
-                    current_episode += 1
-                    current_conf_episode += 1
-                    pbar.update(1)
-                    pbar.refresh()
+                current_episode += 1
+                pbar.update(1)
+                pbar.refresh()
 
         if hasattr(self, "env"):
             self.env.close()
@@ -491,13 +474,8 @@ class CustomDataset:
         }
 
     def _from_ppo_training(self):
-        # compute number of eps to sample per config
-        episodes_per_config = (self.args["num_episodes"] // len(self.configs)) + (
-            self.args["num_episodes"] % len(self.configs) > 0
-        )
-
         # helper func to set up buffer for env
-        def setup(env, config, num_seeds):
+        def setup(env, num_seeds):
             self.env = env
             partial_obs, _ = self.env.reset(seed=0)
             obs = get_minigrid_obs(
@@ -506,13 +484,10 @@ class CustomDataset:
                 self.args["fully_obs"],
                 self.args["rgb_obs"],
             )["image"]
-            self._initialise_buffers(
-                num_buffers=num_seeds, obs_shape=obs.shape, config=config
-            )
-            self.config_eps = 0
+            self._initialise_buffers(num_buffers=num_seeds, obs_shape=obs.shape)
 
         # define callback func for storing data
-        def callback(exps, logs, config, seeds):
+        def callback(exps, logs, seeds):
             obss = exps.obs.image.cpu().numpy()
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
@@ -554,7 +529,6 @@ class CustomDataset:
                         feedback=feedback[i, t],
                         terminated=terminations[i, t],
                         truncated=0,
-                        config=config,
                         seed=seed,
                         mission=self.env.get_mission(),
                     )
@@ -564,58 +538,41 @@ class CustomDataset:
                         terminations[i, t]
                         and self.ep_counts[i] >= self.args["eps_per_shard"]
                     ):
-                        self._flush_buffer(
-                            buffer_idx=i, obs_shape=o.shape, config=config
-                        )
+                        self._flush_buffer(buffer_idx=i, obs_shape=o.shape)
 
             # number of new episodes = number of nonzero elements in terminations
-            self.config_eps += np.count_nonzero(terminations)
+            self.ep_counts += np.count_nonzero(terminations)
 
             log(
-                f"config_eps:{self.config_eps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
+                f"total_steps:{self.total_steps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
                 with_tqdm=True,
             )
 
             # return True if we've collected enough episodes for this config
-            return self.config_eps >= episodes_per_config
+            return self.total_steps >= self.args["num_steps"]
 
-        # train a PPO agent for each config
-        for config in tqdm(self.configs):
-            log(f"config: {config}", with_tqdm=True)
+        log(f"using seeds: {self.train_seeds}", with_tqdm=True)
 
-            # choose random subset of train seeds for this config
-            seed_log = self.seed_finder.load_seeds(self.args["level"], config)
-            train_seeds = self.seed_finder.get_train_seeds(seed_log)
-            seeds = [
-                int(s)  # from np.int64
-                for s in np.random.choice(train_seeds, size=128, replace=True)
-            ]
+        # train PPO agent
+        ppo = PPOAgent(
+            env_name=self.train_config,
+            seeds=self.train_seeds,
+            feedback_mode=self.args["feedback_mode"],
+            max_steps=self._get_level_max_steps(),
+        )
+        setup(ppo.env, len(self.train_seeds))
+        ppo._train_agent(callback=callback)
 
-            log(f"using seeds: {seeds}", with_tqdm=True)
-
-            # train PPO agent
-            ppo = PPOAgent(
-                env_name=config,
-                seeds=seeds,
-                feedback_mode=self.args["feedback_mode"],
-                max_steps=self._get_level_max_steps(),
-            )
-            setup(ppo.env, config, len(seeds))
-            ppo._train_agent(callback=callback)
-
-            # flush any remaining data to file
-            for i in range(len(self.buffers)):
-                if self.ep_counts[i] > 0:
-                    self._save_buffer_to_minari_file(i)
-            self.buffers = []
-            self.steps = []
-            self.ep_counts = []
+        # flush any remaining data to file
+        for i in range(len(self.buffers)):
+            if self.ep_counts[i] > 0:
+                self._save_buffer_to_minari_file(i)
 
         # return dataset
         return self
 
     def __len__(self):
-        return self.args["num_episodes"]
+        return self.total_episodes
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
 
@@ -648,7 +605,6 @@ class CustomDataset:
             dataset_name="",
             policy="",
             feedback_mode="",
-            configs=np.array([]),
             seeds=np.array([]),
             code_permalink="",
             author="",

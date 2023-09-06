@@ -214,15 +214,17 @@ class RuleFeedback(Feedback):
             The feedback for the move forward action with respect to the object in the cell that the agent is facing.
         """
         if self._is_locked_door():
-            return "You can't move forward here as the door in front of you is locked."
+            return "Not a good idea! You can't move forward here as the door in front of you is locked."
         if self._is_closed_door():
-            return "You can't move forward here as the door in front of you is closed."
+            return "Not a good idea! You can't move forward here as the door in front of you is closed."
         if self._is_wall():
-            return "You can't move forward while you're facing the wall."
+            return (
+                "Not a good idea! You can't move forward while you're facing the wall."
+            )
         if self._is_obstacle():
             return (
-                "You can't move forward here "
-                + f"as there is an obstacle in the form of a {self.front_cell.type} blocking the way."
+                "Not a good idea! You can't move forward here "
+                + f"as there is a {self.front_cell.type} blocking the way."
             )
         return "No feedback available."
 
@@ -252,21 +254,19 @@ class RuleFeedback(Feedback):
             The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return (
-                "There is nothing in front of you that you can open, just empty space."
-            )
+            return "That won't work.  There is nothing in front of you."
         if (
             self._is_locked_door()
             and self._is_carrying_key()
             and not self._is_carrying_correct_key()
         ):
-            return f"You can't open a locked door without a key of the same color as the door. You are carrying a {self.carrying.color}, but the door you are trying to open is {self.front_cell.color}."
+            return f"That won't work here. You can't open a locked door without a key of the same color as the door. You're carrying a {self.carrying.color}, but the door in front of you is {self.front_cell.color}."
         if self._is_locked_door() and not self._is_carrying_key():
-            return "You can't open a locked door without a key of the same color as the door, and you are not carrying any key."
+            return "That won't work here. You can't open a locked door without a key of the same color as the door, and you're not carrying any key."
         if self._is_wall():
-            return "You can't open the wall."
+            return "That won't work here. You can't open the wall."
         if self._is_obstacle():
-            return f"You can't open {self.front_cell.type}s."
+            return f"That won't work here. You can't open {self.front_cell.type}s."
         return "No feedback available."
 
     def _is_valid_pickup(self):
@@ -292,13 +292,13 @@ class RuleFeedback(Feedback):
             The feedback for the pickup action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "There is nothing to pick up in front of you, just empty space."
+            return "Not a good idea! There is nothing to pick up in front of you, just empty space."
         if self._is_door():
-            return "You can't pick up doors."
+            return "Not a good idea! You can't pick up doors."
         if self._is_wall():
-            return "You can't pick up the wall."
+            return "Not a good idea! You can't pick up the wall."
         if self._is_carrying():
-            return "You can't pick up another object while you're already carrying one."
+            return "Not a good idea! You can't pick up another object while you're already carrying one."
         return "No feedback available."
 
     def _is_valid_drop(self):
@@ -322,15 +322,19 @@ class RuleFeedback(Feedback):
             The feedback for the drop action with respect to the object the agent is carrying and the cell that the agent is facing.
         """
         if not self._is_carrying():
-            return "You're not carrying an object so dropping has no effect."
+            return "Don't do that! You're not carrying an object so dropping has no effect."
         if self._is_wall():
-            return "You can't drop an object while you're facing the wall."
+            return (
+                "Don't do that!  You can't drop an object while you're facing the wall."
+            )
         if self._is_door():
-            return "You can't drop an object while you're facing a door."
+            return (
+                "Don't do that!  You can't drop an object while you're facing a door."
+            )
         if self._is_obstacle():
             return (
-                "You can't drop an object on top of another object, and "
-                + f"there is already a {self.front_cell.type} in front of you."
+                "Don't do that! You can't drop an object on top of another object, and "
+                + f"there is a {self.front_cell.type} in front of you."
             )
         return "No feedback available."
 
@@ -512,7 +516,7 @@ class TaskFeedback(Feedback):
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
-                return f"That's correct! You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
+                return f"That's right! You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
         return "No feedback available."
 
     def _get_open_feedback(self, instrs):
@@ -528,7 +532,7 @@ class TaskFeedback(Feedback):
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
-            return f"That's correct! You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
+            return f"Great job! You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
         return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
@@ -537,7 +541,7 @@ class TaskFeedback(Feedback):
         if self._is_goal(self.front_cell, goal_obj_1):
             if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
                 self.subtasks.pop(self.pop_from)
-                return f"That's correct! You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} {goal_obj_1.color} {goal_obj_1.type} next to {self._get_article(goal_obj_2)} {goal_obj_2.color} {goal_obj_2.type}."
+                return f"Well done! You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} {goal_obj_1.color} {goal_obj_1.type} next to {self._get_article(goal_obj_2)} {goal_obj_2.color} {goal_obj_2.type}."
         return "No feedback available."
 
     def _get_task_feedback(self):

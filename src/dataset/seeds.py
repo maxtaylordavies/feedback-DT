@@ -27,12 +27,12 @@ LEVELS_CONFIGS = {
             "BabyAI-GoToLocalS6N4-v0",
             "BabyAI-GoToLocalS7N4-v0",
             "BabyAI-GoToLocalS7N5-v0",
-            "BabyAI-GoToLocalS8N2-v0",
-            "BabyAI-GoToLocalS8N3-v0",
-            "BabyAI-GoToLocalS8N4-v0",
-            "BabyAI-GoToLocalS8N5-v0",
-            "BabyAI-GoToLocalS8N6-v0",
-            "BabyAI-GoToLocalS8N7-v0",
+            # "BabyAI-GoToLocalS8N2-v0",
+            # "BabyAI-GoToLocalS8N3-v0",
+            # "BabyAI-GoToLocalS8N4-v0",
+            # "BabyAI-GoToLocalS8N5-v0",
+            # "BabyAI-GoToLocalS8N6-v0",
+            # "BabyAI-GoToLocalS8N7-v0",
         ],
         "PutNextLocal": [
             "BabyAI-PutNextLocal-v0",
@@ -42,7 +42,7 @@ LEVELS_CONFIGS = {
         "PickupLoc": ["BabyAI-PickupLoc-v0"],
         "GoToObjMaze": [
             "BabyAI-GoToObjMaze-v0",
-            "BabyAI-GoToObjMazeOpen-v0",
+            # "BabyAI-GoToObjMazeOpen-v0",
             "BabyAI-GoToObjMazeS4R2-v0",
             "BabyAI-GoToObjMazeS4-v0",
             "BabyAI-GoToObjMazeS5-v0",
@@ -51,7 +51,7 @@ LEVELS_CONFIGS = {
         ],
         "GoTo": [
             "BabyAI-GoTo-v0",
-            "BabyAI-GoToOpen-v0",
+            # "BabyAI-GoToOpen-v0",
         ],
         "Pickup": ["BabyAI-Pickup-v0"],
         "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
@@ -129,7 +129,7 @@ class SeedFinder:
         """
         Initialise the SeedFinder class.
         """
-        self.n_validation_seeds_required = 512
+        self.n_validation_seeds_required = 128
         self.n_train_seeds_required = n_train_seeds_required
         self.LEVELS_CONFIGS = (
             LEVELS_CONFIGS["original_tasks"]
@@ -140,8 +140,7 @@ class SeedFinder:
         self.random_colors = self._pick_random_colors()
         self.random_types = self._pick_random_types()
         self.random_rel_loc = self._pick_random_rel_location()
-        self.iid_room_size_min = 6
-        self.iid_room_size_max = 8
+        self.iid_room_size = 8
         self.iid_num_cols = 3
         self.iid_num_rows = 3
         self.random_room_quadrant = self._pick_random_room_quadrant()
@@ -515,15 +514,11 @@ class SeedFinder:
         """
         if self._is_maze(env):
             return (
-                env.unwrapped.room_size < self.iid_room_size_min
-                or env.unwrapped.room_size > self.iid_room_size_max
+                env.unwrapped.room_size != self.iid_room_size
                 or env.unwrapped.num_cols != self.iid_num_cols
                 or env.unwrapped.num_rows != self.iid_num_rows
             )
-        return (
-            env.unwrapped.room_size < self.iid_room_size_min
-            or env.unwrapped.room_size > self.iid_room_size_max
-        )
+        return env.unwrapped.room_size != self.iid_room_size
 
     def _check_color_type(self, env):
         """
@@ -723,8 +718,10 @@ class SeedFinder:
             seed_log["last_seed_tested"],
             int(self.n_train_seeds_required * 2),
         ):
-            if seed_log["n_train_seeds"] == (
-                self.n_train_seeds_required + self.n_validation_seeds_required
+            if (
+                seed_log["n_train_seeds"] == self.n_train_seeds_required
+                and len(seed_log["validation_seeds"])
+                == self.n_validation_seeds_required
             ):
                 self._save_seeds(seed_log, level, config)
                 break
@@ -751,6 +748,8 @@ class SeedFinder:
                         continue
                     # PutNext is not technically a maze level, but it is a special case
                     # which results in different grid dimensions, so we skip it here
+                    if ood_type == "size" and config == "BabyAI-PutNextS7N4-v0":
+                        continue
                     if ood_type == "agent_loc" and level == "PutNext":
                         continue
                     seed_log[ood_type]["test_seeds"].append(seed)
