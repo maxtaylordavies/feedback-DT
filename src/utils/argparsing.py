@@ -11,9 +11,9 @@ def get_args():
         help="name of the run (default: current date and time)",
     )
     parser.add_argument(
-        "--num_episodes",
+        "--num_steps",
         type=int,
-        default=100000,
+        default=10**7,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(

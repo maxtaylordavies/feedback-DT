@@ -18,7 +18,6 @@ import numpy as np
 class Transition:
     def __init__(
         self,
-        configs: np.ndarray,
         seeds: np.ndarray,
         observation_shape: Sequence[int],
         action_size: int,
@@ -43,10 +42,6 @@ class Transition:
 
     @property
     def is_discrete(self) -> bool:
-        ...
-
-    @property
-    def configs(self) -> np.ndarray:
         ...
 
     @property
@@ -189,7 +184,6 @@ def _safe_size(array):
 
 
 def _to_episodes(
-    configs,
     seeds,
     observation_shape,
     action_size,
@@ -207,7 +201,6 @@ def _to_episodes(
     for i in range(_safe_size(observations)):
         if episode_terminals[i]:
             episode = Episode(
-                configs=configs[head_index : i + 1],
                 seeds=seeds[head_index : i + 1],
                 observation_shape=observation_shape,
                 action_size=action_size,
@@ -225,7 +218,6 @@ def _to_episodes(
 
 
 def _to_transitions(
-    configs,
     seeds,
     observation_shape,
     action_size,
@@ -241,7 +233,6 @@ def _to_transitions(
     num_data = _safe_size(observations)
     prev_transition = None
     for i in range(num_data):
-        configs = configs[i]
         seeds = seeds[i]
         mission = missions[i]
         observation = observations[i]
@@ -260,7 +251,6 @@ def _to_transitions(
             next_observation = observations[i + 1]
 
         transition = Transition(
-            configs=configs,
             seeds=seeds,
             observation_shape=observation_shape,
             action_size=action_size,
@@ -357,10 +347,10 @@ class MinariDataset:
         self,
         level_group,
         level_name,
+        train_config,
         dataset_name,
         policy,
         feedback_mode,
-        configs,
         seeds,
         code_permalink,
         author,
@@ -377,6 +367,7 @@ class MinariDataset:
     ):
         self._level_group = level_group
         self._level_name = level_name
+        self._train_config = train_config
         self._dataset_name = dataset_name
         self._policy = policy
         self._feedback_mode = feedback_mode
@@ -418,7 +409,6 @@ class MinariDataset:
         assert np.all(np.logical_not(np.isnan(terminations)))
         assert np.all(np.logical_not(np.isnan(truncations)))
 
-        self._configs = configs
         self._seeds = seeds
         self._missions = missions
         self._observations = observations
@@ -456,6 +446,10 @@ class MinariDataset:
         return self._level_name
 
     @property
+    def train_config(self):
+        return self._train_config
+
+    @property
     def dataset_name(self):
         return self._dataset_name
 
@@ -466,10 +460,6 @@ class MinariDataset:
     @property
     def feedback_mode(self):
         return self._feedback_mode
-
-    @property
-    def configs(self):
-        return self._configs
 
     @property
     def seeds(self):
@@ -697,7 +687,6 @@ class MinariDataset:
 
     def append(
         self,
-        configs,
         seeds,
         missions,
         observations,
@@ -736,8 +725,6 @@ class MinariDataset:
                     self.get_action_size(),
                 ), f"Action size must be {self.get_action_size()}."
 
-        self._configs = np.hstack([self._configs, configs])
-
         self._seeds = np.hstack([self._seeds, seeds])
 
         self._missions = np.hstack([self._missions, missions])
@@ -759,7 +746,6 @@ class MinariDataset:
         )
 
         episodes = _to_episodes(
-            configs=self._configs,
             seeds=self._seeds,
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
@@ -790,7 +776,6 @@ class MinariDataset:
         ), f"Observation shape must be {self.get_observation_shape()}"
 
         self.append(
-            dataset.configs,
             dataset.seeds,
             dataset.missions,
             dataset.observations,
@@ -818,12 +803,10 @@ class MinariDataset:
         with h5py.File(fp, "w") as f:
             f.create_dataset("level_group", data=self._level_group)
             f.create_dataset("level_name", data=self._level_name)
+            f.create_dataset("train_config", data=self._train_config)
             f.create_dataset("dataset_name", data=self._dataset_name)
             f.create_dataset("policy", data=self._policy)
             f.create_dataset("feedback_mode", data=self._feedback_mode)
-            f.create_dataset(
-                "configs", data=np.asarray(self._configs, dtype="S"), compression="gzip"
-            )
             f.create_dataset(
                 "seeds", data=np.asarray(self._seeds, dtype="S"), compression="gzip"
             )
@@ -890,10 +873,10 @@ class MinariDataset:
         with h5py.File(fp, "r") as f:
             level_group = str(f["level_group"][()], "utf-8")
             level_name = str(f["level_name"][()], "utf-8")
+            train_config = str(f["train_config"][()], "utf-8")
             dataset_name = str(f["dataset_name"][()], "utf-8")
             policy = str(f["policy"][()], "utf-8")
             feedback_mode = str(f["feedback_mode"][()], "utf-8")
-            configs = np.char.decode(f["configs"][()])
             seeds = np.char.decode(f["seeds"][()])
             code_permalink = str(f["code_permalink"][()], "utf-8")
             author = str(f["author"][()], "utf-8")
@@ -916,10 +899,10 @@ class MinariDataset:
         return cls(
             level_group=level_group,
             level_name=level_name,
+            train_config=train_config,
             dataset_name=dataset_name,
             policy=policy,
             feedback_mode=feedback_mode,
-            configs=configs,
             seeds=seeds,
             code_permalink=code_permalink,
             author=author,
@@ -943,7 +926,6 @@ class MinariDataset:
 
         """
         self._episodes = _to_episodes(
-            configs=self._configs,
             seeds=self._seeds,
             observation_shape=self.get_observation_shape(),
             action_size=self.get_action_size(),
@@ -971,10 +953,10 @@ class MinariDataset:
         return cls(
             level_group="",
             level_name="",
+            train_config="",
             dataset_name="",
             policy="",
             feedback_mode="",
-            configs=np.array([]),
             seeds=np.array([]),
             code_permalink="",
             author="",
@@ -1022,10 +1004,10 @@ class MinariDataset:
         return cls(
             level_group="",
             level_name="",
+            train_config="",
             dataset_name=f"dqn_replay-{game}-{num_samples}",
             policy="",
             feedback_mode="",
-            configs=np.array([]),
             seeds=np.array([]),
             code_permalink="",
             author="",
@@ -1100,7 +1082,6 @@ class Episode:
 
     def __init__(
         self,
-        configs,
         seeds,
         observation_shape,
         action_size,
@@ -1128,7 +1109,6 @@ class Episode:
         else:
             actions = np.asarray(actions, dtype=np.float32)
 
-        self._configs = configs
         self._seeds = seeds
         self.observation_shape = observation_shape
         self.action_size = action_size
@@ -1140,15 +1120,6 @@ class Episode:
         self._termination = termination
         self._truncation = truncation
         self._transitions = None
-
-    @property
-    def configs(self):
-        """Returns the configs.
-
-        Returns:
-            numpy.ndarray: array of configs.
-        """
-        return self._configs
 
     @property
     def seeds(self):
@@ -1250,7 +1221,6 @@ class Episode:
 
         """
         self._transitions = _to_transitions(
-            configs=self.configs,
             seeds=self.seeds,
             observation_shape=self.observation_shape,
             action_size=self.action_size,

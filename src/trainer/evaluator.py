@@ -7,16 +7,25 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-from transformers.trainer_callback import TrainerControl, TrainerState
-from transformers.training_args import TrainingArguments
 from jsonc_parser.parser import JsoncParser
-from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+from transformers import TrainerCallback
+from transformers import TrainerControl
+from transformers import TrainerState
+from transformers import TrainingArguments
+from transformers.trainer_callback import TrainerControl
+from transformers.trainer_callback import TrainerState
+from transformers.training_args import TrainingArguments
 
-from src.agent import Agent, AgentInput, RandomAgent
-from src.utils.utils import log, get_minigrid_obs, normalise
-from src.env.recorder_env import RecorderEnv
-from src.collator import CurriculumCollator, RoundRobinCollator
+from src.agent import Agent
+from src.agent import AgentInput
+from src.agent import RandomAgent
+from src.collator import CurriculumCollator
+from src.collator import RoundRobinCollator
 from src.dataset.custom_feedback_verifier import TaskFeedback
+from src.env.recorder_env import RecorderEnv
+from src.utils.utils import get_minigrid_obs
+from src.utils.utils import log
+from src.utils.utils import normalise
 
 warnings.filterwarnings("ignore")
 
@@ -44,9 +53,11 @@ class Evaluator(TrainerCallback):
             else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
         self.seeds = None
-
+        self.val_seeds = []
         # create the output directory if it doesn't exist
-        self.output_dir = os.path.join(self.user_args["output"], self.user_args["run_name"])
+        self.output_dir = os.path.join(
+            self.user_args["output"], self.user_args["run_name"]
+        )
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -102,13 +113,20 @@ class Evaluator(TrainerCallback):
     ):
         log("on_train_begin called", with_tqdm=True)
 
+        # sample some validation seeds for the train config
+        self._set_val_seeds()
+
         # run initial eval (before any training steps)
         self._run_eval_and_plot(model, state, eval_type="efficiency")
 
         return super().on_train_begin(args, state, control, **kwargs)
 
     def on_epoch_begin(
-        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
     ):
         log("on_epoch_begin called", with_tqdm=True)
         return super().on_epoch_begin(args, state, control, **kwargs)
@@ -170,40 +188,65 @@ class Evaluator(TrainerCallback):
         if isinstance(self.collator, CurriculumCollator) or isinstance(
             self.collator, RoundRobinCollator
         ):
-            for dataset in self.collator.datasets:
-                self._evaluate_by_config(dataset, agent, eval_type)
+            for i, dataset in enumerate(self.collator.datasets):
+                if eval_type == "efficiency":
+                    self._evaluate_efficiency(dataset, agent, self.val_seeds[i])
+                else:
+                    self._evaluate_generalisation(dataset, agent)
         else:
-            self._evaluate_by_config(self.collator.dataset, agent, eval_type)
+            if eval_type == "efficiency":
+                self._evaluate_efficiency(
+                    self.collator.dataset, agent, self.val_seeds[0]
+                )
+            else:
+                self._evaluate_generalisation(self.collator.dataset, agent)
 
         self._plot_results()
 
-    def _evaluate_by_config(self, dataset, agent, eval_type):
-        total_repeats = (
-            self.num_repeats if eval_type == "generalisation" else self.num_repeats // 4
-        )
-        per_config_repeats = total_repeats // len(dataset.configs) + (
-            total_repeats % len(dataset.configs) > 0
+    def _evaluate_generalisation(self, dataset, agent):
+        per_config_repeats = self.num_repeats // len(dataset.test_configs) + (
+            self.num_repeats % len(dataset.test_configs) > 0
         )
 
         n_seeds_sampled = 0
-        for config in dataset.configs:
+        for config in dataset.test_configs:
             # sample some seeds for the current config
-            if n_seeds_sampled + per_config_repeats <= total_repeats:
+            if n_seeds_sampled + per_config_repeats <= self.num_repeats:
                 n_seeds_to_sample = per_config_repeats
             else:
-                n_seeds_to_sample = total_repeats - n_seeds_sampled
+                n_seeds_to_sample = self.num_repeats - n_seeds_sampled
             self._load_seed_dict(dataset, config)
-            seeds = (
-                self._sample_validation_seeds(n=n_seeds_to_sample)
-                if eval_type == "efficiency"
-                else self._sample_test_seeds(n=n_seeds_to_sample)
-            )
+            seeds = self._sample_test_seeds(n=n_seeds_to_sample)
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
                 self._evaluate_agent_performance(a, name, dataset, config, seeds)
 
             n_seeds_sampled += n_seeds_to_sample
+
+    def _evaluate_efficiency(self, dataset, agent, val_seeds):
+        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
+        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+            self._evaluate_agent_performance(
+                a, name, dataset, dataset.train_config, val_seeds
+            )
+
+    def _set_val_seeds(self):
+        if isinstance(self.collator, CurriculumCollator) or isinstance(
+            self.collator, RoundRobinCollator
+        ):
+            for dataset in self.collator.datasets:
+                self._load_seed_dict(dataset, dataset.train_config)
+                self.val_seeds.append(
+                    self._sample_validation_seeds(n=self.num_repeats // 4)
+                )
+        else:
+            self._load_seed_dict(
+                self.collator.dataset, self.collator.dataset.train_config
+            )
+            self.val_seeds.append(
+                self._sample_validation_seeds(n=self.num_repeats // 4)
+            )
 
     def _load_seed_dict(self, dataset, config):
         self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
@@ -213,14 +256,20 @@ class Evaluator(TrainerCallback):
             raise Exception("No seeds loaded")
 
         # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
-        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
+        return {
+            "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
+        }
 
     def _sample_test_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
 
         seeds = {}
-        types = [k for k in self.seeds if "seed" not in k and self.seeds[k]["test_seeds"]]
+        types = [
+            k
+            for k in self.seeds
+            if "seed" not in k and self.seeds[k]["test_seeds"] and k != "task_task"
+        ]
         per_type_repeats = n // len(types) + (n % len(types) > 0)
 
         seeds_sampled = 0
@@ -564,7 +613,9 @@ class Evaluator(TrainerCallback):
             fig, ax = plt.subplots()
             sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
             for fmt in formats:
-                fig.savefig(os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}"))
+                fig.savefig(
+                    os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")
+                )
             plt.close(fig)
 
             # then, do bar plot (for generalisation) (if we have data yet)
@@ -573,6 +624,8 @@ class Evaluator(TrainerCallback):
                 sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
                 for fmt in formats:
                     fig.savefig(
-                        os.path.join(self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}")
+                        os.path.join(
+                            self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}"
+                        )
                     )
                 plt.close(fig)

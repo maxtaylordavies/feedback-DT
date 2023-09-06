@@ -30,7 +30,9 @@ class PPOAgent:
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
     """
 
-    def __init__(self, env_name, seeds, medium=True, feedback_mode=None, max_steps=None):
+    def __init__(
+        self, env_name, seeds, medium=True, feedback_mode=None, max_steps=None
+    ):
         self.args = {
             "algo": "ppo",
             "env": env_name,
@@ -200,7 +202,7 @@ class PPOAgent:
             num_frames += logs["num_frames"]
             update += 1
 
-            should_stop = callback(exps, logs, self.args["env"], self.args["seeds"])
+            should_stop = callback(exps, logs, self.args["seeds"])
 
             # Print logs
             if update % self.args["log_interval"] == 0:
