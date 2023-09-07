@@ -43,7 +43,7 @@ class PPOAgent:
             "procs": len(seeds),
             "epochs": 4,
             "batch_size_ppo": 256,
-            "frames_per_proc": min(max_steps, 128),
+            "frames_per_proc": max_steps,
             "discount": 0.99,
             "lr": 0.001,
             "gae_lambda": 0.95,
