@@ -144,13 +144,17 @@ class CustomDataset:
             num_rows = level_metadata[self.train_config]["num_rows"]
         except KeyError:
             num_rows = (
-                metadata["defaults"]["maze"]["num_rows"] if level_metadata["maze"] else 1
+                metadata["defaults"]["maze"]["num_rows"]
+                if level_metadata["maze"]
+                else 1
             )
         try:
             num_cols = level_metadata[self.train_config]["num_cols"]
         except KeyError:
             num_cols = (
-                metadata["defaults"]["maze"]["num_cols"] if level_metadata["maze"] else 1
+                metadata["defaults"]["maze"]["num_cols"]
+                if level_metadata["maze"]
+                else 1
             )
             tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(tmp_max_steps, max_steps)
@@ -178,7 +182,9 @@ class CustomDataset:
         num_eps = self.eps_per_shard
         max_steps = self._get_level_max_steps()
 
-        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
+        log(
+            f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True
+        )
 
         return {
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
@@ -195,7 +201,8 @@ class CustomDataset:
                 [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()]
+            * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -223,7 +230,8 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"]
+            + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -370,7 +378,7 @@ class CustomDataset:
                 self._create_episode(seed)
 
                 # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                if (current_episode > 0 and current_episode % self.eps_per_shard == 0) or (
+                if (self.ep_counts[0] % self.eps_per_shard == 0) or (
                     self.total_steps >= self.args["num_steps"]
                 ):
                     self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
@@ -389,7 +397,9 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_ends = np.where(
+            self.shard.terminations + self.shard.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
