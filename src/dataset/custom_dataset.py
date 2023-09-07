@@ -39,6 +39,8 @@ class CustomDataset:
         self.train_seeds = self._get_train_seeds()
         self.category = self._get_category()
 
+        self._determine_eps_per_shard()
+
     def _get_configs(self):
         """
         Get the configs for the given level that are suitable for training.
@@ -142,27 +144,29 @@ class CustomDataset:
             num_rows = level_metadata[self.train_config]["num_rows"]
         except KeyError:
             num_rows = (
-                metadata["defaults"]["maze"]["num_rows"]
-                if level_metadata["maze"]
-                else 1
+                metadata["defaults"]["maze"]["num_rows"] if level_metadata["maze"] else 1
             )
         try:
             num_cols = level_metadata[self.train_config]["num_cols"]
         except KeyError:
             num_cols = (
-                metadata["defaults"]["maze"]["num_cols"]
-                if level_metadata["maze"]
-                else 1
+                metadata["defaults"]["maze"]["num_cols"] if level_metadata["maze"] else 1
             )
             tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(tmp_max_steps, max_steps)
         return min(global_max_steps, step_ceiling)
 
+    def _determine_eps_per_shard(self):
+        eps_per_shard = (
+            100 if self._get_level_max_steps() < 128 else self.args["eps_per_shard"]
+        )
+        self.eps_per_shard = eps_per_shard
+
     def _initialise_buffers(self, num_buffers, obs_shape):
-        if self._get_level_max_steps() < 128:
-            self.args["eps_per_shard"] = 100
+        self._determine_eps_per_shard()
+
         log(
-            f"initialising {num_buffers} buffers of size {self.args['eps_per_shard']}",
+            f"initialising {num_buffers} buffers of size {self.eps_per_shard}",
             with_tqdm=True,
         )
         for _ in range(num_buffers):
@@ -171,12 +175,10 @@ class CustomDataset:
             self.ep_counts.append(0)
 
     def _create_buffer(self, obs_shape):
-        num_eps = self.args["eps_per_shard"]
+        num_eps = self.eps_per_shard
         max_steps = self._get_level_max_steps()
 
-        log(
-            f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True
-        )
+        log(f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True)
 
         return {
             "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
@@ -193,8 +195,7 @@ class CustomDataset:
                 [[0]] * ((max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()]
-            * ((max_steps + 1) * num_eps),
+            "feedback": [self.env.get_feedback_constant()] * ((max_steps + 1) * num_eps),
             "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
             "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
         }
@@ -222,8 +223,7 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"]
-            + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -370,10 +370,9 @@ class CustomDataset:
                 self._create_episode(seed)
 
                 # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
-                if (
-                    current_episode > 0
-                    and current_episode % self.args["eps_per_shard"] == 0
-                ) or (self.total_steps >= self.args["num_steps"]):
+                if (current_episode > 0 and current_episode % self.eps_per_shard == 0) or (
+                    self.total_steps >= self.args["num_steps"]
+                ):
                     self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
                 current_episode += 1
@@ -390,9 +389,7 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(
-            self.shard.terminations + self.shard.truncations == 1
-        )[0]
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -539,7 +536,7 @@ class CustomDataset:
                     if (
                         terminations[i, t]
                         or truncations[i, t]
-                        and self.ep_counts[i] >= self.args["eps_per_shard"]
+                        and self.ep_counts[i] >= self.eps_per_shard
                     ):
                         self._flush_buffer(buffer_idx=i, obs_shape=o.shape)
 
@@ -572,7 +569,7 @@ class CustomDataset:
         return self
 
     def __len__(self):
-        return self.total_episodes
+        return self.num_shards * self.eps_per_shard
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
 
