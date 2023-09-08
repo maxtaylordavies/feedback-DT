@@ -149,8 +149,16 @@ class Collator:
             "feedback_embeddings": [],
         }
 
-        # first, load a random shard from file into the CustomDataset object
-        self.dataset.load_shard()
+        # load a random shard - if it doesn't contain any episodes, load another one
+        # if we try 10 times and still don't have enough episodes, raise an exception
+        tries, num_eps = 0, 0
+        while num_eps == 0:
+            self.dataset.load_shard()
+            tries, num_eps = tries + 1, self.dataset.num_episodes
+            if tries > 10:
+                raise Exception(
+                    f"Failed to load a shard with at least one episode after {tries} tries."
+                )
 
         # sample episode indices according to self.episode_dist
         episode_indices = self.dataset.sample_episode_indices(
