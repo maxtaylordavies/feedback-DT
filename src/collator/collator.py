@@ -22,7 +22,8 @@ class Collator:
         scale=1,
         gamma=0.99,
         embedding_dim=128,
-        randomise_starts=False,
+        randomise_starts=True,
+        full=False,
         episode_dist="uniform",
     ) -> None:
         (
@@ -32,6 +33,7 @@ class Collator:
             self.gamma,
             self.embedding_dim,
             self.randomise_starts,
+            self.full,
             self.episode_dist,
         ) = (
             custom_dataset,
@@ -40,6 +42,7 @@ class Collator:
             gamma,
             embedding_dim,
             randomise_starts,
+            full,
             episode_dist,
         )
         self.feedback = self.args["use_feedback"]
@@ -112,7 +115,11 @@ class Collator:
 
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
-        pad_width = pad_width or max(self.context_length - x.shape[1], 0)
+        pad_width = pad_width or (
+            max(self.dataset.max_steps - x.shape[1], 0)
+            if self.full
+            else max(self.context_length - x.shape[1], 0)
+        )
         pad_shape = [(0, 0)] * len(x.shape)
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
         return np.pad(x, pad_shape, constant_values=val)
@@ -137,7 +144,7 @@ class Collator:
 
         return new_episode_feedback
 
-    def _sample_batch(self, batch_size, random_start=True, full=False, train=True):
+    def _sample_batch(self, batch_size, train=True):
         batch = {
             "timesteps": [],
             "mission_embeddings": [],
@@ -166,13 +173,13 @@ class Collator:
         )
 
         # sample a subsequence of each chosen episode
-        length = self.context_length if not full else None
+        length = self.context_length if not self.full else None
         for ep_idx in episode_indices:
             ep = self.dataset.sample_episode(
                 ep_idx,
                 gamma=self.gamma,
                 length=length,
-                random_start=random_start,
+                random_start=self.randomise_starts,
                 feedback=self.feedback,
                 mission=self.mission,
             )
@@ -202,7 +209,8 @@ class Collator:
 
         # if we're in training mode, update the sample counter
         if train:
-            self.samples_processed += self._count_samples_processed(batch)
+            # self.samples_processed += self._count_samples_processed(batch)
+            self.samples_processed += batch_size
 
         return batch
 

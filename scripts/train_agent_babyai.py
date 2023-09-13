@@ -77,6 +77,8 @@ else:
     log("Creating standard single-task collator...")
     collator = Collator(
         custom_dataset=dataset,
+        full=args["use_full_ep"],
+        episode_dist=args["ep_dist"],
         args=args,
     )
 

@@ -35,9 +35,10 @@ class CustomDataset:
         self.total_episodes = 0
         self.seed_finder = SeedFinder()
         self.level = self.args["level"]
+        self.category = self._get_category()
         self.train_config, self.test_configs = self._get_configs()
         self.train_seeds = self._get_train_seeds()
-        self.category = self._get_category()
+        self.max_steps = self._get_level_max_steps()
 
         self._determine_eps_per_shard()
 
@@ -161,9 +162,7 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _determine_eps_per_shard(self):
-        eps_per_shard = (
-            100 if self._get_level_max_steps() < 128 else self.args["eps_per_shard"]
-        )
+        eps_per_shard = 100 if self.max_steps < 128 else self.args["eps_per_shard"]
         self.eps_per_shard = eps_per_shard
 
     def _initialise_buffers(self, num_buffers, obs_shape):
@@ -180,31 +179,35 @@ class CustomDataset:
 
     def _create_buffer(self, obs_shape):
         num_eps = self.eps_per_shard
-        max_steps = self._get_level_max_steps()
 
         log(
-            f"creating buffer of size {num_eps * (max_steps + 1)} steps", with_tqdm=True
+            f"creating buffer of size {num_eps * (self.max_steps + 1)} steps",
+            with_tqdm=True,
         )
 
         return {
-            "seeds": np.array([[0]] * ((max_steps + 1) * num_eps)),
-            "missions": ["No mission available."] * ((max_steps + 1) * num_eps),
+            "seeds": np.array([[0]] * ((self.max_steps + 1) * num_eps)),
+            "missions": ["No mission available."] * ((self.max_steps + 1) * num_eps),
             "observations": np.array(
-                [np.zeros(obs_shape)] * ((max_steps + 1) * num_eps),
+                [np.zeros(obs_shape)] * ((self.max_steps + 1) * num_eps),
                 dtype=np.uint8,
             ),
             "actions": np.array(
-                [[0]] * ((max_steps + 1) * num_eps),
+                [[0]] * ((self.max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
             "rewards": np.array(
-                [[0]] * ((max_steps + 1) * num_eps),
+                [[0]] * ((self.max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
             "feedback": [self.env.get_feedback_constant()]
-            * ((max_steps + 1) * num_eps),
-            "terminations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
-            "truncations": np.array([[0]] * ((max_steps + 1) * num_eps), dtype=bool),
+            * ((self.max_steps + 1) * num_eps),
+            "terminations": np.array(
+                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
+            ),
+            "truncations": np.array(
+                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
+            ),
         }
 
     def _flush_buffer(self, buffer_idx, obs_shape):
@@ -355,7 +358,7 @@ class CustomDataset:
                 self.env = FeedbackEnv(
                     env=gym.make(self.train_config),
                     feedback_mode=self.args["feedback_mode"],
-                    max_steps=self._get_level_max_steps(),
+                    max_steps=self.max_steps,
                 )
                 partial_obs, _ = self.env.reset(seed=seed)
                 obs = get_minigrid_obs(
@@ -421,7 +424,7 @@ class CustomDataset:
             probs = 1 / self.episode_lengths
         else:
             probs = np.ones(self.num_episodes)
-        probs /= np.sum(probs)
+        probs = probs / np.sum(probs)
 
         # then use this distribution to sample episode indices
         return np.random.choice(
@@ -438,14 +441,16 @@ class CustomDataset:
 
         # optionally sample a random start timestep for this episode
         start = self.episode_starts[ep_idx]
-        if random_start:
+        if random_start and length:
             start += (
                 np.random.randint(0, self.episode_lengths[ep_idx] - 1)
                 if self.episode_lengths[ep_idx] > 1
                 else 0
             )
+
         tmp = start + length - 1 if length else self.episode_ends[ep_idx]
         end = min(tmp, self.episode_ends[ep_idx]) + 1
+
         s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
 
@@ -453,7 +458,7 @@ class CustomDataset:
         a = to_one_hot(a, self.act_dim).reshape(1, -1, self.act_dim)
 
         rtg = discounted_cumsum(
-            self.shard.rewards[start : self.episode_ends[ep_idx]], gamma=gamma
+            self.shard.rewards[start : self.episode_ends[ep_idx] + 1], gamma=gamma
         )
         rtg = rtg[: end - start].reshape(1, -1, 1)
 
@@ -565,7 +570,7 @@ class CustomDataset:
             env_name=self.train_config,
             seeds=self.train_seeds,
             feedback_mode=self.args["feedback_mode"],
-            max_steps=self._get_level_max_steps(),
+            max_steps=self.max_steps,
         )
         setup(ppo.env, len(self.train_seeds))
         ppo._train_agent(callback=callback)
@@ -579,7 +584,7 @@ class CustomDataset:
         return self
 
     def __len__(self):
-        return self.args["num_steps"] / self.args["context_length"]
+        return min(self.num_shards * self.eps_per_shard, self.args["num_samples"])
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
 
@@ -592,7 +597,6 @@ class CustomDataset:
     # -------------------------------------------------------------------------------------------
     @classmethod
     def get_dataset(cls, args):
-        print("Generating dataset...")
         return cls(args)._get_dataset()
 
     @classmethod
