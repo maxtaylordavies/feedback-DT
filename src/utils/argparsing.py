@@ -165,8 +165,8 @@ def get_args():
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=20000,
-        help="whether to use the pretrained GPT-2 model",
+        default=1280,
+        help="after how many samples to evaluate the sample efficiency of the model",
     )
     parser.add_argument(
         "--target_return",
@@ -203,5 +203,23 @@ def get_args():
         type=int,
         default=10,
         help="the number of episodes to collect per dataset shard",
+    )
+    parser.add_argument(
+        "--use_full_ep",
+        type=bool,
+        default=False,
+        help="whether to use the full episode, rather than a given context length",
+    )
+    parser.add_argument(
+        "--ep_dist",
+        type=str,
+        default="inverse_length",
+        help="the distribution from which to sample episodes",
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=10000,
+        help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples",
     )
     return vars(parser.parse_args())

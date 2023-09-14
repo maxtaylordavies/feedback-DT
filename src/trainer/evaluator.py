@@ -95,6 +95,7 @@ class Evaluator(TrainerCallback):
             "level": [],  # level name (for MT training)
             "config": [],  # config used for the episode
             "seed": [],  # seed used for the episode
+            "eval_type": [],  # type of evaluation (efficiency, iid_generalisation, ood_generalisation)
             "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
             "return": [],  # episode return
             "episode length": [],  # episode length
@@ -150,8 +151,6 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        log("on_step_begin called", with_tqdm=True)
-
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
@@ -174,10 +173,11 @@ class Evaluator(TrainerCallback):
         **kwargs,
     ):
         self._plot_loss(state)
-        self._run_eval_and_plot(model, state, eval_type="generalisation")
+        self._run_eval_and_plot(model, state, eval_type="iid_generalisation")
+        self._run_eval_and_plot(model, state, eval_type="ood_generalisation")
 
     def _run_eval_and_plot(self, agent: Agent, state: TrainerState, eval_type: str):
-        if eval_type not in ["efficiency", "generalisation"]:
+        if eval_type not in ["efficiency", "iid_generalisation", "ood_generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
         log(
@@ -185,25 +185,49 @@ class Evaluator(TrainerCallback):
             with_tqdm=True,
         )
 
-        if isinstance(self.collator, CurriculumCollator) or isinstance(
-            self.collator, RoundRobinCollator
-        ):
-            for i, dataset in enumerate(self.collator.datasets):
-                if eval_type == "efficiency":
-                    self._evaluate_efficiency(dataset, agent, self.val_seeds[i])
-                else:
-                    self._evaluate_generalisation(dataset, agent)
+        # if isinstance(self.collator, CurriculumCollator) or isinstance(
+        #     self.collator, RoundRobinCollator
+        # ):
+        #     for i, dataset in enumerate(self.collator.datasets):
+        #         if eval_type == "efficiency":
+        #             self._evaluate_efficiency(dataset, agent, self.val_seeds[i])
+        #         else:
+        #             self._evaluate_generalisation(dataset, agent)
+        # else:
+        if eval_type == "efficiency":
+            self._evaluate_efficiency(self.collator.dataset, agent)
+        elif eval_type == "iid_generalisation":
+            self._evaluate_iid_generalisation(self.collator.dataset, agent)
         else:
-            if eval_type == "efficiency":
-                self._evaluate_efficiency(
-                    self.collator.dataset, agent, self.val_seeds[0]
-                )
-            else:
-                self._evaluate_generalisation(self.collator.dataset, agent)
+            self._evaluate_ood_generalisation(self.collator.dataset, agent)
 
         self._plot_results()
 
-    def _evaluate_generalisation(self, dataset, agent):
+    def _evaluate_efficiency(self, dataset, agent):
+        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
+        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+            self._evaluate_agent_performance(
+                a,
+                name,
+                dataset,
+                dataset.train_config,
+                "efficiency",
+                {"": dataset.train_seeds},
+            )
+
+    def _evaluate_iid_generalisation(self, dataset, agent):
+        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
+        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+            self._evaluate_agent_performance(
+                a,
+                name,
+                dataset,
+                dataset.train_config,
+                "iid_generalisation",
+                self.val_seeds[0],
+            )
+
+    def _evaluate_ood_generalisation(self, dataset, agent):
         per_config_repeats = self.num_repeats // len(dataset.test_configs) + (
             self.num_repeats % len(dataset.test_configs) > 0
         )
@@ -220,33 +244,24 @@ class Evaluator(TrainerCallback):
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-                self._evaluate_agent_performance(a, name, dataset, config, seeds)
+                self._evaluate_agent_performance(
+                    a, name, dataset, config, "ood_generalisation", seeds
+                )
 
             n_seeds_sampled += n_seeds_to_sample
 
-    def _evaluate_efficiency(self, dataset, agent, val_seeds):
-        # run evaluations using both the agent being trained and a random agent (for baseline comparison)
-        for a, name in zip([self.random_agent, agent], ["random", "DT"]):
-            self._evaluate_agent_performance(
-                a, name, dataset, dataset.train_config, val_seeds
-            )
-
     def _set_val_seeds(self):
-        if isinstance(self.collator, CurriculumCollator) or isinstance(
-            self.collator, RoundRobinCollator
-        ):
-            for dataset in self.collator.datasets:
-                self._load_seed_dict(dataset, dataset.train_config)
-                self.val_seeds.append(
-                    self._sample_validation_seeds(n=self.num_repeats // 4)
-                )
-        else:
-            self._load_seed_dict(
-                self.collator.dataset, self.collator.dataset.train_config
-            )
-            self.val_seeds.append(
-                self._sample_validation_seeds(n=self.num_repeats // 4)
-            )
+        # if isinstance(self.collator, CurriculumCollator) or isinstance(
+        #     self.collator, RoundRobinCollator
+        # ):
+        #     for dataset in self.collator.datasets:
+        #         self._load_seed_dict(dataset, dataset.train_config)
+        #         self.val_seeds.append(
+        #             self._sample_validation_seeds(n=self.num_repeats // 4)
+        #         )
+        # else:
+        self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
+        self.val_seeds.append(self._sample_validation_seeds(self.num_repeats))
 
     def _load_seed_dict(self, dataset, config):
         self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
@@ -256,8 +271,15 @@ class Evaluator(TrainerCallback):
             raise Exception("No seeds loaded")
 
         # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
+        # return {
+        #     "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
+        # }
         return {
-            "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
+            "": np.random.choice(
+                self.seeds["validation_seeds"],
+                size=n,
+                replace=False,
+            )
         }
 
     def _sample_test_seeds(self, n=1):
@@ -313,6 +335,7 @@ class Evaluator(TrainerCallback):
         dataset,
         config,
         seed,
+        eval_type,
         ood_type,
         model_name,
         ret,
@@ -325,6 +348,7 @@ class Evaluator(TrainerCallback):
         self.results["level"].append(dataset.level)
         self.results["config"].append(config)
         self.results["seed"].append(seed)
+        self.results["eval_type"].append(eval_type)
         self.results["ood_type"].append(ood_type)
         self.results["return"].append(ret)
         self.results["episode length"].append(ep_length)
@@ -353,7 +377,13 @@ class Evaluator(TrainerCallback):
                 env.save_as(f"longest_{model_name}")
 
     def _evaluate_agent_performance(
-        self, agent: Agent, agent_name: str, dataset, config: str, seeds: dict
+        self,
+        agent: Agent,
+        agent_name: str,
+        dataset,
+        config: str,
+        eval_type: str,
+        seeds: dict,
     ):
         run_agent = self._run_agent_on_minigrid_env
 
@@ -370,6 +400,7 @@ class Evaluator(TrainerCallback):
                     dataset,
                     config,
                     seed,
+                    eval_type,
                     ood_type,
                     agent_name,
                     ret,
@@ -597,11 +628,12 @@ class Evaluator(TrainerCallback):
 
         # split into in-distribution and out-of-distribution for efficiency and generalisation plots
         df = pd.DataFrame(self.results)
-        eff_df = df[df["ood_type"] == ""]
-        gen_df = df[df["ood_type"] != ""]
+        eff_df = df[df["eval_type"] == "efficiency"]
+        iid_gen_df = df[df["eval_type"] == "iid_generalisation"]
+        ood_gen_df = df[df["eval_type"] == "ood_generalisation"]
 
         metrics = set(self.results.keys()).difference(
-            {"samples", "model", "level", "config", "seed", "ood_type"}
+            {"samples", "model", "level", "config", "seed", "ood_type", "eval_type"}
         )
         for m in metrics:
             # for success, we want the percentage success rate, which we
@@ -619,13 +651,26 @@ class Evaluator(TrainerCallback):
             plt.close(fig)
 
             # then, do bar plot (for generalisation) (if we have data yet)
-            if len(gen_df) > 0:
+            # IID generalisation plot
+            if len(iid_gen_df) > 0:
                 fig, ax = plt.subplots()
-                sns.barplot(x="model", y=m, hue="ood_type", data=gen_df, ax=ax)
+                sns.barplot(x="model", y=m, data=iid_gen_df, ax=ax)
                 for fmt in formats:
                     fig.savefig(
                         os.path.join(
-                            self.output_dir, f"gen_{m.replace(' ', '_')}.{fmt}"
+                            self.output_dir, f"iid_gen_{m.replace(' ', '_')}.{fmt}"
+                        )
+                    )
+                plt.close(fig)
+
+            # OOD generalisation plots
+            if len(ood_gen_df) > 0:
+                fig, ax = plt.subplots()
+                sns.barplot(x="model", y=m, hue="ood_type", data=ood_gen_df, ax=ax)
+                for fmt in formats:
+                    fig.savefig(
+                        os.path.join(
+                            self.output_dir, f"ood_gen_{m.replace(' ', '_')}.{fmt}"
                         )
                     )
                 plt.close(fig)

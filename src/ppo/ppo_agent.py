@@ -57,7 +57,7 @@ class PPOAgent:
             if env_name in ["BabyAI-OpenTwoDoors-v0", "BabyAI-OpenRedBlueDoors-v0"]
             else 1,
             "text": True,
-            "argmax": True,
+            "argmax": False,
             "feedback_mode": feedback_mode,
             "max_steps": max_steps,
         }

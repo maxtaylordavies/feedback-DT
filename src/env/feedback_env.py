@@ -79,8 +79,14 @@ class FeedbackEnv:
 
         # check if max steps reached
         self.steps_taken += 1
-        if self.max_steps is not None and self.steps_taken >= self.max_steps:
+        if (
+            self.max_steps is not None
+            and self.steps_taken >= self.max_steps
+            and not terminated
+        ):
             truncated = True
+        else:
+            truncated = False
 
         # get task feedback (after taking action)
         task_feedback = self.task_feedback(action)
