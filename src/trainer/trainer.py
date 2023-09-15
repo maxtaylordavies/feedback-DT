@@ -1,14 +1,13 @@
 from typing import Dict
 
-from transformers import (
-    Trainer,
-    TrainingArguments,
-)
+from transformers import Trainer
+from transformers import TrainingArguments
 
-from src.agent import Agent, AgentInput
+from .evaluator import Evaluator
+from src.agent import Agent
+from src.agent import AgentInput
 from src.collator import Collator
 from src.dataset.minari_dataset import MinariDataset
-from .evaluator import Evaluator
 
 
 class AgentTrainer(Trainer):
@@ -44,7 +43,12 @@ class AgentTrainer(Trainer):
 
     def create_callbacks(self):
         self.add_callback(
-            Evaluator(user_args=self.user_args, collator=self.data_collator)
+            Evaluator(
+                user_args=self.user_args,
+                collator=self.data_collator,
+                early_stopping_patience=12,
+                early_stopping_threshold=0.02,
+            )
         )
 
     def compute_loss(self, model, inputs, return_outputs=False):

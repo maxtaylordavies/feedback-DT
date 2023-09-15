@@ -584,7 +584,11 @@ class CustomDataset:
         return self
 
     def __len__(self):
-        return min(self.num_shards * self.eps_per_shard, self.args["num_samples"])
+        return (
+            self.num_shards * self.eps_per_shard
+            if self.args["use_full_ep"]
+            else self.args["num_samples"]
+        )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
 
