@@ -13,7 +13,7 @@ def get_args():
     parser.add_argument(
         "--num_steps",
         type=int,
-        default=10**7,
+        default=5 * 10**6,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -165,8 +165,8 @@ def get_args():
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=1280,
-        help="after how many samples to evaluate the sample efficiency of the model",
+        default=128,
+        help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
     )
     parser.add_argument(
         "--target_return",
@@ -219,7 +219,13 @@ def get_args():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=10000,
+        default=1000,
         help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples",
+    )
+    parser.add_argument(
+        "--model_seed",
+        type=int,
+        default=1234567890,
+        help="the seed used for seeding different instantiations of the model",
     )
     return vars(parser.parse_args())

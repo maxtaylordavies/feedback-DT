@@ -82,6 +82,8 @@ else:
         args=args,
     )
 
+seed(args["model_seed"])
+
 log("creating agent...")
 agent = MinigridFDTAgent(
     config=DecisionTransformerConfig(
