@@ -712,7 +712,16 @@ class Evaluator(TrainerCallback):
         ood_gen_df = df[df["eval_type"] == "ood_generalisation"]
 
         metrics = set(self.results.keys()).difference(
-            {"samples", "model", "level", "config", "seed", "ood_type", "eval_type"}
+            {
+                "samples",
+                "model",
+                "level",
+                "config",
+                "seed",
+                "ood_type",
+                "eval_type",
+                "global_step",
+            }
         )
         for m in metrics:
             # for success, we want the percentage success rate, which we

@@ -55,7 +55,7 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=32,
+        default=16,
         help="context length in timesteps",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
@@ -237,7 +237,7 @@ def get_args():
     parser.add_argument(
         "--early_stopping_patience",
         type=int,
-        default=15,
+        default=12,
         help="how many steps to wait for improvements in the evaluation metric before stopping training",
     )
     parser.add_argument(
