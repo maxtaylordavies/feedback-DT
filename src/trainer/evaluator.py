@@ -33,15 +33,13 @@ sns.set_theme()
 
 
 class Evaluator(TrainerCallback):
-    def __init__(
-        self, user_args, collator, early_stopping_patience, early_stopping_threshold
-    ) -> None:
+    def __init__(self, user_args, collator) -> None:
         super().__init__()
         self.user_args = user_args
         self.collator = collator
-        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_patience = self.user_args["early_stopping_patience"]
         self.early_stopping_patience_counter = 0
-        self.early_stopping_threshold = early_stopping_threshold
+        self.early_stopping_threshold = self.user_args["early_stopping_threshold"]
         self.best_gc_success = -np.inf
         self.best_global_step = 0
         self.sample_interval = self.user_args["sample_interval"]
@@ -59,7 +57,8 @@ class Evaluator(TrainerCallback):
         self.val_seeds = []
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(
-            self.user_args["output"], self.user_args["run_name"]
+            self.user_args["output"],
+            os.path.join(self.user_args["run_name"], str(self.user_args["model_seed"])),
         )
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -101,7 +100,7 @@ class Evaluator(TrainerCallback):
             "eval_type": [],  # type of evaluation (efficiency, iid_generalisation, ood_generalisation)
             "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
             "return": [],  # episode return
-            "episode length": [],  # episode length
+            "episode_length": [],  # episode_length
             "success": [],  # whether the episode was successful (bool)
             "gc_success": [],  # goal condition success rate (float)
             "pw_success": [],  # path-weighted success rate (float)
@@ -376,7 +375,7 @@ class Evaluator(TrainerCallback):
         self.results["eval_type"].append(eval_type)
         self.results["ood_type"].append(ood_type)
         self.results["return"].append(ret)
-        self.results["episode length"].append(ep_length)
+        self.results["episode_length"].append(ep_length)
         self.results["success"].append(success)
         self.results["gc_success"].append(gc_success)
         self.results["pw_success"].append(
@@ -384,23 +383,38 @@ class Evaluator(TrainerCallback):
         )
         self.results["global_step"].append(global_step)
 
+        df = pd.DataFrame(self.results)
+
         if self.user_args["record_video"]:
             env.release()
 
-        if self.samples_processed == 0:
-            env.save_as(f"first_{model_name}")
+            if self.samples_processed == 0:
+                env.save_as(f"first_{model_name}")
 
-        if ret > self.best_returns[model_name]:
-            self.best_returns[model_name] = ret
-            # log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as(f"best_{model_name}")
-
-        if ep_length < self.best_lengths[model_name]:
-            self.best_lengths[model_name] = ep_length
-            # log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as(f"longest_{model_name}")
+            if "generalisation" in eval_type and model_name == "DT":
+                log(f"Current gc success {float(gc_success)}")
+                if float(gc_success) == float(1):
+                    log("saving video for successful episode")
+                    env.save_as(
+                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}succesful"
+                    )
+                if float(gc_success) == float(0):
+                    log("saving video for failed episode")
+                    env.save_as(
+                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
+                    )
+                max_gc_success = df[
+                    (df["model"] == "DT")
+                    & (df["eval_type"] == eval_type)
+                    & (df["ood_type"] == ood_type)
+                ]["gc_success"].max()
+                log(f"Current max gc success {max_gc_success}")
+                max_gc_success = max_gc_success or 0
+                if gc_success > max_gc_success:
+                    log("saving video for new best episode")
+                    env.save_as(
+                        f"best_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
+                    )
 
     def _evaluate_agent_performance(
         self,
@@ -448,7 +462,7 @@ class Evaluator(TrainerCallback):
         # convert results to dataframe
         df = pd.DataFrame(self.results)
 
-        if early_stopping:
+        if eval_type == "efficiency" and early_stopping:
             df.drop(df[df["global_step"] > self.best_global_step].index, inplace=True)
             df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
             control.should_training_stop = True

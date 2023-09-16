@@ -78,7 +78,7 @@ def get_args():
         "--log_interval",
         type=int,
         default=10,
-        help="how many training steps between logging output",
+        help="how many training steps between logging output (for PPO)",
     )
     parser.add_argument(
         "--record_video",
@@ -227,5 +227,23 @@ def get_args():
         type=int,
         default=1234567890,
         help="the seed used for seeding different instantiations of the model",
+    )
+    parser.add_argument(
+        "--logging_steps",
+        type=int,
+        default=1,
+        help="how many training steps between logging output (for HF Trainer)",
+    )
+    parser.add_argument(
+        "--early_stopping_patience",
+        type=int,
+        default=15,
+        help="how many steps to wait for improvements in the evaluation metric before stopping training",
+    )
+    parser.add_argument(
+        "--early_stopping_threshold",
+        type=float,
+        default=0.02,
+        help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
     return vars(parser.parse_args())

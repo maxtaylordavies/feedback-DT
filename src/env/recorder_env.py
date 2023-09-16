@@ -1,6 +1,6 @@
 import os
-from typing import Optional
 import shutil
+from typing import Optional
 
 import cv2
 import gymnasium as gym
@@ -19,10 +19,12 @@ class RecorderEnv(FeedbackEnv):
         size=None,
         fps=30,
         rgb=True,
-        max_steps=None
+        max_steps=None,
     ):
         super().__init__(env, feedback_mode, max_steps)
-        self.directory = directory
+        self.directory = os.path.join(directory, "recordings")
+        if not os.path.exists(self.directory):
+            os.makedirs(self.directory)
         self.path = os.path.join(self.directory, f"{filename}.mp4")
         self.auto_release = auto_release
         self.size = size
@@ -48,7 +50,9 @@ class RecorderEnv(FeedbackEnv):
         if not self.active:
             return
         frame = self.render()
-        self._writer.write(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if self.rgb else frame)
+        self._writer.write(
+            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if self.rgb else frame
+        )
 
     def release(self):
         self._writer.release()
