@@ -403,17 +403,17 @@ class Evaluator(TrainerCallback):
                     env.save_as(
                         f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
                     )
-                max_gc_success = df[
+                max_return = df[
                     (df["model"] == "DT")
                     & (df["eval_type"] == eval_type)
                     & (df["ood_type"] == ood_type)
-                ]["gc_success"].max()
-                log(f"Current max gc success {max_gc_success}")
-                max_gc_success = max_gc_success or 0
-                if gc_success > max_gc_success:
+                ]["return"].max()
+                log(f"Current max return {max_return}")
+                max_return = max_return or 0
+                if ret > max_return:
                     log("saving video for new best episode")
                     env.save_as(
-                        f"best_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
+                        f"best_return_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
                     )
 
     def _evaluate_agent_performance(
