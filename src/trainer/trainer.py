@@ -1,14 +1,13 @@
 from typing import Dict
 
-from transformers import (
-    Trainer,
-    TrainingArguments,
-)
+from transformers import Trainer
+from transformers import TrainingArguments
 
-from src.agent import Agent, AgentInput
+from .evaluator import Evaluator
+from src.agent import Agent
+from src.agent import AgentInput
 from src.collator import Collator
 from src.dataset.minari_dataset import MinariDataset
-from .evaluator import Evaluator
 
 
 class AgentTrainer(Trainer):
@@ -25,7 +24,7 @@ class AgentTrainer(Trainer):
                 report_to="none"
                 if self.user_args["wandb_mode"] == "disabled"
                 else "wandb",
-                logging_steps=self.user_args["log_interval"],
+                logging_steps=self.user_args["logging_steps"],
                 remove_unused_columns=False,
                 num_train_epochs=self.user_args["epochs"],
                 per_device_train_batch_size=self.user_args["batch_size"],
@@ -44,7 +43,10 @@ class AgentTrainer(Trainer):
 
     def create_callbacks(self):
         self.add_callback(
-            Evaluator(user_args=self.user_args, collator=self.data_collator)
+            Evaluator(
+                user_args=self.user_args,
+                collator=self.data_collator,
+            )
         )
 
     def compute_loss(self, model, inputs, return_outputs=False):

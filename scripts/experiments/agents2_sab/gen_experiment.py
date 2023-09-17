@@ -2,6 +2,7 @@
 """Script for generating experiment.txt"""
 import itertools
 import os
+from datetime import datetime
 
 # define some paths
 USER = os.environ["USER"]
@@ -18,7 +19,8 @@ def run_name(combo, keys):
             for key, value in zip(keys, combo)
         ]
     )
-    return f"feedback-{combo_strings}"
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    return f"{current_datetime}-{combo_strings}"
 
 
 # this is the base command that will be used for the experiment

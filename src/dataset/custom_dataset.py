@@ -186,28 +186,23 @@ class CustomDataset:
         )
 
         return {
-            "seeds": np.array([[0]] * ((self.max_steps + 1) * num_eps)),
+            "seeds": np.array([[0]] * (self.max_steps * num_eps)),
             "missions": ["No mission available."] * ((self.max_steps + 1) * num_eps),
             "observations": np.array(
-                [np.zeros(obs_shape)] * ((self.max_steps + 1) * num_eps),
+                [np.zeros(obs_shape)] * (self.max_steps * num_eps),
                 dtype=np.uint8,
             ),
             "actions": np.array(
-                [[0]] * ((self.max_steps + 1) * num_eps),
+                [[0]] * (self.max_steps * num_eps),
                 dtype=np.float32,
             ),
             "rewards": np.array(
-                [[0]] * ((self.max_steps + 1) * num_eps),
+                [[0]] * (self.max_steps * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()]
-            * ((self.max_steps + 1) * num_eps),
-            "terminations": np.array(
-                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
-            ),
-            "truncations": np.array(
-                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
-            ),
+            "feedback": [self.env.get_feedback_constant()] * (self.max_steps * num_eps),
+            "terminations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
+            "truncations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
         }
 
     def _flush_buffer(self, buffer_idx, obs_shape):
@@ -229,7 +224,7 @@ class CustomDataset:
     def _save_buffer_to_minari_file(self, buffer_idx):
         for key in self.buffers[buffer_idx].keys():
             self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
-                : self.steps[buffer_idx] + 2
+                : self.steps[buffer_idx] + 1
             ]
 
         episode_terminals = (
@@ -286,7 +281,7 @@ class CustomDataset:
         self.buffers[buffer_idx]["rewards"][self.steps[buffer_idx]] = reward
         self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
         self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
-        self.buffers[buffer_idx]["truncations"][self.steps] = truncated
+        self.buffers[buffer_idx]["truncations"][self.steps[buffer_idx]] = truncated
         self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
         self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
 
@@ -584,7 +579,11 @@ class CustomDataset:
         return self
 
     def __len__(self):
-        return min(self.num_shards * self.eps_per_shard, self.args["num_samples"])
+        return (
+            self.num_shards * self.eps_per_shard
+            if self.args["use_full_ep"]
+            else self.args["num_samples"]
+        )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
 

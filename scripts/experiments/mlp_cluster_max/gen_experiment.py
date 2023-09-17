@@ -2,9 +2,10 @@
 """Script for generating experiment.txt"""
 import itertools
 import os
+from datetime import datetime
 
 # define some paths
-USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch_big"
+USER, SCRATCH_DISK = os.environ["USER"], "/disk/scratch"
 PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
@@ -21,7 +22,8 @@ def run_name(combo, keys):
             for key, value in zip(keys, combo)
         ]
     )
-    return f"feedback-{combo_strings}"
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    return f"{current_datetime}-{combo_strings}"
 
 
 # this is the base command that will be used for the experiment

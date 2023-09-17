@@ -33,14 +33,15 @@ sns.set_theme()
 
 
 class Evaluator(TrainerCallback):
-    def __init__(
-        self,
-        user_args,
-        collator,
-    ) -> None:
+    def __init__(self, user_args, collator) -> None:
         super().__init__()
         self.user_args = user_args
         self.collator = collator
+        self.early_stopping_patience = self.user_args["early_stopping_patience"]
+        self.early_stopping_patience_counter = 0
+        self.early_stopping_threshold = self.user_args["early_stopping_threshold"]
+        self.best_gc_success = -np.inf
+        self.best_global_step = 0
         self.sample_interval = self.user_args["sample_interval"]
         self.target_return = self.user_args["target_return"]
         self.num_repeats = self.user_args["num_repeats"]
@@ -56,7 +57,8 @@ class Evaluator(TrainerCallback):
         self.val_seeds = []
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(
-            self.user_args["output"], self.user_args["run_name"]
+            self.user_args["output"],
+            os.path.join(self.user_args["run_name"], str(self.user_args["model_seed"])),
         )
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -98,10 +100,11 @@ class Evaluator(TrainerCallback):
             "eval_type": [],  # type of evaluation (efficiency, iid_generalisation, ood_generalisation)
             "ood_type": [],  # type of out-of-distribution episode (if applicable, else empty string)
             "return": [],  # episode return
-            "episode length": [],  # episode length
+            "episode_length": [],  # episode_length
             "success": [],  # whether the episode was successful (bool)
             "gc_success": [],  # goal condition success rate (float)
             "pw_success": [],  # path-weighted success rate (float)
+            "global_step": [],  # global step number
         }
 
     def on_train_begin(
@@ -132,16 +135,16 @@ class Evaluator(TrainerCallback):
         log("on_epoch_begin called", with_tqdm=True)
         return super().on_epoch_begin(args, state, control, **kwargs)
 
-    def on_epoch_end(
-        self,
-        args: TrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        model: Agent,
-        **kwargs,
-    ):
-        log(f"saving model checkpoint after epoch {state.epoch}", with_tqdm=True)
-        model.save_checkpoint(self.output_dir, state.epoch)
+    # def on_epoch_end(
+    #     self,
+    #     args: TrainingArguments,
+    #     state: TrainerState,
+    #     control: TrainerControl,
+    #     model: Agent,
+    #     **kwargs,
+    # ):
+    #     log(f"saving model checkpoint after epoch {state.epoch}", with_tqdm=True)
+    #     model.save_checkpoint(self.output_dir, state.epoch)
 
     def on_step_begin(
         self,
@@ -156,8 +159,15 @@ class Evaluator(TrainerCallback):
         # if this is the first step or we've reached the sample interval, run eval + update plots
         sample_diff = self.collator.samples_processed - self.samples_processed
         if sample_diff >= self.sample_interval:
-            self._run_eval_and_plot(model, state, eval_type="efficiency")
+            self._run_eval_and_plot(
+                model, state, eval_type="efficiency", control=control
+            )
             self.samples_processed = self.collator.samples_processed
+            log(
+                f"saving model checkpoint after step {state.global_step}",
+                with_tqdm=True,
+            )
+            model.save_checkpoint(self.output_dir, state.global_step)
 
         previous_epoch = self.current_epoch
         self.current_epoch = state.epoch
@@ -172,11 +182,19 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
+        log("Training ended - loading model checkpoint")
+        model.load_checkpoint(self.output_dir, self.best_global_step)
         self._plot_loss(state)
         self._run_eval_and_plot(model, state, eval_type="iid_generalisation")
         self._run_eval_and_plot(model, state, eval_type="ood_generalisation")
 
-    def _run_eval_and_plot(self, agent: Agent, state: TrainerState, eval_type: str):
+    def _run_eval_and_plot(
+        self,
+        agent: Agent,
+        state: TrainerState,
+        eval_type: str,
+        control: TrainerControl = None,
+    ):
         if eval_type not in ["efficiency", "iid_generalisation", "ood_generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
@@ -195,15 +213,17 @@ class Evaluator(TrainerCallback):
         #             self._evaluate_generalisation(dataset, agent)
         # else:
         if eval_type == "efficiency":
-            self._evaluate_efficiency(self.collator.dataset, agent)
+            self._evaluate_efficiency(self.collator.dataset, agent, state, control)
         elif eval_type == "iid_generalisation":
-            self._evaluate_iid_generalisation(self.collator.dataset, agent)
+            self._evaluate_iid_generalisation(self.collator.dataset, agent, state)
         else:
-            self._evaluate_ood_generalisation(self.collator.dataset, agent)
+            self._evaluate_ood_generalisation(self.collator.dataset, agent, state)
 
         self._plot_results()
 
-    def _evaluate_efficiency(self, dataset, agent):
+    def _evaluate_efficiency(
+        self, dataset, agent, state: TrainerState, control: TrainerControl
+    ):
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(
@@ -213,9 +233,11 @@ class Evaluator(TrainerCallback):
                 dataset.train_config,
                 "efficiency",
                 {"": dataset.train_seeds},
+                state,
+                control,
             )
 
-    def _evaluate_iid_generalisation(self, dataset, agent):
+    def _evaluate_iid_generalisation(self, dataset, agent, state: TrainerState):
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(
@@ -225,9 +247,10 @@ class Evaluator(TrainerCallback):
                 dataset.train_config,
                 "iid_generalisation",
                 self.val_seeds[0],
+                state,
             )
 
-    def _evaluate_ood_generalisation(self, dataset, agent):
+    def _evaluate_ood_generalisation(self, dataset, agent, state: TrainerState):
         per_config_repeats = self.num_repeats // len(dataset.test_configs) + (
             self.num_repeats % len(dataset.test_configs) > 0
         )
@@ -245,7 +268,7 @@ class Evaluator(TrainerCallback):
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
                 self._evaluate_agent_performance(
-                    a, name, dataset, config, "ood_generalisation", seeds
+                    a, name, dataset, config, "ood_generalisation", seeds, state
                 )
 
             n_seeds_sampled += n_seeds_to_sample
@@ -342,6 +365,7 @@ class Evaluator(TrainerCallback):
         ep_length,
         success,
         gc_success,
+        global_step,
     ):
         self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
@@ -351,30 +375,46 @@ class Evaluator(TrainerCallback):
         self.results["eval_type"].append(eval_type)
         self.results["ood_type"].append(ood_type)
         self.results["return"].append(ret)
-        self.results["episode length"].append(ep_length)
+        self.results["episode_length"].append(ep_length)
         self.results["success"].append(success)
         self.results["gc_success"].append(gc_success)
         self.results["pw_success"].append(
             self._get_pw_success(success, ep_length, dataset.level)
         )
+        self.results["global_step"].append(global_step)
+
+        df = pd.DataFrame(self.results)
 
         if self.user_args["record_video"]:
             env.release()
 
-        if self.samples_processed == 0:
-            env.save_as(f"first_{model_name}")
+            if self.samples_processed == 0:
+                env.save_as(f"first_{model_name}")
 
-        if ret > self.best_returns[model_name]:
-            self.best_returns[model_name] = ret
-            # log(f"new best return for {model_name} agent: {ret}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as(f"best_{model_name}")
-
-        if ep_length < self.best_lengths[model_name]:
-            self.best_lengths[model_name] = ep_length
-            # log(f"new best length for {model_name} agent: {ep_length}", with_tqdm=True)
-            if self.user_args["record_video"]:
-                env.save_as(f"longest_{model_name}")
+            if "generalisation" in eval_type and model_name == "DT":
+                log(f"Current gc success {float(gc_success)}")
+                if float(gc_success) == float(1):
+                    log("saving video for successful episode")
+                    env.save_as(
+                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}succesful"
+                    )
+                if float(gc_success) == float(0):
+                    log("saving video for failed episode")
+                    env.save_as(
+                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
+                    )
+                max_return = df[
+                    (df["model"] == "DT")
+                    & (df["eval_type"] == eval_type)
+                    & (df["ood_type"] == ood_type)
+                ]["return"].max()
+                log(f"Current max return {max_return}")
+                max_return = max_return or 0
+                if ret > max_return:
+                    log("saving video for new best episode")
+                    env.save_as(
+                        f"best_return_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
+                    )
 
     def _evaluate_agent_performance(
         self,
@@ -384,10 +424,13 @@ class Evaluator(TrainerCallback):
         config: str,
         eval_type: str,
         seeds: dict,
+        state: TrainerState,
+        control: TrainerControl = None,
     ):
         run_agent = self._run_agent_on_minigrid_env
 
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
+        gc_successes = []
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
             for seed in seeds:
                 seed = int(seed)
@@ -395,6 +438,8 @@ class Evaluator(TrainerCallback):
                 ret, ep_length, success, gc_success = run_agent(
                     agent, env, seed, self.target_return
                 )
+                step = state.global_step if ood_type == "efficiency" else 99999
+                gc_successes.append(gc_success)
                 self._record_result(
                     env,
                     dataset,
@@ -407,10 +452,20 @@ class Evaluator(TrainerCallback):
                     ep_length,
                     success,
                     gc_success,
+                    step,
                 )
+        mean_gc_success = np.mean(gc_successes)
+        early_stopping = False
+        if eval_type == "efficiency" and agent_name == "DT":
+            early_stopping = self._check_early_stopping(mean_gc_success, state, control)
 
         # convert results to dataframe
         df = pd.DataFrame(self.results)
+
+        if eval_type == "efficiency" and early_stopping:
+            df.drop(df[df["global_step"] > self.best_global_step].index, inplace=True)
+            df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
+            control.should_training_stop = True
 
         # log the average episode return for the current eval
         # log(
@@ -419,7 +474,34 @@ class Evaluator(TrainerCallback):
         # )
 
         # save the results to disk
-        df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
+        else:
+            df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
+
+    def _check_early_stopping(
+        self, mean_gc_success, state: TrainerState, control: TrainerControl
+    ):
+        self._check_metric_improvement(mean_gc_success, state)
+        if self.early_stopping_patience_counter >= self.early_stopping_patience:
+            log(f"Early stopping at step {state.global_step}")
+            return True
+        return False
+
+    def _check_metric_improvement(self, metric, state: TrainerState):
+        if (
+            metric > self.best_gc_success + self.early_stopping_threshold
+            and state.global_step > 0
+        ):
+            log(
+                f"Achieved new best gc success {metric} (higher than previous best gc success {self.best_gc_success} + threshold {self.early_stopping_threshold})"
+            )
+            self.best_gc_success = metric
+            self.best_global_step = state.global_step
+            self.early_stopping_patience_counter = 0
+        else:
+            self.early_stopping_patience_counter += 1
+            log(
+                f"Increasing patience counter to {self.early_stopping_patience_counter} as gc success ({metric}) lower than current best gc success ({self.best_gc_success}) + threshold ({self.early_stopping_threshold})"
+            )
 
     def _get_demo_mean(self, level):
         metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
@@ -633,7 +715,16 @@ class Evaluator(TrainerCallback):
         ood_gen_df = df[df["eval_type"] == "ood_generalisation"]
 
         metrics = set(self.results.keys()).difference(
-            {"samples", "model", "level", "config", "seed", "ood_type", "eval_type"}
+            {
+                "samples",
+                "model",
+                "level",
+                "config",
+                "seed",
+                "ood_type",
+                "eval_type",
+                "global_step",
+            }
         )
         for m in metrics:
             # for success, we want the percentage success rate, which we
