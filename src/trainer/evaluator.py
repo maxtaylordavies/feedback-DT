@@ -487,7 +487,10 @@ class Evaluator(TrainerCallback):
         return False
 
     def _check_metric_improvement(self, metric, state: TrainerState):
-        if metric > self.best_gc_success + self.early_stopping_threshold:
+        if (
+            metric > self.best_gc_success + self.early_stopping_threshold
+            and state.global_step > 0
+        ):
             log(
                 f"Achieved new best gc success {metric} (higher than previous best gc success {self.best_gc_success} + threshold {self.early_stopping_threshold})"
             )
