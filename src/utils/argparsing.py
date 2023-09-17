@@ -237,7 +237,7 @@ def get_args():
     parser.add_argument(
         "--early_stopping_patience",
         type=int,
-        default=12,
+        default=20,
         help="how many steps to wait for improvements in the evaluation metric before stopping training",
     )
     parser.add_argument(
