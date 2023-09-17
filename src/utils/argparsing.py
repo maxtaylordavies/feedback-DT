@@ -246,4 +246,16 @@ def get_args():
         default=0.02,
         help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
+    parser.add_argument(
+        "--ppo_early_stopping_patience",
+        type=int,
+        default=20,
+        help="how many steps to wait for improvements in the evaluation metric before stopping training",
+    )
+    parser.add_argument(
+        "--ppo_early_stopping_threshold",
+        type=float,
+        default=0.02,
+        help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
+    )
     return vars(parser.parse_args())
