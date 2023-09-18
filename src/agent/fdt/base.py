@@ -2,10 +2,12 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
+from torch.nn import CrossEntropyLoss
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
-from src.agent import Agent, AgentInput
+from src.agent import Agent
+from src.agent import AgentInput
 from src.utils.utils import to_one_hot
 
 
@@ -188,14 +190,11 @@ class FDTAgent(Agent, DecisionTransformerModel):
         action_targets = input.actions.reshape(-1, act_dim)[
             input.attention_mask.reshape(-1) > 0
         ]
+        action_targets = torch.argmax(action_targets, dim=1)
 
-        preds, targets = torch.argmax(action_preds, dim=1), torch.argmax(
-            action_targets, dim=1
-        )
-        # acc = torch.mean((preds == targets).float())
-        # log(f"train acc: {acc}", with_tqdm=True)
-
-        return torch.mean((action_preds - action_targets) ** 2)
+        criterion = CrossEntropyLoss()
+        loss = criterion(action_preds, action_targets)
+        return loss
 
     # function that gets an action from the model using autoregressive prediction
     def get_action(

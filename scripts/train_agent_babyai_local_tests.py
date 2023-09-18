@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import datetime
 
 import torch
 from transformers import DecisionTransformerConfig
@@ -26,16 +26,15 @@ seed(GLOBAL_SEED)
 args = get_args()
 
 args["output"] = OUTPUT_PATH
-args["run_name"] = f"{date.today()}_test"
+current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+args["run_name"] = f"{current_datetime}_test"
 args["level"] = "GoToObj"
-args["num_steps"] = 10000
+args["num_steps"] = 128000
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
-args["epochs"] = 1
-args["log_interval"] = 1
 args["policy"] = "random"
-args["context_length"] = 8
-
+args["load_existing_dataset"] = True
+args["record_video"] = True
 
 frame_size = 64 if args["fully_obs"] else 56
 

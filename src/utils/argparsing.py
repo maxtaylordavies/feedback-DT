@@ -219,7 +219,7 @@ def get_args():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=1000,
+        default=1280,
         help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples",
     )
     parser.add_argument(
