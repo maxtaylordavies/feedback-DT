@@ -145,17 +145,13 @@ class CustomDataset:
             num_rows = level_metadata[self.train_config]["num_rows"]
         except KeyError:
             num_rows = (
-                metadata["defaults"]["maze"]["num_rows"]
-                if level_metadata["maze"]
-                else 1
+                metadata["defaults"]["maze"]["num_rows"] if level_metadata["maze"] else 1
             )
         try:
             num_cols = level_metadata[self.train_config]["num_cols"]
         except KeyError:
             num_cols = (
-                metadata["defaults"]["maze"]["num_cols"]
-                if level_metadata["maze"]
-                else 1
+                metadata["defaults"]["maze"]["num_cols"] if level_metadata["maze"] else 1
             )
             tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(tmp_max_steps, max_steps)
@@ -228,8 +224,7 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"]
-            + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -395,9 +390,7 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(
-            self.shard.terminations + self.shard.truncations == 1
-        )[0]
+        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -492,6 +485,8 @@ class CustomDataset:
                 self.args["rgb_obs"],
             )["image"]
             self._initialise_buffers(num_buffers=num_seeds, obs_shape=obs.shape)
+            self._ppo_best_return = -np.inf
+            self._ppo_early_stop_count = 0
 
         # define callback func for storing data
         def callback(exps, logs, seeds):
@@ -502,9 +497,9 @@ class CustomDataset:
             terminations = exps.terminations.cpu().numpy().reshape(-1, 1)
             truncations = exps.truncations.cpu().numpy().reshape(-1, 1)
 
-            # # they don't provide terminations/truncations - but mask is computed as 1 - (terminated or truncated)
-            # # so we'll just assume all zero values of mask correspond to terminations (and ignore truncations)
-            # terminations = 1 - exps.mask.cpu().numpy()
+            # compute average episode return
+            ep_end_indices = np.where(terminations + truncations > 0)[0]
+            avg_ep_return = np.sum(rewards[ep_end_indices]) / len(ep_end_indices)
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
             tensors = [obss, actions, rewards, feedback, terminations, truncations]
@@ -554,6 +549,18 @@ class CustomDataset:
                 f"total_steps:{self.total_steps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",
                 with_tqdm=True,
             )
+
+            if (
+                avg_ep_return
+                > self._ppo_best_return + self.args["ppo_early_stopping_threshold"]
+            ):
+                self._ppo_best_return = avg_ep_return
+            else:
+                self._ppo_early_stop_count += 1
+
+            if self._ppo_early_stop_count >= self.args["ppo_early_stopping_patience"]:
+                log("early stopping PPO training", with_tqdm=True)
+                return True
 
             # return True if we've collected enough episodes for this config
             return self.total_steps >= self.args["num_steps"]
