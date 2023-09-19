@@ -54,7 +54,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         self.use_feedback = use_feedback
         self.use_missions = use_missions
-        x = 1 + int(self.use_feedback) + int(self.use_missions)
+        x = 2 + int(self.use_feedback) + int(self.use_missions)
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
@@ -150,20 +150,21 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         x = encoder_outputs[0]
 
-        # MAX LOOKING AT THIS
-        # reshape x so that the second dimension corresponds to the original
-        # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(
             0, 2, 1, 3
         )  # shape (batch_size, 5, seq_length, hidden_size)
 
         _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
+
+        _s = torch.cat([_s, _r], axis=2) # shape (batch_size, seq_length, 2 * hidden_size)
+        _a = torch.cat([_a, _r], axis=2)
+
         if self.use_feedback:
-            _s = torch.cat([_s, _f], axis=2)
+            _s = torch.cat([_s, _f], axis=2) # shape (batch_size, seq_length, 3 * hidden_size)
             _a = torch.cat([_a, _f], axis=2)
 
         if self.use_missions:
-            _s = torch.cat([_s, _m], axis=2)
+            _s = torch.cat([_s, _m], axis=2) # shape (batch_size, seq_length, 4 * hidden_size)
             _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
