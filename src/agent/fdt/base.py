@@ -105,20 +105,18 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
-        stacked_inputs = (
-            torch.stack(
-                (
-                    returns_embeddings,
-                    state_embeddings,
-                    action_embeddings,
-                    feedback_embeddings,
-                    mission_embeddings,
-                ),
-                dim=1,
-            )
-            # MAX LOOKING AT THIS
-            .permute(0, 2, 1, 3).reshape(batch_size, 5 * seq_length, self.hidden_size)
-        )
+        stacked_inputs = torch.stack(
+            (
+                mission_embeddings,
+                returns_embeddings,
+                feedback_embeddings,
+                state_embeddings,
+                action_embeddings,
+            ),
+            dim=1,
+        ) # shape (batch_size, 5, seq_length, 128)
+        stacked_inputs = stacked_inputs.permute(0, 2, 1, 3) # shape (batch_size, seq_length, 5, 128)
+        stacked_inputs = stacked_inputs.reshape(batch_size, 5 * seq_length, self.hidden_size) # shape (batch_size, 5 * seq_length, 128)
         stacked_inputs = self.embed_ln(stacked_inputs)
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
@@ -159,7 +157,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
             0, 2, 1, 3
         )  # shape (batch_size, 5, seq_length, hidden_size)
 
-        _s, _a, _f, _m = x[:, 1], x[:, 2], x[:, 3], x[:, 4]
+        _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
         if self.use_feedback:
             _s = torch.cat([_s, _f], axis=2)
             _a = torch.cat([_a, _f], axis=2)
