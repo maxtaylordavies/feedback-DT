@@ -258,4 +258,10 @@ def get_args():
         default=0.02,
         help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
+    parser.add_argument(
+        "--use_rtg",
+        type=bool,
+        default=False,
+        help="whether or not to condition on the RTG",
+    )
     return vars(parser.parse_args())

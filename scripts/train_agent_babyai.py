@@ -91,7 +91,10 @@ agent = MinigridFDTAgent(
         act_dim=collator.act_dim,
         state_shape=(3, frame_size, frame_size),
         max_length=args["context_length"],
-    )
+    ),
+    use_missions=args["use_mission"],
+    use_feedback=args["use_feedback"],
+    use_rtg=args["use_rtg"],
 )
 
 log("creating trainer...")
