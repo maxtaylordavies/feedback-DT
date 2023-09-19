@@ -184,13 +184,11 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
     def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
         act_dim = output.action_preds.shape[2]
-        action_preds = output.action_preds.reshape(-1, act_dim)[
-            input.attention_mask.reshape(-1) > 0
-        ]
-        action_targets = input.actions.reshape(-1, act_dim)[
-            input.attention_mask.reshape(-1) > 0
-        ]
-        action_targets = torch.argmax(action_targets, dim=1)
+
+        action_preds = output.action_preds.reshape(-1, act_dim)
+
+        action_targets = input.actions.reshape(-1, act_dim)
+        action_targets = torch.argmax(action_targets, dim=-1).reshape(-1)
 
         criterion = CrossEntropyLoss()
         loss = criterion(action_preds, action_targets)
