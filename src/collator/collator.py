@@ -196,7 +196,7 @@ class Collator:
                     v = self.embed_sentences(self._pad(v, val=""), type=k)
                     k += "_embeddings"
                 else:  # handle all other data - pad with zeros
-                    v = self._pad(v)
+                    v = self._pad(v, val=-100) if k == "actions" else self._pad(v)
                 batch[k].append(v)
 
         # convert batch to (concatenated) tensors
