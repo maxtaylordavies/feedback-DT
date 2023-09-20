@@ -158,7 +158,7 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _determine_eps_per_shard(self):
-        eps_per_shard = 128 if self.max_steps < 128 else self.args["eps_per_shard"]
+        eps_per_shard = 128 if self.args["policy"] == "random" or self.max_steps < 128 else self.args["eps_per_shard"]
         self.eps_per_shard = eps_per_shard
 
     def _initialise_buffers(self, num_buffers, obs_shape):
@@ -595,7 +595,7 @@ class CustomDataset:
         return (
             self.num_shards * self.eps_per_shard
             if self.args["use_full_ep"]
-            else self.args["num_samples"]
+            else self.args["num_samples"] if self.args["num_samples"] else self.args["num_steps"]
         )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----

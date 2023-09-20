@@ -13,7 +13,7 @@ def get_args():
     parser.add_argument(
         "--num_steps",
         type=int,
-        default=5 * 10**6,
+        default=128000,
         help="the number of episodes to collect for the environment",
     )
     parser.add_argument(
@@ -55,7 +55,7 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=16,
+        default=32,
         help="context length in timesteps",
     )
     parser.add_argument("--randomise_starts", type=bool, default=False)
@@ -165,7 +165,7 @@ def get_args():
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=128,
+        default=512,
         help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
     )
     parser.add_argument(
@@ -201,7 +201,7 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=10,
+        default=64,
         help="the number of episodes to collect per dataset shard",
     )
     parser.add_argument(
@@ -219,8 +219,8 @@ def get_args():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=1280,
-        help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples",
+        default=0,
+        help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples.",
     )
     parser.add_argument(
         "--model_seed",
