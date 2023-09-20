@@ -158,7 +158,7 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _determine_eps_per_shard(self):
-        eps_per_shard = 100 if self.max_steps < 128 else self.args["eps_per_shard"]
+        eps_per_shard = 128 if self.max_steps < 128 else self.args["eps_per_shard"]
         self.eps_per_shard = eps_per_shard
 
     def _initialise_buffers(self, num_buffers, obs_shape):

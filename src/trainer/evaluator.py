@@ -135,17 +135,6 @@ class Evaluator(TrainerCallback):
         log("on_epoch_begin called", with_tqdm=True)
         return super().on_epoch_begin(args, state, control, **kwargs)
 
-    # def on_epoch_end(
-    #     self,
-    #     args: TrainingArguments,
-    #     state: TrainerState,
-    #     control: TrainerControl,
-    #     model: Agent,
-    #     **kwargs,
-    # ):
-    #     log(f"saving model checkpoint after epoch {state.epoch}", with_tqdm=True)
-    #     model.save_checkpoint(self.output_dir, state.epoch)
-
     def on_step_begin(
         self,
         args: TrainingArguments,

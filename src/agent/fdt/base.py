@@ -2,10 +2,12 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
+from torch.nn import CrossEntropyLoss
 from transformers import DecisionTransformerModel
 from transformers.utils import ModelOutput
 
-from src.agent import Agent, AgentInput
+from src.agent import Agent
+from src.agent import AgentInput
 from src.utils.utils import to_one_hot
 
 
@@ -45,14 +47,17 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True, use_missions=True):
+    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False, override_use_rtg=False):
         DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
 
         self.use_feedback = use_feedback
         self.use_missions = use_missions
-        x = 1 + int(self.use_feedback) + int(self.use_missions)
+        self.override_use_rtg = override_use_rtg
+        self.use_rtg = use_rtg or (not self.use_feedback and not self.use_missions and not self.override_use_rtg)
+        x = 1 + int(self.use_rtg) + int(self.use_feedback) + int(self.use_missions)
+
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
@@ -103,20 +108,18 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # this makes the sequence look like (R_1, s_1, a_1, f_1, R_2, s_2, a_2, f_2 ...)
         # which works nice in an autoregressive sense since states predict actions
-        stacked_inputs = (
-            torch.stack(
-                (
-                    returns_embeddings,
-                    state_embeddings,
-                    action_embeddings,
-                    feedback_embeddings,
-                    mission_embeddings,
-                ),
-                dim=1,
-            )
-            # MAX LOOKING AT THIS
-            .permute(0, 2, 1, 3).reshape(batch_size, 5 * seq_length, self.hidden_size)
-        )
+        stacked_inputs = torch.stack(
+            (
+                mission_embeddings,
+                returns_embeddings,
+                feedback_embeddings,
+                state_embeddings,
+                action_embeddings,
+            ),
+            dim=1,
+        ) # shape (batch_size, 5, seq_length, 128)
+        stacked_inputs = stacked_inputs.permute(0, 2, 1, 3) # shape (batch_size, seq_length, 5, 128)
+        stacked_inputs = stacked_inputs.reshape(batch_size, 5 * seq_length, self.hidden_size) # shape (batch_size, 5 * seq_length, 128)
         stacked_inputs = self.embed_ln(stacked_inputs)
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
@@ -150,20 +153,22 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         x = encoder_outputs[0]
 
-        # MAX LOOKING AT THIS
-        # reshape x so that the second dimension corresponds to the original
-        # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(
             0, 2, 1, 3
         )  # shape (batch_size, 5, seq_length, hidden_size)
 
-        _s, _a, _f, _m = x[:, 1], x[:, 2], x[:, 3], x[:, 4]
+        _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
+
+        if self.use_rtg:
+            _s = torch.cat([_s, _r], axis=2) # shape (batch_size, seq_length, 2 * hidden_size)
+            _a = torch.cat([_a, _r], axis=2)
+
         if self.use_feedback:
-            _s = torch.cat([_s, _f], axis=2)
+            _s = torch.cat([_s, _f], axis=2) # shape (batch_size, seq_length, 3 * hidden_size)
             _a = torch.cat([_a, _f], axis=2)
 
         if self.use_missions:
-            _s = torch.cat([_s, _m], axis=2)
+            _s = torch.cat([_s, _m], axis=2) # shape (batch_size, seq_length, 4 * hidden_size)
             _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
@@ -182,20 +187,72 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
     def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
         act_dim = output.action_preds.shape[2]
-        action_preds = output.action_preds.reshape(-1, act_dim)[
-            input.attention_mask.reshape(-1) > 0
-        ]
-        action_targets = input.actions.reshape(-1, act_dim)[
-            input.attention_mask.reshape(-1) > 0
-        ]
+        # bacth_size = output.action_preds.shape[0]
+        # seq_length = output.action_preds.shape[1]
 
-        preds, targets = torch.argmax(action_preds, dim=1), torch.argmax(
-            action_targets, dim=1
-        )
-        # acc = torch.mean((preds == targets).float())
-        # log(f"train acc: {acc}", with_tqdm=True)
+        action_preds = output.action_preds.reshape(-1, act_dim)
 
-        return torch.mean((action_preds - action_targets) ** 2)
+        action_targets = input.actions.reshape(-1, act_dim)
+        action_targets = torch.argmax(action_targets, dim=-1).reshape(-1)
+
+        criterion = CrossEntropyLoss()
+        loss = criterion(action_preds, action_targets)
+        return loss
+
+        # criterion = CrossEntropyLoss(reduce=False)
+        # losses = criterion(action_preds, action_targets)
+        # losses = losses.reshape(bacth_size, seq_length)
+        # loss = self._custom_masked_mean_loss(losses, input.attention_mask)
+        # return loss
+
+        # loss2 = self._masked_mean(losses, input.attention_mask.bool() , dim=-1).mean()
+        # return loss2
+
+    def _custom_masked_mean_loss(self, losses, mask):
+        mean_episode_losses = torch.zeros(losses.shape[0], device=losses.device)
+        for i, episode_losses in enumerate(losses):
+            episode_losses = episode_losses[mask[i] > 0]
+            mean_episode_loss = torch.mean(episode_losses)
+            mean_episode_losses[i] = mean_episode_loss
+        return torch.mean(mean_episode_losses)
+
+    def _masked_mean(
+        self, vector: torch.Tensor, mask: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
+        """To calculate mean along certain dimensions on masked values.
+
+        Implementation from AllenNLP: https://github.com/allenai/allennlp/blob/39c40fe38cd2fd36b3465b0b3c031f54ec824160/allennlp/nn/util.py#L351-L377
+        Args:
+            vector (torch.Tensor): The vector to calculate mean.
+            mask (torch.Tensor): The mask of the vector. It must be broadcastable with vector.
+            dim (int): The dimension to calculate mean
+            keepdim (bool): Whether to keep dimension
+        Returns:
+            (torch.Tensor): Masked mean tensor
+        """
+        replaced_vector = vector.masked_fill(~mask, 0.0)  # noqa: WPS358
+
+        value_sum = torch.sum(replaced_vector, dim=dim, keepdim=keepdim)
+        value_count = torch.sum(mask, dim=dim, keepdim=keepdim)
+        return value_sum / value_count.float().clamp(min=self._tiny_value_of_dtype(torch.float))
+
+    def _tiny_value_of_dtype(self, dtype: torch.dtype):
+        """
+        Returns a moderately tiny value for a given PyTorch data type that is used to avoid numerical
+        issues such as division by zero.
+
+        Implementation from AllenNLP: https://github.com/allenai/allennlp/blob/main/allennlp/nn/util.py#L2094C22-L2094C22
+
+        This is different from `info_value_of_dtype(dtype).tiny` because it causes some NaN bugs.
+        Only supports floating point dtypes.
+        """
+        if not dtype.is_floating_point:
+            raise TypeError("Only supports floating point dtypes.")
+        if dtype == torch.float or dtype == torch.double:
+            return 1e-13
+        elif dtype == torch.half:
+            return 1e-4
+        else:
+            raise TypeError("Does not support dtype " + str(dtype))
 
     # function that gets an action from the model using autoregressive prediction
     def get_action(
