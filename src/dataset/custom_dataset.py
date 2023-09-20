@@ -554,9 +554,15 @@ class CustomDataset:
                 avg_ep_return
                 > self._ppo_best_return + self.args["ppo_early_stopping_threshold"]
             ):
+                log(f"new best avg ppo return: {avg_ep_return}", with_tqdm=True)
                 self._ppo_best_return = avg_ep_return
+                self._ppo_early_stop_count = 0
             else:
                 self._ppo_early_stop_count += 1
+                log(
+                    f"incremented early stop count to {self._ppo_early_stop_count}",
+                    with_tqdm=True,
+                )
 
             if self._ppo_early_stop_count >= self.args["ppo_early_stopping_patience"]:
                 log("early stopping PPO training", with_tqdm=True)
