@@ -14,7 +14,7 @@ def get_args():
         "--num_steps",
         type=int,
         default=128000,
-        help="the number of episodes to collect for the environment",
+        help="the number of episodes to collect for the environment - should be 1000 * max steps for single-room tasks, and 10000 * max steps for multi-room tasks",
     )
     parser.add_argument(
         "--policy",
@@ -157,12 +157,6 @@ def get_args():
         help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum_default', 'curriculum_custom', or 'anti_curriculum",
     )
     parser.add_argument(
-        "--use_pretrained",
-        type=bool,
-        default=True,
-        help="whether to use the pretrained GPT-2 model",
-    )
-    parser.add_argument(
         "--sample_interval",
         type=int,
         default=512,
@@ -201,8 +195,8 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=64,
-        help="the number of episodes to collect per dataset shard",
+        default=16,
+        help="the number of episodes to collect per dataset shard. this will be 128 for simple tasks.",
     )
     parser.add_argument(
         "--use_full_ep",
@@ -238,7 +232,7 @@ def get_args():
         "--early_stopping_patience",
         type=int,
         default=20,
-        help="how many steps to wait for improvements in the evaluation metric before stopping training",
+        help="how many steps to wait for improvements in the evaluation metric before stopping training, should be twice as long for multi-room tasks, and incerase/decrease proportional to sample interval if this is not the default (default 20 -> 512)",
     )
     parser.add_argument(
         "--early_stopping_threshold",
@@ -263,5 +257,11 @@ def get_args():
         type=bool,
         default=False,
         help="whether or not to condition on the RTG",
+    )
+    parser.add_argument(
+        "--override_use_rtg",
+        type=bool,
+        default=False,
+        help="can be used in combination with use_rtg False to force conditioning on neither language nor RTG",
     )
     return vars(parser.parse_args())

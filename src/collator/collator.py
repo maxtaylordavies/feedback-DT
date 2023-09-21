@@ -22,7 +22,7 @@ class Collator:
         scale=1,
         gamma=0.99,
         embedding_dim=128,
-        randomise_starts=True,
+        randomise_starts=False,
         full=False,
         episode_dist="uniform",
     ) -> None:
@@ -32,23 +32,20 @@ class Collator:
             self.scale,
             self.gamma,
             self.embedding_dim,
-            self.randomise_starts,
-            self.full,
-            self.episode_dist,
         ) = (
             custom_dataset,
             args,
             scale,
             gamma,
             embedding_dim,
-            randomise_starts,
-            full,
-            episode_dist,
         )
         self.feedback = self.args["use_feedback"]
         self.mission = self.args["use_mission"]
         self.context_length = self.args["context_length"]
         self.batch_size = self.args["batch_size"]
+        self.randomise_starts = self.args["randomise_starts"]
+        self.full=self.args["use_full_ep"],
+        self.episode_dist=self.args["ep_dist"],
         self.sentence_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )

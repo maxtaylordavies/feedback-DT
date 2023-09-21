@@ -77,8 +77,6 @@ else:
     log("Creating standard single-task collator...")
     collator = Collator(
         custom_dataset=dataset,
-        full=args["use_full_ep"],
-        episode_dist=args["ep_dist"],
         args=args,
     )
 
@@ -95,6 +93,7 @@ agent = MinigridFDTAgent(
     use_missions=args["use_mission"],
     use_feedback=args["use_feedback"],
     use_rtg=args["use_rtg"],
+    override_use_rtg=args["override_use_rtg"],
 )
 
 log("creating trainer...")

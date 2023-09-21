@@ -158,7 +158,7 @@ class CustomDataset:
         return min(global_max_steps, step_ceiling)
 
     def _determine_eps_per_shard(self):
-        eps_per_shard = 128 if self.args["policy"] == "random" or self.max_steps < 128 else self.args["eps_per_shard"]
+        eps_per_shard = 128 if self.max_steps < 128 else self.args["eps_per_shard"]
         self.eps_per_shard = eps_per_shard
 
     def _initialise_buffers(self, num_buffers, obs_shape):
@@ -422,22 +422,32 @@ class CustomDataset:
         )
 
     def sample_episode(
-        self, ep_idx, gamma, length=None, random_start=True, feedback=True, mission=True
+        self, ep_idx, gamma, length=None, random_start=False, feedback=True, mission=True
     ):
         if not self.shard:
             raise Exception("No shard loaded")
 
         # optionally sample a random start timestep for this episode
-        start = self.episode_starts[ep_idx]
         if random_start and length:
-            start += (
+            start = self.episode_starts[ep_idx] + (
                 np.random.randint(0, self.episode_lengths[ep_idx] - 1)
                 if self.episode_lengths[ep_idx] > 1
                 else 0
             )
 
-        tmp = start + length - 1 if length else self.episode_ends[ep_idx]
-        end = min(tmp, self.episode_ends[ep_idx]) + 1
+            tmp = start + length - 1
+            end = min(tmp, self.episode_ends[ep_idx])
+        else:
+            end = self.episode_ends[ep_idx]
+            tpm = end - length + 1 if length else self.episode_starts[ep_idx]
+            start = max(tpm, self.episode_starts[ep_idx])
+
+        assert start <= end, f"start: {start}, end: {end}"
+
+        if length:
+            assert end <= start + length - 1, f"end: {end}, start: {start}, length: {length}"
+        # for slicing purposes, so that we include the end step too
+        end += 1
 
         s = self.shard.observations[start:end]
         s = normalise(s).reshape(1, -1, self.state_dim)
@@ -594,8 +604,6 @@ class CustomDataset:
     def __len__(self):
         return (
             self.num_shards * self.eps_per_shard
-            if self.args["use_full_ep"]
-            else self.args["num_samples"] if self.args["num_samples"] else self.args["num_steps"]
         )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----
