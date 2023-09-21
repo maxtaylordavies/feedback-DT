@@ -195,7 +195,7 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=16,
+        default=8,
         help="the number of episodes to collect per dataset shard. this will be 128 for simple tasks.",
     )
     parser.add_argument(
