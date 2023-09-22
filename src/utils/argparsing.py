@@ -264,4 +264,16 @@ def get_args():
         default=128,
         help="how many training seeds to generate episodes from. use with policy random",
     )
+    parser.add_argument(
+        "--mission_at_inference",
+        type=str,
+        default="random",
+        help="representation to use for mission at inference time",
+    )
+    parser.add_argument(
+        "--feedback_at_inference",
+        type=str,
+        default="random",
+        help="representation to use for feedback at inference time",
+    )
     return vars(parser.parse_args())

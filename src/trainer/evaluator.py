@@ -64,25 +64,25 @@ class Evaluator(TrainerCallback):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        # initialise a dict to store the evaluation results
         self._init_results()
 
-        # # create default missing feedback embeddings
-        # self.feedback_embeddings = self.collator.embed_feedback(
-        #     np.array(["No feedback available."] * user_args["context_length"])
-        # ).to(self.device)
+        self.const_feedback_embeddings = (
+            self.collator.embed_feedback(np.array(["No feedback available."] * user_args["context_length"]))
+            .to(self.device)
+        )
 
-        # # create default missing mission embeddings
-        # self.mission_embeddings = self.collator.embed_missions(
-        #     np.array(["No mission available."] * user_args["context_length"])
-        # ).to(self.device)
+        self.const_mission_embeddings = (
+            self.collator.embed_missions(np.array(["No mission available."] * user_args["context_length"]))
+            .to(self.device)
+        )
 
-        self.feedback_embeddings = (
+        self.rand_feedback_embeddings = (
             torch.from_numpy(np.random.rand(1, self.user_args["context_length"], 128))
             .float()
             .to(self.device)
         )
-        self.mission_embeddings = (
+
+        self.rand_mission_embeddings = (
             torch.from_numpy(np.random.rand(1, self.user_args["context_length"], 128))
             .float()
             .to(self.device)
@@ -491,8 +491,25 @@ class Evaluator(TrainerCallback):
                 .to(device=self.device, dtype=torch.float32)
             )
 
+        def get_mission_embeddings(obs):
+            if self.user_args["mission_at_inference"] == "mission":
+                return self.collator.embed_missions(np.array([obs["mission"]] * self.user_args["context_length"])).to(self.device)
+            if self.user_args["mission_at_inference"] == "constant":
+                return self.const_mission_embeddings
+            return self.rand_mission_embeddings
+
+        def get_feedback_embeddings():
+            if self.user_args["feedback_at_inference"] == "feedback":
+                return NotImplementedError("Feedback at inference not implemented yet.")
+            if self.user_args["feedback_at_inference"] == "constant":
+                return self.const_feedback_embeddings
+            return self.rand_feedback_embeddings
+
         max_ep_len = env.max_steps
         obs, _ = env.reset(seed=seed)
+
+        mission_embeddings = get_mission_embeddings(obs)
+        feedback_embeddings = get_feedback_embeddings()
 
         states = get_state(obs)
         actions = torch.zeros(
@@ -517,13 +534,13 @@ class Evaluator(TrainerCallback):
 
             actions[-1] = agent.get_action(
                 AgentInput(
-                    mission_embeddings=self.mission_embeddings[:, : t + 1, :],
+                    mission_embeddings=mission_embeddings[:, : t + 1, :],
                     states=states,
                     actions=actions,
                     rewards=rewards,
                     returns_to_go=returns_to_go,
                     timesteps=timesteps,
-                    feedback_embeddings=self.feedback_embeddings[:, : t + 1, :],
+                    feedback_embeddings=feedback_embeddings[:, : t + 1, :],
                     attention_mask=None,
                 ),
                 context=self.user_args["context_length"],
