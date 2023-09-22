@@ -47,10 +47,12 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False):
+    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False, loss_mean_type="ce_mean"):
         DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
+
+        self.loss_mean_type = loss_mean_type
 
         self.use_feedback = use_feedback
         self.use_missions = use_missions
@@ -186,23 +188,18 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
     def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
         act_dim = output.action_preds.shape[2]
-        # bacth_size = output.action_preds.shape[0]
-        # seq_length = output.action_preds.shape[1]
+        bacth_size = output.action_preds.shape[0]
+        seq_length = output.action_preds.shape[1]
 
         action_preds = output.action_preds.reshape(-1, act_dim)
 
         action_targets = input.actions.reshape(-1, act_dim)
         action_targets = torch.argmax(action_targets, dim=-1).reshape(-1)
 
-        criterion = CrossEntropyLoss()
+        reduce = True if self.loss_mean_type == "ce_mean" else False
+        criterion = CrossEntropyLoss(reduce=reduce)
         loss = criterion(action_preds, action_targets)
-        return loss
-
-        # criterion = CrossEntropyLoss(reduce=False)
-        # losses = criterion(action_preds, action_targets)
-        # losses = losses.reshape(bacth_size, seq_length)
-        # loss = self._custom_masked_mean_loss(losses, input.attention_mask)
-        # return loss
+        return loss if self.loss_mean_type == "ce_mean" else self._custom_masked_mean_loss(loss.reshape(bacth_size, seq_length), input.attention_mask)
 
         # loss2 = self._masked_mean(losses, input.attention_mask.bool() , dim=-1).mean()
         # return loss2
@@ -215,24 +212,24 @@ class FDTAgent(Agent, DecisionTransformerModel):
             mean_episode_losses[i] = mean_episode_loss
         return torch.mean(mean_episode_losses)
 
-    def _masked_mean(
-        self, vector: torch.Tensor, mask: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
-        """To calculate mean along certain dimensions on masked values.
+    # def _masked_mean(
+    #     self, vector: torch.Tensor, mask: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
+    #     """To calculate mean along certain dimensions on masked values.
 
-        Implementation from AllenNLP: https://github.com/allenai/allennlp/blob/39c40fe38cd2fd36b3465b0b3c031f54ec824160/allennlp/nn/util.py#L351-L377
-        Args:
-            vector (torch.Tensor): The vector to calculate mean.
-            mask (torch.Tensor): The mask of the vector. It must be broadcastable with vector.
-            dim (int): The dimension to calculate mean
-            keepdim (bool): Whether to keep dimension
-        Returns:
-            (torch.Tensor): Masked mean tensor
-        """
-        replaced_vector = vector.masked_fill(~mask, 0.0)  # noqa: WPS358
+    #     Implementation from AllenNLP: https://github.com/allenai/allennlp/blob/39c40fe38cd2fd36b3465b0b3c031f54ec824160/allennlp/nn/util.py#L351-L377
+    #     Args:
+    #         vector (torch.Tensor): The vector to calculate mean.
+    #         mask (torch.Tensor): The mask of the vector. It must be broadcastable with vector.
+    #         dim (int): The dimension to calculate mean
+    #         keepdim (bool): Whether to keep dimension
+    #     Returns:
+    #         (torch.Tensor): Masked mean tensor
+    #     """
+    #     replaced_vector = vector.masked_fill(~mask, 0.0)  # noqa: WPS358
 
-        value_sum = torch.sum(replaced_vector, dim=dim, keepdim=keepdim)
-        value_count = torch.sum(mask, dim=dim, keepdim=keepdim)
-        return value_sum / value_count.float().clamp(min=self._tiny_value_of_dtype(torch.float))
+    #     value_sum = torch.sum(replaced_vector, dim=dim, keepdim=keepdim)
+    #     value_count = torch.sum(mask, dim=dim, keepdim=keepdim)
+    #     return value_sum / value_count.float().clamp(min=self._tiny_value_of_dtype(torch.float))
 
     def _tiny_value_of_dtype(self, dtype: torch.dtype):
         """
