@@ -44,7 +44,7 @@ class Evaluator(TrainerCallback):
         self.best_global_step = 0
         self.sample_interval = self.user_args["sample_interval"]
         self.target_return = self.user_args["target_return"]
-        self.num_repeats = self.user_args["num_repeats"]
+        self.num_repeats = min(self.user_args["num_repeats"], self.user_args["num_train_seeds"])
         self.samples_processed = 0
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
         self.best_lengths = {"random": np.inf, "DT": np.inf}
@@ -67,23 +67,23 @@ class Evaluator(TrainerCallback):
         self._init_results()
 
         self.const_feedback_embeddings = (
-            self.collator.embed_feedback(np.array(["No feedback available."] * user_args["context_length"]))
+            self.collator.embed_sentences(np.array(["No feedback available."] * self.collator.dataset.max_steps), "feedback")
             .to(self.device)
         )
 
         self.const_mission_embeddings = (
-            self.collator.embed_missions(np.array(["No mission available."] * user_args["context_length"]))
+            self.collator.embed_sentences(np.array(["No mission available."] * self.collator.dataset.max_steps), "mission")
             .to(self.device)
         )
 
         self.rand_feedback_embeddings = (
-            torch.from_numpy(np.random.rand(1, self.user_args["context_length"], 128))
+            torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
             .float()
             .to(self.device)
         )
 
         self.rand_mission_embeddings = (
-            torch.from_numpy(np.random.rand(1, self.user_args["context_length"], 128))
+            torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
             .float()
             .to(self.device)
         )
@@ -493,7 +493,7 @@ class Evaluator(TrainerCallback):
 
         def get_mission_embeddings(obs):
             if self.user_args["mission_at_inference"] == "mission":
-                return self.collator.embed_missions(np.array([obs["mission"]] * self.user_args["context_length"])).to(self.device)
+                return self.collator.embed_sentences(np.array([obs["mission"]] * self.user_args["context_length"]), "mission").to(self.device)
             if self.user_args["mission_at_inference"] == "constant":
                 return self.const_mission_embeddings
             return self.rand_mission_embeddings
