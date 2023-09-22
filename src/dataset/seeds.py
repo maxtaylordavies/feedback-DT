@@ -827,7 +827,10 @@ class SeedFinder:
         """
         return seed in seed_log["validation_seeds"]
 
-    def get_train_seeds(self, seed_log):
+    def get_train_seeds(self, seed_log, level, num_train_seeds):
+        if seed_log["n_train_seeds"] < num_train_seeds:
+            self.n_train_seeds_required = num_train_seeds
+            self.find_seeds(level)
         ceil = seed_log["last_seed_tested"] + 1
         all_seeds = np.array(range(ceil))
 

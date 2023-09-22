@@ -14,7 +14,7 @@ def get_args():
         "--num_steps",
         type=int,
         default=128000,
-        help="the number of episodes to collect for the environment - should be 1000 * max steps for single-room tasks, and 10000 * max steps for multi-room tasks",
+        help="the number of episodes to collect for the environment. use with policy random",
     )
     parser.add_argument(
         "--policy",
@@ -257,5 +257,17 @@ def get_args():
         type=bool,
         default=True,
         help="whether or not to condition on the RTG",
+    )
+    parser.add_argument(
+        "--eps_per_seed",
+        type=int,
+        default=10,
+        help="how many episodes per seed to generate. use with policy random",
+    )
+    parser.add_argument(
+        "--num_train_seeds",
+        type=int,
+        default=128,
+        help="how many training seeds to generate episodes from. use with policy random",
     )
     return vars(parser.parse_args())
