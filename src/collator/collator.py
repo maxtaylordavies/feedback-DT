@@ -206,8 +206,7 @@ class Collator:
 
         # if we're in training mode, update the sample counter
         if train:
-            # self.samples_processed += self._count_samples_processed(batch)
-            self.samples_processed += batch_size
+            self.samples_processed += self._count_samples_processed(batch)
 
         return batch
 

@@ -603,7 +603,8 @@ class CustomDataset:
 
     def __len__(self):
         return (
-            self.num_shards * self.eps_per_shard
+            self.num_shards * self.eps_per_shard if self.args["use_full_ep"] or self.args["context_length"] == self.max_steps
+            else self.args["num_steps"] // self.args["context_length"]
         )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----

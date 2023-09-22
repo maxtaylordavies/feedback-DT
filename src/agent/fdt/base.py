@@ -47,15 +47,14 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False, override_use_rtg=False):
+    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False):
         DecisionTransformerModel.__init__(self, config)
 
         self.create_state_embedding_model()
 
         self.use_feedback = use_feedback
         self.use_missions = use_missions
-        self.override_use_rtg = override_use_rtg
-        self.use_rtg = use_rtg or (not self.use_feedback and not self.use_missions and not self.override_use_rtg)
+        self.use_rtg = use_rtg
         x = 1 + int(self.use_rtg) + int(self.use_feedback) + int(self.use_missions)
 
 

@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument(
         "--policy",
         type=str,
-        default="ppo",
+        default="random",
         help="the policy to use for training; can be either 'ppo' or 'random'",
     )
     parser.add_argument(
@@ -55,10 +55,10 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=32,
+        default=64,
         help="context length in timesteps",
     )
-    parser.add_argument("--randomise_starts", type=bool, default=False)
+    parser.add_argument("--randomise_starts", type=bool, default=True)
     parser.add_argument(
         "--lr",
         type=float,
@@ -159,7 +159,7 @@ def get_args():
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=512,
+        default=32000,
         help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
     )
     parser.add_argument(
@@ -237,7 +237,7 @@ def get_args():
     parser.add_argument(
         "--early_stopping_threshold",
         type=float,
-        default=0.02,
+        default=0.01,
         help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
     parser.add_argument(
@@ -255,13 +255,7 @@ def get_args():
     parser.add_argument(
         "--use_rtg",
         type=bool,
-        default=False,
+        default=True,
         help="whether or not to condition on the RTG",
-    )
-    parser.add_argument(
-        "--override_use_rtg",
-        type=bool,
-        default=False,
-        help="can be used in combination with use_rtg False to force conditioning on neither language nor RTG",
     )
     return vars(parser.parse_args())
