@@ -35,6 +35,8 @@ class CustomDataset:
         self.total_episodes = 0
         self.seed_finder = SeedFinder()
         self.level = self.args["level"]
+        self.num_train_seeds = self.args["num_train_seeds"]
+        self.eps_per_seed = self.args["eps_per_seed"]
         self.category = self._get_category()
         self.train_config, self.test_configs = self._get_configs()
         self.train_seeds = self._get_train_seeds()
@@ -112,9 +114,9 @@ class CustomDataset:
 
     def _get_train_seeds(self):
         # choose random subset of train seeds for the train config
-        seed_log = self.seed_finder.load_seeds(self.args["level"], self.train_config)
-        train_seeds = self.seed_finder.get_train_seeds(seed_log)
-        return [int(s) for s in np.random.choice(train_seeds, size=128)]
+        seed_log = self.seed_finder.load_seeds(self.level, self.train_config)
+        train_seeds = self.seed_finder.get_train_seeds(seed_log, self.level, self.num_train_seeds)
+        return [int(s) for s in np.random.choice(train_seeds, size=self.num_train_seeds)]
 
     def _get_level_max_steps(self):
         """
@@ -330,17 +332,17 @@ class CustomDataset:
             os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
-        pbar = tqdm(total=self.args["num_steps"], desc="Generating dataset")
 
-        log(f"num train seeds: {len(self.train_seeds)}", with_tqdm=True)
+        total_episodes = self.num_train_seeds * self.eps_per_seed
+        pbar = tqdm(total=total_episodes, desc="Generating dataset")
 
         current_episode, done = 0, False
         while not done:
             for seed in self.train_seeds:
-                done = self.total_steps >= self.args["num_steps"]
+                done = current_episode >= total_episodes
 
                 # start looping through train seeds again
-                if done or seed == self.train_seeds[:-1]:
+                if done:
                     break
 
                 # create and initialise environment
@@ -370,15 +372,19 @@ class CustomDataset:
                 # create another episode
                 self._create_episode(seed)
 
-                # if buffer contains 1000 episodes or this is final episode, save data to file and clear buffer
+                current_episode += 1
+
+                # if buffer contains eps_per_shard episodes or this is final episode, save data to file and clear buffer
                 if (self.ep_counts[0] % self.eps_per_shard == 0) or (
-                    self.total_steps >= self.args["num_steps"]
+                    current_episode >= total_episodes
                 ):
                     self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
-                current_episode += 1
                 pbar.update(1)
                 pbar.refresh()
+
+                if seed == self.train_seeds[-1]:
+                    break
 
         if hasattr(self, "env"):
             self.env.close()
@@ -428,7 +434,7 @@ class CustomDataset:
             raise Exception("No shard loaded")
 
         # optionally sample a random start timestep for this episode
-        if random_start and length:
+        if random_start and length and length != self.max_steps:
             start = self.episode_starts[ep_idx] + (
                 np.random.randint(0, self.episode_lengths[ep_idx] - 1)
                 if self.episode_lengths[ep_idx] > 1
@@ -603,8 +609,8 @@ class CustomDataset:
 
     def __len__(self):
         return (
-            self.num_shards * self.eps_per_shard if self.args["use_full_ep"] or self.args["context_length"] == self.max_steps
-            else self.args["num_steps"] // self.args["context_length"]
+            self.num_train_seeds * self.eps_per_seed if self.args["policy"] == "random"
+            else self.num_shards * self.eps_per_shard
         )
 
     # ----- these methods aren't used, but need to be defined for torch dataloaders to work -----

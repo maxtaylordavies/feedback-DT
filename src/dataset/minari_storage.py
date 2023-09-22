@@ -26,15 +26,13 @@ def list_local_datasets():
 
 def name_dataset(args):
     level = f"{args['level']}"
-    size = f"{args['num_steps']}-eps"
+    size = f"n_seeds_{args['num_train_seeds']}_eps-per-seed-{args['eps_per_seed']}"
     return (
         level
-        + "_size"
-        + size
         + "_policy-"
         + args["policy"]
-        + "_feedback-"
-        + args["feedback_mode"]
+        + "_size" if args["policy"] == "random" else ""
+        + size if args["policy"] == "random" else ""
     )
 
 

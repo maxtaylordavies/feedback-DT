@@ -13,7 +13,7 @@ def get_args():
     parser.add_argument(
         "--num_steps",
         type=int,
-        default=128000,
+        default=10**7,
         help="the number of episodes to collect for the environment. use with policy random",
     )
     parser.add_argument(
@@ -172,7 +172,7 @@ def get_args():
         "--num_repeats",
         type=int,
         default=128,
-        help="number of seeds to evaluate over (for validation, this will be 1 / 4)",
+        help="number of seeds to evaluate over",
     )
     parser.add_argument(
         "--custom_order",
@@ -195,8 +195,8 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=8,
-        help="the number of episodes to collect per dataset shard. this will be 128 for simple tasks.",
+        default=10,
+        help="the number of episodes to collect per dataset shard. this will be 100 for simple tasks.",
     )
     parser.add_argument(
         "--use_full_ep",
@@ -209,12 +209,6 @@ def get_args():
         type=str,
         default="inverse_length",
         help="the distribution from which to sample episodes",
-    )
-    parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=0,
-        help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples.",
     )
     parser.add_argument(
         "--model_seed",

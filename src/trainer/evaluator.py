@@ -54,7 +54,8 @@ class Evaluator(TrainerCallback):
             else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
         self.seeds = None
-        self.val_seeds = []
+        self.train_seeds = None
+        self.val_seeds = None
         # create the output directory if it doesn't exist
         self.output_dir = os.path.join(
             self.user_args["output"],
@@ -75,6 +76,7 @@ class Evaluator(TrainerCallback):
         # self.mission_embeddings = self.collator.embed_missions(
         #     np.array(["No mission available."] * user_args["context_length"])
         # ).to(self.device)
+
         self.feedback_embeddings = (
             torch.from_numpy(np.random.rand(1, self.user_args["context_length"], 128))
             .float()
@@ -118,7 +120,8 @@ class Evaluator(TrainerCallback):
         log("on_train_begin called", with_tqdm=True)
 
         # sample some validation seeds for the train config
-        self._set_val_seeds()
+        self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
+        self._set_train_seeds()
 
         # run initial eval (before any training steps)
         self._run_eval_and_plot(model, state, eval_type="efficiency")
@@ -191,16 +194,6 @@ class Evaluator(TrainerCallback):
             f"evaluating {eval_type} (samples: {self.collator.samples_processed}, epoch: {state.epoch}, step: {state.global_step})",
             with_tqdm=True,
         )
-
-        # if isinstance(self.collator, CurriculumCollator) or isinstance(
-        #     self.collator, RoundRobinCollator
-        # ):
-        #     for i, dataset in enumerate(self.collator.datasets):
-        #         if eval_type == "efficiency":
-        #             self._evaluate_efficiency(dataset, agent, self.val_seeds[i])
-        #         else:
-        #             self._evaluate_generalisation(dataset, agent)
-        # else:
         if eval_type == "efficiency":
             self._evaluate_efficiency(self.collator.dataset, agent, state, control)
         elif eval_type == "iid_generalisation":
@@ -221,12 +214,14 @@ class Evaluator(TrainerCallback):
                 dataset,
                 dataset.train_config,
                 "efficiency",
-                {"": dataset.train_seeds},
+                self.train_seeds,
                 state,
                 control,
             )
 
     def _evaluate_iid_generalisation(self, dataset, agent, state: TrainerState):
+        self._set_val_seeds()
+
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(
@@ -235,7 +230,7 @@ class Evaluator(TrainerCallback):
                 dataset,
                 dataset.train_config,
                 "iid_generalisation",
-                self.val_seeds[0],
+                self.val_seeds,
                 state,
             )
 
@@ -263,36 +258,23 @@ class Evaluator(TrainerCallback):
             n_seeds_sampled += n_seeds_to_sample
 
     def _set_val_seeds(self):
-        # if isinstance(self.collator, CurriculumCollator) or isinstance(
-        #     self.collator, RoundRobinCollator
-        # ):
-        #     for dataset in self.collator.datasets:
-        #         self._load_seed_dict(dataset, dataset.train_config)
-        #         self.val_seeds.append(
-        #             self._sample_validation_seeds(n=self.num_repeats // 4)
-        #         )
-        # else:
-        self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
-        self.val_seeds.append(self._sample_validation_seeds(self.num_repeats))
+        val_seeds = self._sample_validation_seeds(self.num_repeats)
+        self.val_seeds = val_seeds
+
+    def _set_train_seeds(self):
+        train_seeds = self.collator.dataset.train_seeds
+        self.train_seeds = {"": train_seeds} if len(train_seeds) <= self.num_repeats else self._sample_train_seeds(train_seeds, self.num_repeats)
 
     def _load_seed_dict(self, dataset, config):
         self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
 
+    def _sample_train_seeds(self, train_seeds, n=1):
+        return {"": np.random.choice(train_seeds, size=n, replace=False)}
+
     def _sample_validation_seeds(self, n=1):
         if self.seeds is None:
             raise Exception("No seeds loaded")
-
-        # to conform to the same interface as _sample_test_seeds, i.e. {ood_type: [seeds]}
-        # return {
-        #     "": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)
-        # }
-        return {
-            "": np.random.choice(
-                self.seeds["validation_seeds"],
-                size=n,
-                replace=False,
-            )
-        }
+        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
 
     def _sample_test_seeds(self, n=1):
         if self.seeds is None:
@@ -324,16 +306,6 @@ class Evaluator(TrainerCallback):
         return seeds
 
     def _create_env(self, config, seed):
-        # if "atari" in config:
-        #     game = config.split(":")[1]
-        #     _env = AtariEnv(self.device, game, seed)
-        #     return AtariRecorderEnv(
-        #         _env,
-        #         self.user_args["feedback_mode"],
-        #         self.output_dir,
-        #         filename=f"tmp",
-        #     )
-
         _env = gym.make(config, render_mode="rgb_array")
         env = RecorderEnv(
             _env, self.user_args["feedback_mode"], self.output_dir, filename=f"tmp"
@@ -587,105 +559,6 @@ class Evaluator(TrainerCallback):
         success = done and reward > 0
         gc_sr = goal_conditions_met / goal_conditions
         return np.sum(rewards.detach().cpu().numpy()), t, success, gc_sr
-
-    # def _run_agent_on_atari_env(
-    #     self, agent: Agent, env: AtariRecorderEnv, target_return: float, stack_size=4
-    # ):
-    #     def get_state(frames):
-    #         frames = frames.permute(1, 2, 0)
-    #         return normalise(frames.reshape(1, self.collator.state_dim)).to(
-    #             device=self.device, dtype=torch.float32
-    #         )
-
-    #     max_ep_len = env.max_steps if hasattr(env, "max_steps") else 5000
-
-    #     obs = env.reset(seed=self.user_args["seed"])
-    #     init_s = get_state(obs).detach().cpu().numpy()
-
-    #     _start_idx = 655
-    #     NUM_INITIAL_ACTIONS = 10
-
-    #     # ref_states = normalise(self.collator.observations[_start_idx : _start_idx + NUM_INITIAL_ACTIONS])
-
-    #     # states = get_state(obs)
-    #     states = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     actions = torch.tensor(
-    #         self.collator.actions[_start_idx : _start_idx + NUM_INITIAL_ACTIONS],
-    #         device=self.device,
-    #     )
-    #     rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     returns_to_go = torch.zeros(0, device=self.device, dtype=torch.float32)
-    #     timesteps = torch.zeros(0, device=self.device, dtype=torch.long)
-
-    #     # execute set of initial actions to get going
-    #     a_idxs = []
-    #     for i, a in enumerate(actions):
-    #         a_idx = np.argmax(a.detach().cpu().numpy())
-    #         a_idxs.append(a_idx)
-
-    #         obs, r, _ = env.step(a_idx)
-    #         s = get_state(obs)
-
-    #         states = torch.cat([states, s], dim=0)
-    #         rewards = torch.cat(
-    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
-    #         )
-
-    #         if i == 0:
-    #             returns_to_go = torch.tensor(
-    #                 target_return, device=self.device, dtype=torch.float32
-    #             ).reshape(1, 1)
-    #         else:
-    #             returns_to_go = torch.cat(
-    #                 [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
-    #             )
-
-    #     for t in range(NUM_INITIAL_ACTIONS, max_ep_len):
-    #         # get action from agent
-    #         a = agent.get_action(
-    #             AgentInput(
-    #                 mission_embeddings=self.mission_embeddings,
-    #                 states=states,
-    #                 actions=actions,
-    #                 rewards=rewards,
-    #                 returns_to_go=returns_to_go,
-    #                 timesteps=timesteps,
-    #                 feedback_embeddings=self.feedback_embeddings,
-    #                 attention_mask=None,
-    #             ),
-    #             context=self.user_args["context_length"],
-    #             one_hot=True,
-    #         )
-
-    #         # take action, get next state and reward
-    #         a_idx = np.argmax(a.detach().cpu().numpy())
-    #         a_idxs.append(a_idx)
-    #         obs, r, done = env.step(a_idx)
-    #         s = get_state(obs)
-
-    #         # update state, reward, return, timestep tensors
-    #         states = torch.cat([states, s], dim=0)
-    #         actions = torch.cat([actions, a.reshape((1, 4))], dim=0)
-    #         rewards = torch.cat(
-    #             [rewards, torch.tensor(r, device=self.device).reshape(1)]
-    #         )
-    #         returns_to_go = torch.cat(
-    #             [returns_to_go, (returns_to_go[0, -1] - r).reshape(1, 1)], dim=1
-    #         )
-
-    #         timesteps = torch.cat(
-    #             [
-    #                 timesteps,
-    #                 torch.ones((1, 1), device=self.device, dtype=torch.long) * t,
-    #             ],
-    #             dim=1,
-    #         )
-
-    #         if done:
-    #             break
-
-    #     # return discounted_cumsum(rewards.detach().cpu().numpy(), self.gamma)[0], t
-    #     return np.sum(rewards.detach().cpu().numpy()), t
 
     def _plot_loss(self, state: TrainerState):
         fig, ax = plt.subplots()
