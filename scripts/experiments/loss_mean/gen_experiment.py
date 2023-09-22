@@ -7,7 +7,7 @@ from datetime import datetime
 # define some paths
 USER = os.environ["USER"]
 PROJECT_HOME = f"/scratch/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "random_start_or_from_end"
+EXPERIMENT_NAME = "loss_mean"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 
@@ -33,7 +33,10 @@ variables = {
     "level": [
         "PutNextLocal"
     ],
-    "randomise_start": [True, False]
+    "loss_mean_type": [
+        "ce_mean", 
+        "custom_masked"
+    ]
 }
 
 combinations = list(itertools.product(*variables.values()))
