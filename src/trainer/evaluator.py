@@ -66,23 +66,23 @@ class Evaluator(TrainerCallback):
 
         self._init_results()
 
-        self.const_feedback_embeddings = (
+        self.str_feedback_embeddings = (
             self.collator.embed_sentences(np.array(["No feedback available."] * self.collator.dataset.max_steps), "feedback")
             .to(self.device)
         )
 
-        self.const_mission_embeddings = (
+        self.str_mission_embeddings = (
             self.collator.embed_sentences(np.array(["No mission available."] * self.collator.dataset.max_steps), "mission")
             .to(self.device)
         )
 
-        self.rand_feedback_embeddings = (
+        self.int_feedback_embeddings = (
             torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
             .float()
             .to(self.device)
         )
 
-        self.rand_mission_embeddings = (
+        self.int_mission_embeddings = (
             torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
             .float()
             .to(self.device)
@@ -492,18 +492,18 @@ class Evaluator(TrainerCallback):
             )
 
         def get_mission_embeddings(obs):
-            if self.user_args["mission_at_inference"] == "mission":
+            if self.user_args["mission_at_inference"] == "actual":
                 return self.collator.embed_sentences(np.array([obs["mission"]] * self.user_args["context_length"]), "mission").to(self.device)
-            if self.user_args["mission_at_inference"] == "constant":
-                return self.const_mission_embeddings
-            return self.rand_mission_embeddings
+            if self.user_args["mission_at_inference"] == "str_constant":
+                return self.str_mission_embeddings
+            return self.int_mission_embeddings
 
         def get_feedback_embeddings():
-            if self.user_args["feedback_at_inference"] == "feedback":
+            if self.user_args["feedback_at_inference"] == "actual":
                 return NotImplementedError("Feedback at inference not implemented yet.")
-            if self.user_args["feedback_at_inference"] == "constant":
-                return self.const_feedback_embeddings
-            return self.rand_feedback_embeddings
+            if self.user_args["feedback_at_inference"] == "str_constant":
+                return self.str_feedback_embeddings
+            return self.int_feedback_embeddings
 
         max_ep_len = env.max_steps
         obs, _ = env.reset(seed=seed)

@@ -604,7 +604,7 @@ class RandomFeedback:
         str
             The random feedback.
         """
-        if self.random_type == "random":
+        if self.random_type == "english":
             generator = DocumentGenerator()
             babyai_words = (
                 OBJ_TYPES

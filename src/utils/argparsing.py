@@ -142,7 +142,7 @@ def get_args():
         "--feedback_mode",
         type=str,
         default="all",
-        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'random', 'random_lorem_ipsum, or 'numerical_reward'",
+        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'numerical_reward' or 'random'",
     )
     parser.add_argument(
         "--level",
@@ -267,13 +267,25 @@ def get_args():
     parser.add_argument(
         "--mission_at_inference",
         type=str,
-        default="random",
-        help="representation to use for mission at inference time",
+        default="int_constant",
+        help="representation to use for mission at inference time; can be either 'int_constant', 'str_constant' or 'actual'",
     )
     parser.add_argument(
         "--feedback_at_inference",
         type=str,
-        default="random",
-        help="representation to use for feedback at inference time",
+        default="int_constant",
+        help="representation to use for feedback at inference time; can be either 'int_constant' or 'str_constant'",
+    )
+    parser.add_argument(
+        "--mission_mode",
+        type=str,
+        default="standard",
+        help="which type of feedback to use during training; can be either 'standard' or 'random'",
+    )
+    parser.add_argument(
+        "--random_mode",
+        type=str,
+        default="english",
+        help="which type of feedback to use during training; can be either 'english' or 'lorem_ipsum'",
     )
     return vars(parser.parse_args())
