@@ -24,7 +24,10 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
-# args["output"] = OUTPUT_PATH
+
+for arg, value in args.items():
+    print(f"{arg:}\n {value} \n{'==='*20}")
+    
 frame_size = 64 if args["fully_obs"] else 56
 
 args["wandb_mode"] = "disabled"
