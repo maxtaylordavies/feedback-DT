@@ -269,9 +269,11 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
         input.timesteps = input.timesteps.reshape(1, -1)
 
+        input.mission_embeddings = input.mission_embeddings[:, -context:]
         input.states = input.states[:, -context:]
         input.actions = input.actions[:, -context:]
         input.returns_to_go = input.returns_to_go[:, -context:]
+        input.feedback_embeddings = input.feedback_embeddings[:, -context:]
         input.timesteps = input.timesteps[:, -context:]
 
         # pad all tokens to sequence length

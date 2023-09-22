@@ -493,7 +493,7 @@ class Evaluator(TrainerCallback):
 
         def get_mission_embeddings(obs):
             if self.user_args["mission_at_inference"] == "actual":
-                return self.collator.embed_sentences(np.array([obs["mission"]] * self.user_args["context_length"]), "mission").to(self.device)
+                return self.collator.embed_sentences(np.array([obs["mission"]] * self.collator.dataset.max_steps), "mission").to(self.device)
             if self.user_args["mission_at_inference"] == "str_constant":
                 return self.str_mission_embeddings
             return self.int_mission_embeddings
