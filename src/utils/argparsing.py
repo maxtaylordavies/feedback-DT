@@ -288,4 +288,10 @@ def get_args():
         default="english",
         help="which type of feedback to use during training; can be either 'english' or 'lorem_ipsum'",
     )
+    parser.add_argument(
+        "--loss_mean_type",
+        type=str,
+        default="ce_mean",
+        help="how to form the mean loss; can be either 'ce_mean' or 'custom_masked'",
+    )
     return vars(parser.parse_args())
