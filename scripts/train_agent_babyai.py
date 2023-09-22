@@ -93,7 +93,6 @@ agent = MinigridFDTAgent(
     use_missions=args["use_mission"],
     use_feedback=args["use_feedback"],
     use_rtg=args["use_rtg"],
-    override_use_rtg=args["override_use_rtg"],
 )
 
 log("creating trainer...")
