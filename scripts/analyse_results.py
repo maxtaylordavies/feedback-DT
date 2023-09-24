@@ -49,9 +49,13 @@ def get_experiments(output_path, dir):
             except KeyError:
                 pass
             try:
-                df["inference"] = "mission " + df["mission_at_inference"] + "feedback " + df["feedback_at_inference"]
+                df["inference"] = "mission " + df["mission_at_inference"]
             except KeyError:
-                pass
+                try:
+                    "feedback " + df["feedback_at_inference"]
+                except:
+                    print("Can't create col inference")
+                    pass
         dfs.append(df)
     return dfs
 
@@ -103,28 +107,28 @@ PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
 
 # Experiment names should correspond to the folder name
 EXPERIMENT_NAMES = [
-    "random_start_or_from_end", 
-    "num_seeds_vs_eps_per_seed", 
-    "loss_mean", 
-    "ep_distribution",
-    "mission_at_inference",
-    "feebdack_at_inference",
-    "random_feedback",
-    "random_mission",
-    "conditioning"
+    # "random_start_or_from_end", 
+    # "num_seeds_vs_eps_per_seed", 
+    # "loss_mean", 
+    # "ep_distribution",
+    # "mission_at_inference",
+    "feedback_at_inference",
+    # "random_feedback",
+    # "random_mission",
+    # "conditioning"
 ]
 # Params should correspond to existing parameters (as tested), unless they're explicitly defined in the
 # get_experiments function
 PARAMS = {
-    "random_start_or_from_end": ["randomise_start"], 
-    "num_seeds_vs_eps_per_seed": ["eps_per_seed_num_train_seeds", "num_eps"], 
-    "loss_mean": ["loss_mean_type"],
-    "ep_distribution": ["ep_dist"],
-    "mission_at_inference": ["inference"],
+    # "random_start_or_from_end": ["randomise_starts"], 
+    # "num_seeds_vs_eps_per_seed": ["eps_per_seed_num_train_seeds", "num_eps"], 
+    # "loss_mean": ["loss_mean_type"],
+    # "ep_distribution": ["ep_dist"],
+    # "mission_at_inference": ["inference"],
     "feedback_at_inference": ["inference"],
-    "random_feedback": ["conditioning_with_random"],
-    "random_mission": ["conditioning_with_random"],
-    "conditioning": ["conditioning_with_type"],
+    # "random_feedback": ["conditioning_with_random"],
+    # "random_mission": ["conditioning_with_random"],
+    # "conditioning": ["conditioning_with_type"],
 }
 for experiment in EXPERIMENT_NAMES:
     DATA_HOME = f"{PROJECT_HOME}/data/{experiment}"

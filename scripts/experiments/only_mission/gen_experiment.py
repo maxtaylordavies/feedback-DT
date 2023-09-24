@@ -23,7 +23,7 @@ def run_name(combo, keys):
 
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True --use_mission True --use_feedback False --mission_mode random"
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True"
 # --eps_per_shard 4
 
 # define a dictionary of variables to perform a grid search over.
@@ -33,6 +33,15 @@ variables = {
     "level": [
         "PutNextLocal",
         # "GoToObjMaze"
+    ],
+    "use_mission": [
+        True
+    ],
+    "use_feedback": [
+        False
+    ],
+    "mission_mode": [
+        "standard"
     ],
     "use_rtg": [
         True,

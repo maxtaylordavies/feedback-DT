@@ -273,13 +273,13 @@ def get_args():
     parser.add_argument(
         "--mission_at_inference",
         type=str,
-        default="string",
+        default="actual",
         help="representation to use for mission at inference time; can be either 'numerical', 'string' or 'actual'",
     )
     parser.add_argument(
         "--feedback_at_inference",
         type=str,
-        default="string",
+        default="numerical",
         help="representation to use for feedback at inference time; can be either 'numerical' or 'string'",
     )
     parser.add_argument(
