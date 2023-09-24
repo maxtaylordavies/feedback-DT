@@ -47,18 +47,21 @@ class DecisionTransformerOutput(ModelOutput):
 
 
 class FDTAgent(Agent, DecisionTransformerModel):
-    def __init__(self, config, use_feedback=True, use_missions=True, use_rtg=False, loss_mean_type="ce_mean"):
+    def __init__(
+        self,
+        config,
+        use_feedback=True,
+        use_missions=True,
+        use_rtg=False,
+        loss_mean_type="ce_mean",
+    ):
         DecisionTransformerModel.__init__(self, config)
 
-        self.create_state_embedding_model()
-
         self.loss_mean_type = loss_mean_type
-
         self.use_feedback = use_feedback
         self.use_missions = use_missions
         self.use_rtg = use_rtg
         x = 1 + int(self.use_rtg) + int(self.use_feedback) + int(self.use_missions)
-
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
@@ -69,6 +72,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
             )
         )
         self.predict_return = nn.Linear(x * self.hidden_size, 1)
+
+        # create state embedding model
+        self.create_state_embedding_model()
 
     def create_state_embedding_model(self):
         # default to a linear state embedding - override this in child classes
@@ -118,9 +124,13 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 action_embeddings,
             ),
             dim=1,
-        ) # shape (batch_size, 5, seq_length, 128)
-        stacked_inputs = stacked_inputs.permute(0, 2, 1, 3) # shape (batch_size, seq_length, 5, 128)
-        stacked_inputs = stacked_inputs.reshape(batch_size, 5 * seq_length, self.hidden_size) # shape (batch_size, 5 * seq_length, 128)
+        )  # shape (batch_size, 5, seq_length, 128)
+        stacked_inputs = stacked_inputs.permute(
+            0, 2, 1, 3
+        )  # shape (batch_size, seq_length, 5, 128)
+        stacked_inputs = stacked_inputs.reshape(
+            batch_size, 5 * seq_length, self.hidden_size
+        )  # shape (batch_size, 5 * seq_length, 128)
         stacked_inputs = self.embed_ln(stacked_inputs)
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
@@ -161,15 +171,21 @@ class FDTAgent(Agent, DecisionTransformerModel):
         _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
 
         if self.use_rtg:
-            _s = torch.cat([_s, _r], axis=2) # shape (batch_size, seq_length, 2 * hidden_size)
+            _s = torch.cat(
+                [_s, _r], axis=2
+            )  # shape (batch_size, seq_length, 2 * hidden_size)
             _a = torch.cat([_a, _r], axis=2)
 
         if self.use_feedback:
-            _s = torch.cat([_s, _f], axis=2) # shape (batch_size, seq_length, 3 * hidden_size)
+            _s = torch.cat(
+                [_s, _f], axis=2
+            )  # shape (batch_size, seq_length, 3 * hidden_size)
             _a = torch.cat([_a, _f], axis=2)
 
         if self.use_missions:
-            _s = torch.cat([_s, _m], axis=2) # shape (batch_size, seq_length, 4 * hidden_size)
+            _s = torch.cat(
+                [_s, _m], axis=2
+            )  # shape (batch_size, seq_length, 4 * hidden_size)
             _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
@@ -199,7 +215,13 @@ class FDTAgent(Agent, DecisionTransformerModel):
         reduce = True if self.loss_mean_type == "ce_mean" else False
         criterion = CrossEntropyLoss(reduce=reduce)
         loss = criterion(action_preds, action_targets)
-        return loss if self.loss_mean_type == "ce_mean" else self._custom_masked_mean_loss(loss.reshape(bacth_size, seq_length), input.attention_mask)
+        return (
+            loss
+            if self.loss_mean_type == "ce_mean"
+            else self._custom_masked_mean_loss(
+                loss.reshape(bacth_size, seq_length), input.attention_mask
+            )
+        )
 
         # loss2 = self._masked_mean(losses, input.attention_mask.bool() , dim=-1).mean()
         # return loss2
