@@ -5,8 +5,6 @@ from transformers import DecisionTransformerConfig
 
 from src.agent.fdt import MinigridFDTAgent
 from src.collator import Collator
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
 from src.constants import ENV_METADATA_PATH
 from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
@@ -57,31 +55,13 @@ else:
     device = torch.device("mps")
     log("using mps")
 
-if not "single" in args["train_mode"]:
-    log("Creating dataset...with multiple tasks.")
-    dataset = []
-    for level in list(LEVELS_CONFIGS["original_tasks"].keys()):
-        args["level"] = level
-        dataset.append(CustomDataset.get_dataset(args))
-    args["epochs"] = max(args["epochs"], len(dataset) * 2)
-else:
-    log("Creating dataset...with a single task.")
-    dataset = CustomDataset.get_dataset(args)
-
-if "round" in args["train_mode"]:
-    log("Creating round-robin collator...")
-    collator = RoundRobinCollator(custom_dataset=dataset, args=args)
-elif "curriculum" in args["train_mode"]:
-    log(
-        f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
-    )
-    collator = CurriculumCollator(custom_dataset=dataset, args=args)
-else:
-    log("Creating standard single-task collator...")
-    collator = Collator(
-        custom_dataset=dataset,
-        args=args,
-    )
+log("Creating dataset...with a single task.")
+dataset = CustomDataset.get_dataset(args)
+log("Creating standard single-task collator...")
+collator = Collator(
+    custom_dataset=dataset,
+    args=args,
+)
 
 seed(args["model_seed"])
 

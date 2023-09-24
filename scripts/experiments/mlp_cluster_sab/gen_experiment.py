@@ -18,12 +18,12 @@ def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
     combo_strings = "-".join(
         [
-            f"{key}_{value.lower() if isinstance(value, str) else value}"
+            f"{key}_{value.lower() if isinstance(value, str) else value}" if key != "model_seed" else ""
             for key, value in zip(keys, combo)
         ]
     )
-    current_datetime = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    return f"{current_datetime}-{combo_strings}"
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    return f"{current_datetime}-{combo_strings}".rstrip("-")
 
 
 # this is the base command that will be used for the experiment

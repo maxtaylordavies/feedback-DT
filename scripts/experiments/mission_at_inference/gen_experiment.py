@@ -7,9 +7,8 @@ from datetime import datetime
 # define some paths
 USER = os.environ["USER"]
 PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "loss_mean"
+EXPERIMENT_NAME = "mission_at_inference"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
-
 
 def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
@@ -20,7 +19,7 @@ def run_name(combo, keys):
         ]
     )
     current_datetime = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    return f"{current_datetime}-{combo_strings}"
+    return f"{current_datetime}-{combo_strings}".rstrip("-")
 
 
 # this is the base command that will be used for the experiment
@@ -32,11 +31,18 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
-        "PutNextLocal"
+        "PutNextLocal",
+        # "GoToObjMaze"
     ],
-    "loss_mean_type": [
-        "ce_mean", 
-        "custom_masked"
+    "mission_at_inference": [
+        "numerical",
+        "string",
+        "actual"
+    ],
+     "model_seed": [
+        123456789, 
+        987654321, 
+        111111111, 
     ]
 }
 

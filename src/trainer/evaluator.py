@@ -44,7 +44,7 @@ class Evaluator(TrainerCallback):
         self.best_global_step = 0
         self.sample_interval = self.user_args["sample_interval"]
         self.target_return = self.user_args["target_return"]
-        self.num_repeats = min(self.user_args["num_repeats"], self.user_args["num_train_seeds"])
+        self.num_repeats = self.user_args["num_repeats"]
         self.samples_processed = 0
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
         self.best_lengths = {"random": np.inf, "DT": np.inf}
@@ -494,14 +494,14 @@ class Evaluator(TrainerCallback):
         def get_mission_embeddings(obs):
             if self.user_args["mission_at_inference"] == "actual":
                 return self.collator.embed_sentences(np.array([obs["mission"]] * self.collator.dataset.max_steps), "mission").to(self.device)
-            if self.user_args["mission_at_inference"] == "str_constant":
+            if self.user_args["mission_at_inference"] == "string":
                 return self.str_mission_embeddings
             return self.int_mission_embeddings
 
         def get_feedback_embeddings():
             if self.user_args["feedback_at_inference"] == "actual":
                 return NotImplementedError("Feedback at inference not implemented yet.")
-            if self.user_args["feedback_at_inference"] == "str_constant":
+            if self.user_args["feedback_at_inference"] == "string":
                 return self.str_feedback_embeddings
             return self.int_feedback_embeddings
 

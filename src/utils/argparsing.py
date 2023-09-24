@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=10,
+        default=20,
         help="number of epochs to train",
     )
     parser.add_argument(
@@ -142,7 +142,7 @@ def get_args():
         "--feedback_mode",
         type=str,
         default="all",
-        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'numerical_reward' or 'random'",
+        help="which type of feedback to use during training; can be either 'all', 'rule', 'task', 'numerical' or 'random'",
     )
     parser.add_argument(
         "--level",
@@ -153,8 +153,14 @@ def get_args():
     parser.add_argument(
         "--train_mode",
         type=str,
-        default="single_task",
-        help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum_default', 'curriculum_custom', or 'anti_curriculum",
+        default="st",
+        help="the training mode to use; can be either 'st', 'rr', 'mt'",
+    )
+    parser.add_argument(
+        "--curriculum_mode",
+        type=str,
+        default="st",
+        help="the training mode to use; can be either 'default', 'custom', 'anti'",
     )
     parser.add_argument(
         "--sample_interval",
@@ -207,8 +213,8 @@ def get_args():
     parser.add_argument(
         "--ep_dist",
         type=str,
-        default="inverse_length",
-        help="the distribution from which to sample episodes",
+        default="uniform",
+        help="the distribution from which to sample episodes; can be 'uniform', 'inverse', or 'length",
     )
     parser.add_argument(
         "--model_seed",
@@ -231,7 +237,7 @@ def get_args():
     parser.add_argument(
         "--early_stopping_threshold",
         type=float,
-        default=0.01,
+        default=0.001,
         help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
     parser.add_argument(
@@ -267,14 +273,14 @@ def get_args():
     parser.add_argument(
         "--mission_at_inference",
         type=str,
-        default="int_constant",
-        help="representation to use for mission at inference time; can be either 'int_constant', 'str_constant' or 'actual'",
+        default="string",
+        help="representation to use for mission at inference time; can be either 'numerical', 'string' or 'actual'",
     )
     parser.add_argument(
         "--feedback_at_inference",
         type=str,
-        default="int_constant",
-        help="representation to use for feedback at inference time; can be either 'int_constant' or 'str_constant'",
+        default="string",
+        help="representation to use for feedback at inference time; can be either 'numerical' or 'string'",
     )
     parser.add_argument(
         "--mission_mode",
@@ -286,12 +292,12 @@ def get_args():
         "--random_mode",
         type=str,
         default="english",
-        help="which type of feedback to use during training; can be either 'english' or 'lorem_ipsum'",
+        help="which type of feedback to use during training; can be either 'english' or 'lorem'",
     )
     parser.add_argument(
         "--loss_mean_type",
         type=str,
         default="ce_mean",
-        help="how to form the mean loss; can be either 'ce_mean' or 'custom_masked'",
+        help="how to form the mean loss; can be either 'ce' or 'custom'",
     )
     return vars(parser.parse_args())

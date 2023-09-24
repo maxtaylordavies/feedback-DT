@@ -6,25 +6,26 @@ from datetime import datetime
 
 # define some paths
 USER = os.environ["USER"]
-PROJECT_HOME = f"/scratch/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "num_seeds_vs_eps_per_seed"
+PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
+EXPERIMENT_NAME = "num_seeds_vs_eps_per_seed_2"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 
 def run_name(combo, keys):
     """Create a name for the experiment based on the parameters"""
-    combo_strings = "-".join(
+    combo_strings = "_".join(
         [
-            f"{key}_{value.lower() if isinstance(value, str) else value}"
+            f"{key}-{value.lower() if isinstance(value, str) else value}" if key != "model_seed" else ""
             for key, value in zip(keys, combo)
         ]
     )
-    current_datetime = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    return f"{current_datetime}-{combo_strings}"
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    return f"{current_datetime}_{combo_strings}".rstrip("-")
 
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True --eps_per_shard 4"
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True"
+# --eps_per_shard 4
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
@@ -32,7 +33,7 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 variables = {
     "level": [
         "PutNextLocal",
-        # "GoToObjMaze"
+        # "GoToLocal
     ],
     "eps_per_seed": [
         100,

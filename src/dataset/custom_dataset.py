@@ -302,7 +302,7 @@ class CustomDataset:
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
             reward = (
                 float(feedback)
-                if self.args["feedback_mode"] == "numerical_reward"
+                if self.args["feedback_mode"] == "numerical"
                 else reward
             )
 
@@ -414,7 +414,7 @@ class CustomDataset:
         # define a distribution over episodes in current shard
         if dist == "length":
             probs = self.episode_lengths
-        elif dist == "inverse_length":
+        elif dist == "inverse":
             probs = 1 / self.episode_lengths
         else:
             probs = np.ones(self.num_episodes)
@@ -536,7 +536,7 @@ class CustomDataset:
                     # determine reward
                     r = (
                         float(feedback[i, t])
-                        if self.args["feedback_mode"] == "numerical_reward"
+                        if self.args["feedback_mode"] == "numerical"
                         else rewards[i, t]
                     )
 
