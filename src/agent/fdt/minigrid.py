@@ -17,7 +17,7 @@ class MinigridFDTAgent(FDTAgent):
                 nn.Conv2d(3, 32, 4, stride=1, padding=0),
                 nn.ReLU(),
                 nn.Flatten(),
-                nn.Linear(800, self.hidden_size),
+                nn.Linear(512, self.hidden_size),
                 nn.Tanh(),
             )
             return

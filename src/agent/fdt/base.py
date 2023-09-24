@@ -73,6 +73,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         self.predict_return = nn.Linear(x * self.hidden_size, 1)
 
+        # create state embedding model
+        self.create_state_embedding_model()
+
     def create_state_embedding_model(self):
         # default to a linear state embedding - override this in child classes
         self.state_embedding_model = nn.Linear(self.config.state_dim, self.hidden_size)
