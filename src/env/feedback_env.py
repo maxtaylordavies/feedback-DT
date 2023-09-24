@@ -27,14 +27,14 @@ class FeedbackEnv:
     def rule_feedback(self, action):
         return (
             self.rule_fv.verify_feedback(self.env, action)
-            if self.feedback_mode != "task_only"
+            if self.feedback_mode != "task"
             else None
         )
 
     def task_feedback(self, action):
         return (
             self.task_fv.verify_feedback(self.env, action)
-            if self.feedback_mode != "rule_only"
+            if self.feedback_mode != "rule"
             else None
         )
 
@@ -46,16 +46,16 @@ class FeedbackEnv:
         -------
             str: the constant feedback string.
         """
-        if self.feedback_mode == "numerical_reward":
+        if self.feedback_mode == "numerical":
             return "0"
         return "No feedback available."
 
     def get_feedback(self, rule_feedback, task_feedback):
-        if self.feedback_mode == "rule_only":
+        if self.feedback_mode == "rule":
             return rule_feedback
-        if self.feedback_mode == "task_only":
+        if self.feedback_mode == "task":
             return task_feedback
-        if self.feedback_mode == "numerical_reward":
+        if self.feedback_mode == "numerical":
             if task_feedback != "No feedback available.":
                 return "1"
             if rule_feedback != "No feedback available.":

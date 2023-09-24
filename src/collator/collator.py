@@ -22,7 +22,7 @@ class Collator:
         scale=1,
         gamma=0.99,
         embedding_dim=128,
-        randomise_starts=True,
+        randomise_starts=False,
         full=False,
         episode_dist="uniform",
     ) -> None:
@@ -32,23 +32,20 @@ class Collator:
             self.scale,
             self.gamma,
             self.embedding_dim,
-            self.randomise_starts,
-            self.full,
-            self.episode_dist,
         ) = (
             custom_dataset,
             args,
             scale,
             gamma,
             embedding_dim,
-            randomise_starts,
-            full,
-            episode_dist,
         )
         self.feedback = self.args["use_feedback"]
         self.mission = self.args["use_mission"]
         self.context_length = self.args["context_length"]
         self.batch_size = self.args["batch_size"]
+        self.randomise_starts = self.args["randomise_starts"]
+        self.full=self.args["use_full_ep"],
+        self.episode_dist=self.args["ep_dist"],
         self.sentence_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )
@@ -56,26 +53,27 @@ class Collator:
             int(768 / self.embedding_dim)
         )
 
-        null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._feedback_embeddings_cache = {
-            f: null_emb for f in ["", "No feedback available."]
-        }
+        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
+        # self._feedback_embeddings_cache = {
+        #     f: null_emb for f in ["", "No feedback available."]
+        # }
+        self._feedback_embeddings_cache = {}
 
-        null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        self._mission_embeddings_cache = {
-            m: null_emb for m in ["", "No mission available."]
-        }
+        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
+        # self._mission_embeddings_cache = {
+        #     m: null_emb for m in ["", "No mission available."]
+        # }
+        self._mission_embeddings_cache = {}
 
         self.dataset.load_shard()
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
         self.feedback_mode = self.args["feedback_mode"]
+        self.mission_mode = self.args["mission_mode"]
+        self.random_mode = self.args["random_mode"]
 
-        if self.feedback and "random" in self.feedback_mode:
-            random_feedback_generator = RandomFeedback(self.feedback_mode)
-            self.random_feedback_sentences = (
-                random_feedback_generator.get_random_sentences()
-            )
+        random_sentence_generator = RandomFeedback(self.random_mode)
+        self.random_sentences = random_sentence_generator.get_random_sentences()
 
         self.reset_counter()
 
@@ -106,6 +104,10 @@ class Collator:
     def embed_sentences(self, sentences, type):
         if type not in ("feedback", "mission"):
             raise Exception(f"Got unsupported sentence type: {type}")
+        if type == "feedback" and self.feedback_mode == "random":
+            sentences = self._replace_with_random(sentences)
+        if type == "mission" and self.mission_mode == "random":
+            sentences = self._replace_with_random(sentences)
         return self._get_sentence_embeddings(
             self._mission_embeddings_cache
             if type == "mission"
@@ -122,6 +124,7 @@ class Collator:
         )
         pad_shape = [(0, 0)] * len(x.shape)
         pad_shape[1] = (pad_width, 0) if before else (0, pad_width)
+
         return np.pad(x, pad_shape, constant_values=val)
 
     def _count_samples_processed(self, batch):
@@ -129,18 +132,12 @@ class Collator:
         n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
 
-    def _replace_with_random(self, epsiode_feedback):
+    def _replace_with_random(self, sentence):
         def replace_with_random(x):
-            if x == "No feedback available.":
-                return (
-                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
-                    if "lorem" in self.feedback_mode
-                    else x
-                )
-            return random.sample(self.random_feedback_sentences, 1)[0]
+            return random.sample(self.random_sentences, 1)[0]
 
         vfunc = np.vectorize(replace_with_random)
-        new_episode_feedback = vfunc(epsiode_feedback)
+        new_episode_feedback = vfunc(sentence)
 
         return new_episode_feedback
 
@@ -186,14 +183,9 @@ class Collator:
 
             # pad episode data to self.context_length and append to batch
             for k, v in ep.items():
-                if k == "feedback":
-                    if "random" in self.feedback_mode:
-                        v = self._replace_with_random(v)
-                if k in (
-                    "mission",
-                    "feedback",
-                ):  # handle sentence data - pad with empty strings and embed
-                    v = self.embed_sentences(self._pad(v, val=""), type=k)
+                if k in ["feedback", "mission"]:
+                    v = self._pad(v, val=f"No {k} available.")
+                    v = self.embed_sentences(v, type=k)
                     k += "_embeddings"
                 else:  # handle all other data - pad with zeros
                     v = self._pad(v, val=-100) if k == "actions" else self._pad(v)
@@ -209,8 +201,7 @@ class Collator:
 
         # if we're in training mode, update the sample counter
         if train:
-            # self.samples_processed += self._count_samples_processed(batch)
-            self.samples_processed += batch_size
+            self.samples_processed += self._count_samples_processed(batch)
 
         return batch
 

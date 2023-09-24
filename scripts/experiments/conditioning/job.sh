@@ -39,22 +39,24 @@
 # #SBATCH --nodes=1
 
 # Generic resources to use - typically you'll want gpu:n to get n gpus
-# #SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:1
 
 # Megabytes of RAM required. Check `cluster-status` for node configurations
 # #SBATCH --mem=14000
 
 # Number of CPUs to use. Check `cluster-status` for node configurations
-# #SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 
 # Maximum time for the job to run, format: days-hours:minutes:seconds
 # #SBATCH --time=1-04:00:00
 
 # Partition of the cluster to pick nodes from (check `sinfo`)
-# #SBATCH --partition=PGR-Standard
+# # SBATCH --partition=PGR-Standard
 
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
+
+#SBATCH --mem-per-cpu=64G
 
 
 # =====================
@@ -80,60 +82,10 @@ source ~/.bashrc
 # Make script bail out after first error
 set -e
 
-# Make your own folder on the node's scratch disk
-# N.B. disk could be at /disk/scratch_big, or /disk/scratch_fast. Check
-# yourself using an interactive session, or check the docs:
-#     http://computing.help.inf.ed.ac.uk/cluster-computing
-SCRATCH_DISK=/disk/scratch_fast
-SCRATCH_HOME=${SCRATCH_DISK}/${USER}
-mkdir -p ${SCRATCH_HOME}
-
 # Activate your conda environment
-CONDA_ENV_NAME=feedbackdt
-echo "Activating conda environment: ${CONDA_ENV_NAME}"
-conda activate ${CONDA_ENV_NAME}
-
-
-# =================================
-# Move input data to scratch disk
-# =================================
-# Move data from a source location, probably on the distributed filesystem
-# (DFS), to the scratch space on the selected node. Your code should read and
-# write data on the scratch space attached directly to the compute node (i.e.
-# not distributed), *not* the DFS. Writing/reading from the DFS is extremely
-# slow because the data must stay consistent on *all* nodes. This constraint
-# results in much network traffic and waiting time for you!
-#
-# This example assumes you have a folder containing all your input data on the
-# DFS, and it copies all that data  file to the scratch space, and unzips it.
-#
-# For more guidelines about moving files between the distributed filesystem and
-# the scratch space on the nodes, see:
-#     http://computing.help.inf.ed.ac.uk/cluster-tips
-
-echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
-
-PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=feedback-1
-
-# input data directory path on the DFS
-src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
-
-# input data directory path on the scratch disk of the node
-dest_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
-mkdir -p ${dest_path}  # make it if required
-
-# Important notes about rsync:
-# * the --compress option is going to compress the data before transfer to send
-#   as a stream. THIS IS IMPORTANT - transferring many files is very very slow
-# * the final slash at the end of ${src_path}/ is important if you want to send
-#   its contents, rather than the directory itself. For example, without a
-#   final slash here, we would create an extra directory at the destination:
-#       ${SCRATCH_HOME}/project_name/data/input/input
-# * for more about the (endless) rsync options, see the docs:
-#       https://download.samba.org/pub/rsync/rsync.html
-
-rsync --archive --update --compress --progress ${src_path}/ ${dest_path}
+VENV_NAME=.venv
+echo "Activating virtual environment: ${VENV_NAME}"
+source ${VENV_NAME}/bin/activate
 
 # ==============================
 # Finally, run the experiment!
@@ -148,20 +100,6 @@ COMMAND="`sed \"${SLURM_ARRAY_TASK_ID}q;d\" ${experiment_text_file}`"
 echo "Running provided command: ${COMMAND}"
 eval "${COMMAND}"
 echo "Command ran successfully!"
-
-
-# ======================================
-# Move output data from scratch to DFS
-# ======================================
-# This presumes your command wrote data to some known directory. In this
-# example, send it back to the DFS with rsync
-
-echo "Moving output data back to DFS"
-
-src_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
-dest_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
-rsync --archive --update --compress --progress ${src_path}/ ${dest_path}
-
 
 # =========================
 # Post experiment logging

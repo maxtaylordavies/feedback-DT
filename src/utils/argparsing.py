@@ -13,13 +13,13 @@ def get_args():
     parser.add_argument(
         "--num_steps",
         type=int,
-        default=5 * 10**6,
-        help="the number of episodes to collect for the environment",
+        default=10**7,
+        help="the number of episodes to collect for the environment. use with policy random",
     )
     parser.add_argument(
         "--policy",
         type=str,
-        default="ppo",
+        default="random",
         help="the policy to use for training; can be either 'ppo' or 'random'",
     )
     parser.add_argument(
@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=10,
+        default=20,
         help="number of epochs to train",
     )
     parser.add_argument(
@@ -55,10 +55,10 @@ def get_args():
     parser.add_argument(
         "--context_length",
         type=int,
-        default=16,
+        default=64,
         help="context length in timesteps",
     )
-    parser.add_argument("--randomise_starts", type=bool, default=False)
+    parser.add_argument("--randomise_starts", type=bool, default=True)
     parser.add_argument(
         "--lr",
         type=float,
@@ -142,7 +142,7 @@ def get_args():
         "--feedback_mode",
         type=str,
         default="all",
-        help="which type of feedback to use during training; can be either 'all', 'rule_only', 'task_only', 'random', 'random_lorem_ipsum, or 'numerical_reward'",
+        help="which type of feedback to use during training; can be either 'all', 'rule', 'task', 'numerical' or 'random'",
     )
     parser.add_argument(
         "--level",
@@ -153,19 +153,19 @@ def get_args():
     parser.add_argument(
         "--train_mode",
         type=str,
-        default="single_task",
-        help="the training mode to use; can be either 'single_task', 'round_robin', 'curriculum_default', 'curriculum_custom', or 'anti_curriculum",
+        default="st",
+        help="the training mode to use; can be either 'st', 'rr', 'mt'",
     )
     parser.add_argument(
-        "--use_pretrained",
-        type=bool,
-        default=True,
-        help="whether to use the pretrained GPT-2 model",
+        "--curriculum_mode",
+        type=str,
+        default="st",
+        help="the training mode to use; can be either 'default', 'custom', 'anti'",
     )
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=128,
+        default=32000,
         help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
     )
     parser.add_argument(
@@ -178,7 +178,7 @@ def get_args():
         "--num_repeats",
         type=int,
         default=128,
-        help="number of seeds to evaluate over (for validation, this will be 1 / 4)",
+        help="number of seeds to evaluate over",
     )
     parser.add_argument(
         "--custom_order",
@@ -202,7 +202,7 @@ def get_args():
         "--eps_per_shard",
         type=int,
         default=10,
-        help="the number of episodes to collect per dataset shard",
+        help="the number of episodes to collect per dataset shard. this will be 100 for simple tasks.",
     )
     parser.add_argument(
         "--use_full_ep",
@@ -213,14 +213,8 @@ def get_args():
     parser.add_argument(
         "--ep_dist",
         type=str,
-        default="inverse_length",
-        help="the distribution from which to sample episodes",
-    )
-    parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=1280,
-        help="the number of samples - sub-episodes or full episodes - to train on. If 0, will use all available samples",
+        default="uniform",
+        help="the distribution from which to sample episodes; can be 'uniform', 'inverse', or 'length",
     )
     parser.add_argument(
         "--model_seed",
@@ -238,12 +232,12 @@ def get_args():
         "--early_stopping_patience",
         type=int,
         default=20,
-        help="how many steps to wait for improvements in the evaluation metric before stopping training",
+        help="how many steps to wait for improvements in the evaluation metric before stopping training, should be twice as long for multi-room tasks, and incerase/decrease proportional to sample interval if this is not the default (default 20 -> 512)",
     )
     parser.add_argument(
         "--early_stopping_threshold",
         type=float,
-        default=0.02,
+        default=0.001,
         help="the threshold by which improvements in the evaluation metric have to exceed the previous best performance for early stopping",
     )
     parser.add_argument(
@@ -261,7 +255,49 @@ def get_args():
     parser.add_argument(
         "--use_rtg",
         type=bool,
-        default=False,
+        default=True,
         help="whether or not to condition on the RTG",
+    )
+    parser.add_argument(
+        "--eps_per_seed",
+        type=int,
+        default=10,
+        help="how many episodes per seed to generate. use with policy random",
+    )
+    parser.add_argument(
+        "--num_train_seeds",
+        type=int,
+        default=128,
+        help="how many training seeds to generate episodes from. use with policy random",
+    )
+    parser.add_argument(
+        "--mission_at_inference",
+        type=str,
+        default="actual",
+        help="representation to use for mission at inference time; can be either 'numerical', 'string' or 'actual'",
+    )
+    parser.add_argument(
+        "--feedback_at_inference",
+        type=str,
+        default="numerical",
+        help="representation to use for feedback at inference time; can be either 'numerical' or 'string'",
+    )
+    parser.add_argument(
+        "--mission_mode",
+        type=str,
+        default="standard",
+        help="which type of feedback to use during training; can be either 'standard' or 'random'",
+    )
+    parser.add_argument(
+        "--random_mode",
+        type=str,
+        default="english",
+        help="which type of feedback to use during training; can be either 'english' or 'lorem'",
+    )
+    parser.add_argument(
+        "--loss_mean_type",
+        type=str,
+        default="ce_mean",
+        help="how to form the mean loss; can be either 'ce' or 'custom'",
     )
     return vars(parser.parse_args())
