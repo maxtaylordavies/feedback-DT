@@ -1,6 +1,15 @@
 import argparse
 
-
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v == 'True':
+        return True
+    elif v == "False":
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+    
 def get_args():
     parser = argparse.ArgumentParser(description="Decision transformer training")
 
@@ -24,19 +33,19 @@ def get_args():
     )
     parser.add_argument(
         "--include_timeout",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether to include episodes terminated by timeout / truncated episodes",
     )
     parser.add_argument(
         "--fully_obs",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to use fully-observed environment",
     )
     parser.add_argument(
         "--rgb_obs",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether to use rgb oberservations of the environment",
     )
@@ -60,7 +69,7 @@ def get_args():
     )
     parser.add_argument(
         "--randomise_starts",
-        type=bool,
+        type=str2bool,
         default=False
     )
     parser.add_argument(
@@ -86,7 +95,7 @@ def get_args():
     )
     parser.add_argument(
         "--record_video",
-        type=bool,
+        type=str2bool,
         default=False,
         help="Whether to record videos of evaluation episodes",
     )
@@ -108,19 +117,19 @@ def get_args():
     )
     parser.add_argument(
         "--del_all",
-        type=bool,
+        type=str2bool,
         default=False,
         help="Whether to delete all local datasets",
     )
     parser.add_argument(
         "--use_feedback",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether to use feedback during training",
     )
     parser.add_argument(
         "--use_mission",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether to use mission during training",
     )
@@ -192,13 +201,13 @@ def get_args():
     )
     parser.add_argument(
         "--predict_feedback",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to also predict feedback during training (besides the action)",
     )
     parser.add_argument(
         "--load_existing_dataset",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to load the dataset if it already exists",
     )
@@ -210,7 +219,7 @@ def get_args():
     )
     parser.add_argument(
         "--use_full_ep",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to use the full episode, rather than a given context length",
     )
@@ -258,7 +267,7 @@ def get_args():
     )
     parser.add_argument(
         "--use_rtg",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether or not to condition on the RTG",
     )
