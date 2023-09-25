@@ -6,8 +6,8 @@ from datetime import datetime
 
 # define some paths
 USER = os.environ["USER"]
-PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "conditioning"
+PROJECT_HOME = f"/scratch/{USER}/projects/feedback-DT"
+EXPERIMENT_NAME = "conditioning_agents2"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 def run_name(combo, keys):
@@ -31,8 +31,13 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
+        "GoToLocal",
         "PutNextLocal",
-        # "GoToObjMaze"
+        "PickupLoc",
+        "Pickup",
+        "Unlock",
+        "Synth",
+        "GoToSeq"
     ],
     "use_mission": [
         True,
@@ -54,9 +59,7 @@ variables = {
         False
     ],
      "model_seed": [
-        # 123456789, 
         987654321, 
-        # 111111111, 
     ]
 }
 
