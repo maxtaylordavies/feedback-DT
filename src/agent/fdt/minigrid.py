@@ -4,8 +4,8 @@ from .base import FDTAgent
 
 
 class MinigridFDTAgent(FDTAgent):
-    def __init__(self, *args, **kwargs):
-        self.use_rgb = args["rgb_obs"]
+    def __init__(self, *args, use_rgb=True, **kwargs):
+        self.use_rgb = use_rgb
         print(f"Using rgb: {self.use_rgb}")
         super().__init__(*args, **kwargs)
 
