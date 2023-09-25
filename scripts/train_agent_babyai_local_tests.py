@@ -27,14 +27,13 @@ args = get_args()
 
 args["output"] = OUTPUT_PATH
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-args["run_name"] = f"{current_datetime}_test"
-args["level"] = "GoToObj"
-args["num_steps"] = 128000
+args["run_name"] = f"{current_datetime}_test_symb_obs"
+args["level"] = "PutNextLocal"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
-args["policy"] = "random"
 args["load_existing_dataset"] = True
 args["record_video"] = True
+args["rgb_obs"] = False
 
 frame_size = 64 if args["fully_obs"] else 56
 
@@ -62,31 +61,14 @@ else:
     device = torch.device("mps")
     log("using mps")
 
-if not "single" in args["train_mode"]:
-    log("Creating dataset...with multiple tasks.")
-    dataset = []
-    for level in list(LEVELS_CONFIGS["original_tasks"].keys()):
-        args["level"] = level
-        dataset.append(CustomDataset.get_dataset(args))
-    args["epochs"] = max(args["epochs"], len(dataset) * 2)
-else:
-    log("Creating dataset...with a single task.")
-    dataset = CustomDataset.get_dataset(args)
+log("Creating dataset...with a single task.")
+dataset = CustomDataset.get_dataset(args)
 
-if "round" in args["train_mode"]:
-    log("Creating round-robin collator...")
-    collator = RoundRobinCollator(custom_dataset=dataset, args=args)
-elif "curriculum" in args["train_mode"]:
-    log(
-        f"Creating {'anti' if 'anti-' in args['train_mode'] else ''}curriculum collator..."
-    )
-    collator = CurriculumCollator(custom_dataset=dataset, args=args)
-else:
-    log("Creating standard single-task collator...")
-    collator = Collator(
-        custom_dataset=dataset,
-        args=args,
-    )
+log("Creating standard single-task collator...")
+collator = Collator(
+    custom_dataset=dataset,
+    args=args,
+)
 
 log("creating agent...")
 agent = MinigridFDTAgent(
