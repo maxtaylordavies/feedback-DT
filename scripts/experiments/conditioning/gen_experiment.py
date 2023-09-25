@@ -40,21 +40,23 @@ variables = {
     ],
     "use_feedback": [
         True,
+        # comment out False when using the "rule" and "task" feedback_mode's
         False
     ],
     "feedback_mode": [
         "all",
-        "rule",
-        "task"
+        # comment out "rule" and "task" when using True and False for use_feedback
+        # "rule",
+        # "task"
     ],
     "use_rtg": [
         True,
         False
     ],
      "model_seed": [
-        123456789, 
+        # 123456789, 
         987654321, 
-        111111111, 
+        # 111111111, 
     ]
 }
 

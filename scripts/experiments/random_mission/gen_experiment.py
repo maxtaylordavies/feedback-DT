@@ -44,7 +44,7 @@ variables = {
         "random"
     ],
     "random_mode": [
-        "english",
+        # "english",
         "lorem"
     ],
     "use_rtg": [
