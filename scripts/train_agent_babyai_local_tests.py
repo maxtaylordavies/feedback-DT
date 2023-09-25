@@ -35,6 +35,9 @@ args["load_existing_dataset"] = True
 args["record_video"] = True
 args["rgb_obs"] = False
 
+for arg, value in args.items():
+    print(f"{arg:}\n {value} \n{'==='*20}")
+
 frame_size = 64 if args["fully_obs"] else 56
 
 log("setting up devices")
@@ -77,7 +80,12 @@ agent = MinigridFDTAgent(
         act_dim=collator.act_dim,
         state_shape=(3, frame_size, frame_size),
         max_length=args["context_length"],
-    )
+    ),
+    use_missions=args["use_mission"],
+    use_feedback=args["use_feedback"],
+    use_rtg=args["use_rtg"],
+    loss_mean_type=args["loss_mean_type"],
+    use_rgb=args["rgb_obs"]
 )
 
 log("creating trainer...")
