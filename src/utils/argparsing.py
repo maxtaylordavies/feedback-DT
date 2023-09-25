@@ -58,7 +58,11 @@ def get_args():
         default=64,
         help="context length in timesteps",
     )
-    parser.add_argument("--randomise_starts", type=bool, default=True)
+    parser.add_argument(
+        "--randomise_starts", 
+        type=bool, 
+        default=False
+    )
     parser.add_argument(
         "--lr",
         type=float,
@@ -159,7 +163,7 @@ def get_args():
     parser.add_argument(
         "--curriculum_mode",
         type=str,
-        default="st",
+        default="default",
         help="the training mode to use; can be either 'default', 'custom', 'anti'",
     )
     parser.add_argument(
@@ -201,7 +205,7 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=10,
+        default=5,
         help="the number of episodes to collect per dataset shard. this will be 100 for simple tasks.",
     )
     parser.add_argument(
@@ -219,7 +223,7 @@ def get_args():
     parser.add_argument(
         "--model_seed",
         type=int,
-        default=1234567890,
+        default=987654321,
         help="the seed used for seeding different instantiations of the model",
     )
     parser.add_argument(
