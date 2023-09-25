@@ -59,8 +59,8 @@ def get_args():
         help="context length in timesteps",
     )
     parser.add_argument(
-        "--randomise_starts", 
-        type=bool, 
+        "--randomise_starts",
+        type=bool,
         default=False
     )
     parser.add_argument(

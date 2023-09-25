@@ -51,12 +51,20 @@
 # #SBATCH --time=1-04:00:00
 
 # Partition of the cluster to pick nodes from (check `sinfo`)
+<<<<<<<< HEAD:scripts/experiments/conditioning_mlp_crannog/job.sh
 #SBATCH --partition=PGR-Standard
+========
+# # SBATCH --partition=PGR-Standard
+>>>>>>>> 492195838312b0a1453a6617adb8920795f0375f:scripts/experiments/ep_distribution/job.sh
 
 # Any nodes to exclude from selection
 # #SBATCH --exclude=charles[05,12-18]
 
 #SBATCH --mem-per-cpu=64G
+<<<<<<<< HEAD:scripts/experiments/conditioning_mlp_crannog/job.sh
+========
+
+>>>>>>>> 492195838312b0a1453a6617adb8920795f0375f:scripts/experiments/ep_distribution/job.sh
 
 # =====================
 # Logging information
@@ -81,6 +89,7 @@ source ~/.bashrc
 # Make script bail out after first error
 set -e
 
+<<<<<<<< HEAD:scripts/experiments/conditioning_mlp_crannog/job.sh
 # Make your own folder on the node's scratch disk
 # N.B. disk could be at /disk/scratch_big, or /disk/scratch_fast. Check
 # yourself using an interactive session, or check the docs:
@@ -109,10 +118,13 @@ echo "Scratch disk is: $SCRATCH_DISK"
 SCRATCH_HOME=${SCRATCH_DISK}/${USER}
 mkdir -p ${SCRATCH_HOME}
 
+========
+>>>>>>>> 492195838312b0a1453a6617adb8920795f0375f:scripts/experiments/ep_distribution/job.sh
 # Activate your conda environment
 VENV_NAME=.venv
 echo "Activating virtual environment: ${VENV_NAME}"
 source ${VENV_NAME}/bin/activate
+<<<<<<<< HEAD:scripts/experiments/conditioning_mlp_crannog/job.sh
 
 # =================================
 # Move input data to scratch disk
@@ -165,6 +177,8 @@ fi
 #       https://download.samba.org/pub/rsync/rsync.html
 
 rsync --archive --update --compress --progress ${src_path}/ ${dest_path}
+========
+>>>>>>>> 492195838312b0a1453a6617adb8920795f0375f:scripts/experiments/ep_distribution/job.sh
 
 # ==============================
 # Finally, run the experiment!
@@ -180,6 +194,7 @@ echo "Running provided command: ${COMMAND}"
 eval "${COMMAND}"
 echo "Command ran successfully!"
 
+<<<<<<<< HEAD:scripts/experiments/conditioning_mlp_crannog/job.sh
 
 # ======================================
 # Move output data from scratch to DFS
@@ -208,6 +223,8 @@ fi
 rsync --archive --update --compress --progress ${src_path}/ ${dest_path}
 
 
+========
+>>>>>>>> 492195838312b0a1453a6617adb8920795f0375f:scripts/experiments/ep_distribution/job.sh
 # =========================
 # Post experiment logging
 # =========================
