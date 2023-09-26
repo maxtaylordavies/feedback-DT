@@ -65,7 +65,7 @@ class Collator:
         # }
         self._mission_embeddings_cache = {}
 
-        self.dataset.load_shard()
+        self.dataset.load_shard(idx=0)
         self.state_dim = self.dataset.state_dim
         self.act_dim = self.dataset.act_dim
         self.feedback_mode = self.args["feedback_mode"]

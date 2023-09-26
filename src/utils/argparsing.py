@@ -9,7 +9,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
-    
+
 def get_args():
     parser = argparse.ArgumentParser(description="Decision transformer training")
 
@@ -214,7 +214,7 @@ def get_args():
     parser.add_argument(
         "--eps_per_shard",
         type=int,
-        default=5,
+        default=4,
         help="the number of episodes to collect per dataset shard. this will be 100 for simple tasks.",
     )
     parser.add_argument(

@@ -41,8 +41,8 @@ class CustomDataset:
         self.train_config, self.test_configs = self._get_configs()
         self.train_seeds = self._get_train_seeds()
         self.max_steps = self._get_level_max_steps()
-
         self._determine_eps_per_shard()
+        self.shard_list = []
 
     def _get_configs(self):
         """
@@ -97,6 +97,7 @@ class CustomDataset:
         self.num_shards = 0
         for _ in os.listdir(datset_dir):
             self.num_shards += 1
+        self.get_shard_list()
 
     def _get_category(self):
         """
@@ -390,9 +391,21 @@ class CustomDataset:
             self.env.close()
         self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
+    def get_shard_list(self):
+        shard_list = np.random.choice(
+            np.arange(self.num_shards),
+            size=self.num_shards,
+        )
+        self.shard_list = shard_list.tolist()
+
     def load_shard(self, idx=None):
-        if not idx:
-            idx = np.random.randint(0, self.num_shards)
+        if idx is None:
+            try:
+                idx = self.shard_list.pop()
+            except IndexError:
+                print("Resetting shard list")
+                self.get_shard_list()
+                idx = self.shard_list.pop()
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
