@@ -423,7 +423,7 @@ class CustomDataset:
         # then use this distribution to sample episode indices
         return np.random.choice(
             np.arange(self.num_episodes),
-            size=num_eps,
+            size=min(self.num_episodes, num_eps),
             p=probs,
         )
 

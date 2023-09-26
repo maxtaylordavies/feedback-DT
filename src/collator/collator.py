@@ -155,41 +155,46 @@ class Collator:
 
         # load a random shard - if it doesn't contain any episodes, load another one
         # if we try 10 times and still don't have enough episodes, raise an exception
-        tries, num_eps = 0, 0
-        while num_eps == 0:
-            self.dataset.load_shard()
-            tries, num_eps = tries + 1, self.dataset.num_episodes
-            if tries > 10:
-                raise Exception(
-                    f"Failed to load a shard with at least one episode after {tries} tries."
-                )
+        num_eps = 0
+        while num_eps < batch_size:
+            tries, eps_per_shard = 0, 0
+            while eps_per_shard == 0:
+                self.dataset.load_shard()
+                tries, eps_per_shard = tries + 1, self.dataset.num_episodes
+                if tries > 10:
+                    raise Exception(
+                        f"Failed to load a shard with at least one episode after {tries} tries."
+                    )
 
-        # sample episode indices according to self.episode_dist
-        episode_indices = self.dataset.sample_episode_indices(
-            batch_size, self.episode_dist
-        )
-
-        # sample a subsequence of each chosen episode
-        length = self.context_length if not self.full else None
-        for ep_idx in episode_indices:
-            ep = self.dataset.sample_episode(
-                ep_idx,
-                gamma=self.gamma,
-                length=length,
-                random_start=self.randomise_starts,
-                feedback=self.feedback,
-                mission=self.mission,
+            # sample episode indices according to self.episode_dist
+            episode_indices = self.dataset.sample_episode_indices(
+                batch_size - num_eps, self.episode_dist
             )
 
-            # pad episode data to self.context_length and append to batch
-            for k, v in ep.items():
-                if k in ["feedback", "mission"]:
-                    v = self._pad(v, val=f"No {k} available.")
-                    v = self.embed_sentences(v, type=k)
-                    k += "_embeddings"
-                else:  # handle all other data - pad with zeros
-                    v = self._pad(v, val=-100) if k == "actions" else self._pad(v)
-                batch[k].append(v)
+            # sample a subsequence of each chosen episode
+            length = self.context_length if not self.full else None
+            for ep_idx in episode_indices:
+                ep = self.dataset.sample_episode(
+                    ep_idx,
+                    gamma=self.gamma,
+                    length=length,
+                    random_start=self.randomise_starts,
+                    feedback=self.feedback,
+                    mission=self.mission,
+                )
+
+                # pad episode data to self.context_length and append to batch
+                for k, v in ep.items():
+                    if k in ["feedback", "mission"]:
+                        v = self._pad(v, val=f"No {k} available.")
+                        v = self.embed_sentences(v, type=k)
+                        k += "_embeddings"
+                    else:  # handle all other data - pad with zeros
+                        v = self._pad(v, val=-100) if k == "actions" else self._pad(v)
+                    batch[k].append(v)
+
+            num_eps += len(episode_indices)
+
 
         # convert batch to (concatenated) tensors
         for k, v in batch.items():
