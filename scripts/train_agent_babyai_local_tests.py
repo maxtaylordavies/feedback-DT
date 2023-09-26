@@ -15,6 +15,7 @@ from src.dataset.custom_dataset import CustomDataset
 from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
+from src.utils.utils import frame_size
 from src.utils.utils import log
 from src.utils.utils import seed
 
@@ -38,7 +39,8 @@ args["rgb_obs"] = False
 for arg, value in args.items():
     print(f"{arg:}\n {value} \n{'==='*20}")
 
-frame_size = 64 if args["fully_obs"] else 56
+frame_size = frame_size(args)
+print(f"frame_size: {frame_size}")
 
 log("setting up devices")
 if torch.cuda.is_available():
