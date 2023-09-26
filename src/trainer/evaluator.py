@@ -388,6 +388,9 @@ class Evaluator(TrainerCallback):
     ):
         run_agent = self._run_agent_on_minigrid_env
 
+        # avoid holding a shard in memory during evaluation
+        dataset.shard = None
+
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
         gc_successes = []
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
