@@ -122,7 +122,7 @@ class Evaluator(TrainerCallback):
         self._set_train_seeds()
 
         # run initial eval (before any training steps)
-        # self._run_eval_and_plot(model, state, eval_type="efficiency")
+        self._run_eval_and_plot(model, state, eval_type="efficiency")
 
         return super().on_train_begin(args, state, control, **kwargs)
 
