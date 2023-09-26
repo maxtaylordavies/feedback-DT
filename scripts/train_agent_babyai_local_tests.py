@@ -6,13 +6,10 @@ from transformers import DecisionTransformerConfig
 
 from src.agent.fdt import MinigridFDTAgent
 from src.collator import Collator
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
 from src.constants import ENV_METADATA_PATH
 from src.constants import GLOBAL_SEED
 from src.constants import OUTPUT_PATH
 from src.dataset.custom_dataset import CustomDataset
-from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
 from src.utils.utils import frame_size
@@ -28,13 +25,12 @@ args = get_args()
 
 args["output"] = OUTPUT_PATH
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-args["run_name"] = f"{current_datetime}_test_symb_obs"
-args["level"] = "PutNextLocal"
+args["run_name"] = f"{current_datetime}_test_shapes"
+args["level"] = "Pickup"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
+args["eps_per_shard"] = 1
 args["load_existing_dataset"] = True
-args["record_video"] = True
-args["rgb_obs"] = False
 
 for arg, value in args.items():
     print(f"{arg:}\n {value} \n{'==='*20}")

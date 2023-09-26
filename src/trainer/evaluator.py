@@ -19,8 +19,6 @@ from transformers.training_args import TrainingArguments
 from src.agent import Agent
 from src.agent import AgentInput
 from src.agent import RandomAgent
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
 from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.env.recorder_env import RecorderEnv
 from src.utils.utils import get_minigrid_obs
@@ -124,7 +122,7 @@ class Evaluator(TrainerCallback):
         self._set_train_seeds()
 
         # run initial eval (before any training steps)
-        self._run_eval_and_plot(model, state, eval_type="efficiency")
+        # self._run_eval_and_plot(model, state, eval_type="efficiency")
 
         return super().on_train_begin(args, state, control, **kwargs)
 
