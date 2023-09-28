@@ -27,12 +27,12 @@ LEVELS_CONFIGS = {
             "BabyAI-GoToLocalS6N4-v0",
             "BabyAI-GoToLocalS7N4-v0",
             "BabyAI-GoToLocalS7N5-v0",
-            # "BabyAI-GoToLocalS8N2-v0",
-            # "BabyAI-GoToLocalS8N3-v0",
-            # "BabyAI-GoToLocalS8N4-v0",
-            # "BabyAI-GoToLocalS8N5-v0",
-            # "BabyAI-GoToLocalS8N6-v0",
-            # "BabyAI-GoToLocalS8N7-v0",
+            "BabyAI-GoToLocalS8N2-v0",
+            "BabyAI-GoToLocalS8N3-v0",
+            "BabyAI-GoToLocalS8N4-v0",
+            "BabyAI-GoToLocalS8N5-v0",
+            "BabyAI-GoToLocalS8N6-v0",
+            "BabyAI-GoToLocalS8N7-v0",
         ],
         "PutNextLocal": [
             "BabyAI-PutNextLocal-v0",
@@ -130,6 +130,7 @@ class SeedFinder:
         Initialise the SeedFinder class.
         """
         self.n_validation_seeds_required = 128
+        # self.n_test_seeds_required = 128
         self.n_train_seeds_required = n_train_seeds_required
         self.LEVELS_CONFIGS = (
             LEVELS_CONFIGS["original_tasks"]
@@ -151,7 +152,6 @@ class SeedFinder:
             "agent_loc": self._check_agent_loc,
             "rel_loc": self._check_rel_loc,
             "object_task": self._check_object_task,
-            "task_task": self._check_task_task,
         }
         self.seeds_dir = os.getenv("SEEDS_DIR") or "seeds"
         if not os.path.exists(self.seeds_dir):
@@ -619,20 +619,6 @@ class SeedFinder:
                     return True
         return False
 
-    def _check_task_task(self, env):
-        """
-        Check if the level contains the unseen task-task combination.
-
-        Parameters
-        ----------
-            env: instance of the level made using a seed.
-
-        Returns
-        -------
-            bool: True if SeqInstr which involves opening two doors, False otherwise.
-        """
-        return self._has_two_doors_unlock(env)
-
     def _get_metadata_value(self, level, key, mission_space=False):
         metadata = JsoncParser.parse_file(
             os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
@@ -708,9 +694,19 @@ class SeedFinder:
                 self._get_config_fn(level, config),
             )
         if os.path.exists(self._get_config_fn(level, config)):
-            seed_log = self.load_seeds(level, config)
+            try:
+                seed_log = self.load_seeds(level, config)
+            except Exception as e:
+                print(e)
+                print("Error occurred loading existing seed log, creating new one.")
+                seed_log = {ood_type: {"test_seeds": []} for ood_type in self.ood_types}
+                seed_log["multi_ood_seeds"] = []
+                seed_log["validation_seeds"] = []
+                seed_log["last_seed_tested"] = 0
+                seed_log["n_train_seeds"] = 0
         else:
             seed_log = {ood_type: {"test_seeds": []} for ood_type in self.ood_types}
+            seed_log["multi_ood_seeds"] = []
             seed_log["validation_seeds"] = []
             seed_log["last_seed_tested"] = 0
             seed_log["n_train_seeds"] = 0
@@ -725,12 +721,12 @@ class SeedFinder:
             ):
                 self._save_seeds(seed_log, level, config)
                 break
+
+            ood_type_results = {}
             for ood_type, ood_type_check in self.ood_types.items():
                 if ood_type == "rel_loc" and not self._can_contain_rel_loc(level):
                     continue
                 if ood_type == "object_task" and not self._can_contain_putnext(level):
-                    continue
-                if ood_type == "task_task" and not self._can_contain_seq(level):
                     continue
                 if (
                     seed >= n_seeds_stop_search_early
@@ -752,8 +748,13 @@ class SeedFinder:
                         continue
                     if ood_type == "agent_loc" and level == "PutNext":
                         continue
-                    seed_log[ood_type]["test_seeds"].append(seed)
-            if not self.is_test_seed(seed_log, seed):
+                    ood_type_results[ood_type] = True
+            if len(ood_type_results) == 1:
+                ood_type = list(ood_type_results.keys())[0]
+                seed_log[ood_type]["test_seeds"].append(seed)
+            if len(ood_type_results) > 1:
+                seed_log["multi_ood_seeds"].append(seed)
+            if len(ood_type_results) == 0:
                 if len(seed_log["validation_seeds"]) < (
                     self.n_validation_seeds_required
                 ):
@@ -773,7 +774,6 @@ class SeedFinder:
         - object-task: seeds that involve an unseen combination of object and task.
         - agent-loc: seeds that involve an unseen agent start position in the room or maze.
         - rel-loc: seeds that involve an unseen goal location relative to the agent.
-        - task-task: seeds (and levels/configs) that involve unseen task combinations in sequence tasks.
         """
         threads = []
         for l, configs in self.LEVELS_CONFIGS.items():
@@ -834,7 +834,7 @@ class SeedFinder:
         ceil = seed_log["last_seed_tested"] + 1
         all_seeds = np.array(range(ceil))
 
-        exclude_seeds = seed_log["validation_seeds"]
+        exclude_seeds = seed_log["validation_seeds"] + seed_log["multi_ood_seeds"]
         for ood_type in seed_log.keys():
             if type(seed_log[ood_type]) == dict and "test_seeds" in seed_log[ood_type]:
                 exclude_seeds.extend(seed_log[ood_type]["test_seeds"])
