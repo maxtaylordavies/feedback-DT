@@ -25,12 +25,11 @@ args = get_args()
 
 args["output"] = OUTPUT_PATH
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-args["run_name"] = f"{current_datetime}_test_shapes"
-args["level"] = "Pickup"
+args["run_name"] = f"{current_datetime}_test_new_seeds"
+args["level"] = "GoToObj"
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
-args["eps_per_shard"] = 1
-args["load_existing_dataset"] = True
+# args["load_existing_dataset"] = True
 
 for arg, value in args.items():
     print(f"{arg:}\n {value} \n{'==='*20}")
