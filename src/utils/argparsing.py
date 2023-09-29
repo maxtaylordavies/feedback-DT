@@ -178,7 +178,7 @@ def get_args():
     parser.add_argument(
         "--sample_interval",
         type=int,
-        default=32000,
+        default=5,
         help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
     )
     parser.add_argument(
