@@ -53,7 +53,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         use_feedback=True,
         use_missions=True,
         use_rtg=False,
-        loss_mean_type="ce_mean",
+        loss_mean_type="ce",
     ):
         config.action_tanh = False
         DecisionTransformerModel.__init__(self, config)
@@ -208,12 +208,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
         action_targets = input.actions.reshape(-1, act_dim)
         action_targets = torch.argmax(action_targets, dim=-1).reshape(-1)
 
-        reduce = True if self.loss_mean_type == "ce_mean" else False
+        reduce = True if self.loss_mean_type == "ce" else False
         criterion = CrossEntropyLoss(reduce=reduce)
         loss = criterion(action_preds, action_targets)
         return (
             loss
-            if self.loss_mean_type == "ce_mean"
+            if self.loss_mean_type == "ce"
             else self._custom_masked_mean_loss(
                 loss.reshape(bacth_size, seq_length), input.attention_mask
             )

@@ -49,7 +49,7 @@ class Agent(nn.Module):
         torch.save(self.state_dict(), f"{dir}/step_{step}.pt")
 
     def load_checkpoint(self, expt_dir, step):
-        print(f"loading checkpoint {step}")
+        print(f"Loading checkpoint {step}")
         dir = f"{expt_dir}/checkpoints"
         self.load_state_dict(torch.load(f"{dir}/step_{step}.pt"))
 

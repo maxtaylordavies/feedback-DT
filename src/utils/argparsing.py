@@ -54,7 +54,7 @@ def get_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=20,
+        default=10,
         help="number of epochs to train",
     )
     parser.add_argument(
@@ -232,12 +232,6 @@ def get_args():
         help="the distribution from which to sample episodes; can be 'uniform', 'inverse', or 'length",
     )
     parser.add_argument(
-        "--model_seed",
-        type=int,
-        default=987654321,
-        help="the seed used for seeding different instantiations of the model",
-    )
-    parser.add_argument(
         "--logging_steps",
         type=int,
         default=1,
@@ -246,8 +240,8 @@ def get_args():
     parser.add_argument(
         "--early_stopping_patience",
         type=int,
-        default=20,
-        help="how many steps to wait for improvements in the evaluation metric before stopping training, should be twice as long for multi-room tasks, and incerase/decrease proportional to sample interval if this is not the default (default 20 -> 512)",
+        default=8,
+        help="how many eval intervals to wait for improvements in the evaluation metric before stopping training, should be twice as long for multi-room tasks, and incerase/decrease proportional to sample interval if this is not the default (default 20 -> 512)",
     )
     parser.add_argument(
         "--early_stopping_threshold",
@@ -312,7 +306,7 @@ def get_args():
     parser.add_argument(
         "--loss_mean_type",
         type=str,
-        default="ce_mean",
+        default="ce",
         help="how to form the mean loss; can be either 'ce' or 'custom'",
     )
     parser.add_argument(
@@ -324,6 +318,7 @@ def get_args():
     parser.add_argument(
         "--model_seed",
         type=int,
-        default=42,
+        default=987654321,
+        help="the seed used for seeding different instantiations of the model",
     )
     return vars(parser.parse_args())

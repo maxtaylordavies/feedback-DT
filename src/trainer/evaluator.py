@@ -165,7 +165,7 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        log("Training ended - loading model checkpoint")
+        log("Training ended")
         model.load_checkpoint(self.output_dir, self.best_global_step)
         self._run_eval_and_plot(model, state, eval_type="iid_generalisation")
         self._run_eval_and_plot(model, state, eval_type="ood_generalisation")
