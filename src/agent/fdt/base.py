@@ -65,12 +65,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
-        self.predict_action = nn.Sequential(
-            *(
-                [nn.Linear(x * self.hidden_size, config.act_dim)]
-                + ([nn.Tanh()] if config.action_tanh else [])
-            )
-        )
+        self.predict_action = nn.Linear(x * self.hidden_size, config.act_dim)
         self.predict_return = nn.Linear(x * self.hidden_size, 1)
 
         # create state embedding model
