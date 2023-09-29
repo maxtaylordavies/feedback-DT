@@ -1,5 +1,7 @@
 import argparse
 
+from src.constants import GLOBAL_SEED
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -312,5 +314,16 @@ def get_args():
         type=str,
         default="ce_mean",
         help="how to form the mean loss; can be either 'ce' or 'custom'",
+    )
+    parser.add_argument(
+        "--dataset_seed",
+        type=int,
+        default=GLOBAL_SEED,
+        help="whether to use the feedback loss",
+    )
+    parser.add_argument(
+        "--model_seed",
+        type=int,
+        default=42,
     )
     return vars(parser.parse_args())
