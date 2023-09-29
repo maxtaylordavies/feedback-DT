@@ -55,6 +55,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
         use_rtg=False,
         loss_mean_type="ce_mean",
     ):
+        config.action_tanh = False
         DecisionTransformerModel.__init__(self, config)
 
         self.loss_mean_type = loss_mean_type
