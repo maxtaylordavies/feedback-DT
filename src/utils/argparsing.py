@@ -98,7 +98,7 @@ def get_args():
     parser.add_argument(
         "--record_video",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to record videos of evaluation episodes",
     )
     parser.add_argument(
