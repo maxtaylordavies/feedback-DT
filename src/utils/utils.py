@@ -132,3 +132,12 @@ def format_size(num, suffix="B"):
 
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
+
+def frame_size(args):
+    if args["fully_obs"] and args["rgb_obs"]:
+        return 64
+    if not args["fully_obs"] and args["rgb_obs"]:
+        return 56
+    if args["fully_obs"] and args["rgb_obs"]:
+        return 11
+    return 7

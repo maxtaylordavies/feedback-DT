@@ -19,8 +19,6 @@ from transformers.training_args import TrainingArguments
 from src.agent import Agent
 from src.agent import AgentInput
 from src.agent import RandomAgent
-from src.collator import CurriculumCollator
-from src.collator import RoundRobinCollator
 from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.env.recorder_env import RecorderEnv
 from src.utils.utils import get_minigrid_obs
@@ -45,7 +43,6 @@ class Evaluator(TrainerCallback):
         self.sample_interval = self.user_args["sample_interval"]
         self.target_return = self.user_args["target_return"]
         self.num_repeats = self.user_args["num_repeats"]
-        self.samples_processed = 0
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
         self.best_lengths = {"random": np.inf, "DT": np.inf}
         self.device = torch.device(
@@ -120,11 +117,12 @@ class Evaluator(TrainerCallback):
         log("on_train_begin called", with_tqdm=True)
 
         # sample some validation seeds for the train config
-        self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
         self._set_train_seeds()
 
         # run initial eval (before any training steps)
+        self._plot_loss(state)
         self._run_eval_and_plot(model, state, eval_type="efficiency")
+        self.collator.samples_processed = 0
 
         return super().on_train_begin(args, state, control, **kwargs)
 
@@ -138,7 +136,7 @@ class Evaluator(TrainerCallback):
         log("on_epoch_begin called", with_tqdm=True)
         return super().on_epoch_begin(args, state, control, **kwargs)
 
-    def on_step_begin(
+    def on_step_end(
         self,
         args: TrainingArguments,
         state: TrainerState,
@@ -149,22 +147,15 @@ class Evaluator(TrainerCallback):
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
-        sample_diff = self.collator.samples_processed - self.samples_processed
-        if sample_diff >= self.sample_interval:
+        if state.global_step % self.sample_interval == 0 and state.global_step > 0:
             self._run_eval_and_plot(
                 model, state, eval_type="efficiency", control=control
             )
-            self.samples_processed = self.collator.samples_processed
             log(
                 f"saving model checkpoint after step {state.global_step}",
                 with_tqdm=True,
             )
             model.save_checkpoint(self.output_dir, state.global_step)
-
-        previous_epoch = self.current_epoch
-        self.current_epoch = state.epoch
-        if previous_epoch != self.current_epoch:
-            self.collator.update_epoch()
 
     def on_train_end(
         self,
@@ -174,9 +165,8 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        log("Training ended - loading model checkpoint")
+        log("Training ended")
         model.load_checkpoint(self.output_dir, self.best_global_step)
-        self._plot_loss(state)
         self._run_eval_and_plot(model, state, eval_type="iid_generalisation")
         self._run_eval_and_plot(model, state, eval_type="ood_generalisation")
 
@@ -235,19 +225,16 @@ class Evaluator(TrainerCallback):
             )
 
     def _evaluate_ood_generalisation(self, dataset, agent, state: TrainerState):
-        per_config_repeats = self.num_repeats // len(dataset.test_configs) + (
-            self.num_repeats % len(dataset.test_configs) > 0
-        )
+        configs_per_type, n_samples_per_type = self._get_samples_per_ood_type(dataset)
 
-        n_seeds_sampled = 0
         for config in dataset.test_configs:
             # sample some seeds for the current config
-            if n_seeds_sampled + per_config_repeats <= self.num_repeats:
-                n_seeds_to_sample = per_config_repeats
-            else:
-                n_seeds_to_sample = self.num_repeats - n_seeds_sampled
-            self._load_seed_dict(dataset, config)
-            seeds = self._sample_test_seeds(n=n_seeds_to_sample)
+            seed_dict = self._load_seed_dict(dataset, config)
+            seeds = {ood_type: [] for ood_type in n_samples_per_type}
+            for ood_type in n_samples_per_type:
+                if config in configs_per_type[ood_type]:
+                    n_seeds_to_sample = n_samples_per_type[ood_type]
+                    seeds[ood_type].extend(self._sample_test_seeds(seed_dict, ood_type, n=n_seeds_to_sample))
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
@@ -255,10 +242,26 @@ class Evaluator(TrainerCallback):
                     a, name, dataset, config, "ood_generalisation", seeds, state
                 )
 
-            n_seeds_sampled += n_seeds_to_sample
+    def _get_samples_per_ood_type(self, dataset):
+        configs_per_type = {}
+        for config in dataset.test_configs:
+            seed_dict = self._load_seed_dict(dataset, config)
+            ood_types = [
+                ood_type
+                for ood_type in seed_dict
+                if "seed" not in ood_type and seed_dict[ood_type]["test_seeds"]
+            ]
+            for ood_type in ood_types:
+                if ood_type in configs_per_type:
+                    configs_per_type[ood_type].append(config)
+                else:
+                    configs_per_type[ood_type] = [config]
+        n_samples_per_type = {ood_type: int(self.num_repeats/len(configs)) for ood_type, configs in configs_per_type.items()}
+        return configs_per_type, n_samples_per_type
 
     def _set_val_seeds(self):
-        val_seeds = self._sample_validation_seeds(self.num_repeats)
+        seed_dict = self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
+        val_seeds = self._sample_validation_seeds(seed_dict, self.num_repeats)
         self.val_seeds = val_seeds
 
     def _set_train_seeds(self):
@@ -266,44 +269,24 @@ class Evaluator(TrainerCallback):
         self.train_seeds = {"": train_seeds} if len(train_seeds) <= self.num_repeats else self._sample_train_seeds(train_seeds, self.num_repeats)
 
     def _load_seed_dict(self, dataset, config):
-        self.seeds = dataset.seed_finder.load_seeds(dataset.level, config)
+        return dataset.seed_finder.load_seeds(dataset.level, config)
 
     def _sample_train_seeds(self, train_seeds, n=1):
         return {"": np.random.choice(train_seeds, size=n, replace=False)}
 
-    def _sample_validation_seeds(self, n=1):
-        if self.seeds is None:
-            raise Exception("No seeds loaded")
-        return {"": np.random.choice(self.seeds["validation_seeds"], size=n, replace=False)}
+    def _sample_validation_seeds(self, seed_dict, n=1):
+        return {"": np.random.choice(seed_dict["validation_seeds"], size=n, replace=False)}
 
-    def _sample_test_seeds(self, n=1):
-        if self.seeds is None:
-            raise Exception("No seeds loaded")
-
-        seeds = {}
-        types = [
-            k
-            for k in self.seeds
-            if "seed" not in k and self.seeds[k]["test_seeds"] and k != "task_task"
-        ]
-        per_type_repeats = n // len(types) + (n % len(types) > 0)
-
-        seeds_sampled = 0
-        for t in types:
-            if seeds_sampled + per_type_repeats <= n:
-                n_seeds_to_sample = per_type_repeats
-            else:
-                n_seeds_to_sample = n - seeds_sampled
-            try:
-                seeds[t] = np.random.choice(
-                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=False
-                )
-            except ValueError:
-                seeds[t] = np.random.choice(
-                    self.seeds[t]["test_seeds"], size=n_seeds_to_sample, replace=True
-                )
-            seeds_sampled += n_seeds_to_sample
-        return seeds
+    def _sample_test_seeds(self, seed_dict, ood_type, n=1):
+        try:
+            sampled_seeds = np.random.choice(
+                seed_dict[ood_type]["test_seeds"], size=n, replace=False
+            )
+        except ValueError:
+            sampled_seeds = np.random.choice(
+                seed_dict[ood_type]["test_seeds"], size=n, replace=True
+            )
+        return sampled_seeds
 
     def _create_env(self, config, seed):
         _env = gym.make(config, render_mode="rgb_array")
@@ -349,7 +332,7 @@ class Evaluator(TrainerCallback):
         if self.user_args["record_video"]:
             env.release()
 
-            if self.samples_processed == 0:
+            if self.collator.samples_processed == 0:
                 env.save_as(f"first_{model_name}")
 
             if "generalisation" in eval_type and model_name == "DT":
@@ -390,6 +373,9 @@ class Evaluator(TrainerCallback):
     ):
         run_agent = self._run_agent_on_minigrid_env
 
+        # avoid holding a shard in memory during evaluation
+        dataset.shard = None
+
         # for each repeat, run agent and record metrics (and optionally render a video of the episode)
         gc_successes = []
         for ood_type, seeds in seeds.items():  # ood_type is "" if not ood
@@ -399,7 +385,7 @@ class Evaluator(TrainerCallback):
                 ret, ep_length, success, gc_success = run_agent(
                     agent, env, seed, self.target_return
                 )
-                step = state.global_step if ood_type == "efficiency" else 99999
+                step = state.global_step if eval_type == "efficiency" else 99999
                 gc_successes.append(gc_success)
                 self._record_result(
                     env,
@@ -613,7 +599,7 @@ class Evaluator(TrainerCallback):
 
             # first, do line plot against samples (for sample efficiency)
             fig, ax = plt.subplots()
-            sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
+            sns.lineplot(x="global_step", y=m, hue="model", data=eff_df, ax=ax)
             for fmt in formats:
                 fig.savefig(
                     os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")

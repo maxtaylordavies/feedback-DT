@@ -422,9 +422,7 @@
     "object_task": {
         "test_seeds": []
     },
-    "task_task": {
-        "test_seeds": []
-    },
+    "multi_ood_seeds": [],
     "validation_seeds": [
         0,
         1,

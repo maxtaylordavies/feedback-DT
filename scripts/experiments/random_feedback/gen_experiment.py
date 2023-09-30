@@ -44,7 +44,7 @@ variables = {
         "random"
     ],
     "random_mode": [
-        "english",
+        # "english",
         "lorem"
     ],
     "use_rtg": [
@@ -52,9 +52,9 @@ variables = {
         False
     ],
      "model_seed": [
-        123456789, 
-        987654321, 
-        111111111, 
+        123456789,
+        987654321,
+        111111111,
     ]
 }
 

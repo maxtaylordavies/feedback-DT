@@ -53,8 +53,9 @@ class FDTAgent(Agent, DecisionTransformerModel):
         use_feedback=True,
         use_missions=True,
         use_rtg=False,
-        loss_mean_type="ce_mean",
+        loss_mean_type="ce",
     ):
+        config.action_tanh = False
         DecisionTransformerModel.__init__(self, config)
 
         self.loss_mean_type = loss_mean_type
@@ -65,12 +66,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # we override the parent class prediction functions so we can incorporate the feedback embeddings
         self.predict_state = nn.Linear(x * self.hidden_size, config.state_dim)
-        self.predict_action = nn.Sequential(
-            *(
-                [nn.Linear(x * self.hidden_size, config.act_dim)]
-                + ([nn.Tanh()] if config.action_tanh else [])
-            )
-        )
+        self.predict_action = nn.Linear(x * self.hidden_size, config.act_dim)
         self.predict_return = nn.Linear(x * self.hidden_size, 1)
 
         # create state embedding model
@@ -212,12 +208,12 @@ class FDTAgent(Agent, DecisionTransformerModel):
         action_targets = input.actions.reshape(-1, act_dim)
         action_targets = torch.argmax(action_targets, dim=-1).reshape(-1)
 
-        reduce = True if self.loss_mean_type == "ce_mean" else False
+        reduce = True if self.loss_mean_type == "ce" else False
         criterion = CrossEntropyLoss(reduce=reduce)
         loss = criterion(action_preds, action_targets)
         return (
             loss
-            if self.loss_mean_type == "ce_mean"
+            if self.loss_mean_type == "ce"
             else self._custom_masked_mean_loss(
                 loss.reshape(bacth_size, seq_length), input.attention_mask
             )

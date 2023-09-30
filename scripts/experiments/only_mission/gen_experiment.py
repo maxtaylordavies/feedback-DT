@@ -7,7 +7,7 @@ from datetime import datetime
 # define some paths
 USER = os.environ["USER"]
 PROJECT_HOME = f"/home/{USER}/projects/feedback-DT"
-EXPERIMENT_NAME = "random_mission"
+EXPERIMENT_NAME = "only_mission"
 DATA_HOME = f"{PROJECT_HOME}/data/{EXPERIMENT_NAME}"
 
 def run_name(combo, keys):
@@ -48,9 +48,9 @@ variables = {
         False
     ],
      "model_seed": [
-        123456789, 
-        987654321, 
-        111111111, 
+        123456789,
+        987654321,
+        111111111,
     ]
 }
 
