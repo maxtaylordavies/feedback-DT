@@ -10,7 +10,7 @@ PROJECT_HOME, SCRATCH_HOME = (
     f"/home/{USER}/projects/feedback-DT",
     f"{SCRATCH_DISK}/{USER}",
 )
-EXPERIMENT_NAME = "conditioning_mlp_crannog_3"
+EXPERIMENT_NAME = "conditioning_mlp_crannog"
 DATA_HOME = f"{SCRATCH_HOME}/projects/feedback-DT/data/{EXPERIMENT_NAME}"
 
 
@@ -27,7 +27,7 @@ def run_name(combo, keys):
 
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True"
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True --early_stopping_patience 80"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
@@ -38,14 +38,14 @@ variables = {
         # "GoToLocal",
         # "PutNextLocal",
         # "PickupLoc",
-        "Pickup",
+        # "Pickup",
         # "UnblockPickup",
         # "Open",
-        "Unlock",
+        # "Unlock",
         # "PutNext",
         "Synth",
         # "SynthLoc"
-        "GoToSeq"
+        # "GoToSeq"
     ],
     "use_mission": [
         True,
@@ -54,7 +54,7 @@ variables = {
     "use_feedback": [
         True,
         # comment out False when using the "rule" and "task" feedback_mode's
-        False
+        # False
     ],
     "use_rtg": [
         True,
@@ -65,10 +65,10 @@ variables = {
         # "random"
     ],
     "feedback_mode": [
-        "all",
+        # "all",
         # comment out "rule" and "task" when using True and False for use_feedback
-        # "rule",
-        # "task",
+        "rule",
+        "task",
         # "random"
     ],
     # "random_mode": [
@@ -80,12 +80,10 @@ variables = {
         # False
     ],
     "eps_per_seed": [
-        10,
-        # 100,
+        100,
     ],
      "model_seed": [
-        # 987654321, 
-        987654322,
+        987654321, 
     ]
 }
 
@@ -93,7 +91,7 @@ combinations = list(itertools.product(*variables.values()))
 print(f"Total experiments = {len(combinations)}")
 
 output_file = open(
-    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment.txt",
+    f"{PROJECT_HOME}/scripts/experiments/{EXPERIMENT_NAME}/experiment_3.txt",
     "w+",
 )
 

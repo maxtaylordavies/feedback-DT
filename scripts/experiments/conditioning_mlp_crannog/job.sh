@@ -140,7 +140,7 @@ source ${VENV_NAME}/bin/activate
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
 PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=conditioning_mlp_crannog
+EXPERIMENT_NAME=conditioning_mlp_crannog_3
 
 # input data directory path on the DFS (make if required)
 src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
@@ -194,7 +194,7 @@ echo "Command ran successfully!"
 
 echo "Moving output data back to DFS"
 
-src_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
+src_path=${SCRATCH_HOME}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output/${RUN_NAME}
 if [[ -e $src_path ]];
     then echo "${src_path} exists"
 else
@@ -202,7 +202,7 @@ else
     mkdir -p $src_path
 fi
 
-dest_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output
+dest_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/output/${RUN_NAME}
 if [[ -e $dest_path ]];
     then echo "${dest_path} exists"
 else
