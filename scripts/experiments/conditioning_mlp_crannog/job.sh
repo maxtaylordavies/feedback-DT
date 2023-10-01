@@ -140,7 +140,7 @@ source ${VENV_NAME}/bin/activate
 echo "Moving input data to the compute node's scratch space: $SCRATCH_DISK"
 
 PROJECT_NAME=feedback-DT
-EXPERIMENT_NAME=conditioning_mlp_crannog_3
+EXPERIMENT_NAME=conditioning_mlp_crannog
 
 # input data directory path on the DFS (make if required)
 src_path=/home/${USER}/projects/${PROJECT_NAME}/data/${EXPERIMENT_NAME}/input
