@@ -36,27 +36,27 @@
 # #SBATCH --error=/home/%u/slurm_logs/slurm-%A_%a.out
 
 # Maximum number of nodes to use for the job
-# #SBATCH --nodes=1
+#SBATCH --nodes=1
 
 # Generic resources to use - typically you'll want gpu:n to get n gpus
 #SBATCH --gres=gpu:1
 
 # Megabytes of RAM required. Check `cluster-status` for node configurations
-# #SBATCH --mem=14000
+#SBATCH --mem=64G
 
 # Number of CPUs to use. Check `cluster-status` for node configurations
 #SBATCH --cpus-per-task=2
 
 # Maximum time for the job to run, format: days-hours:minutes:seconds
-# #SBATCH --time=1-04:00:00
+#SBATCH --time=6-00:00:00
 
 # Partition of the cluster to pick nodes from (check `sinfo`)
-# # SBATCH --partition=PGR-Standard
+#SBATCH --partition=gpu
 
 # Any nodes to exclude from selection
-# #SBATCH --exclude=charles[05,12-18]
+# #SBATCH --exclude=node[01-15]
 
-#SBATCH --mem-per-cpu=64G
+# #SBATCH --mem-per-cpu=64G
 
 
 # =====================
