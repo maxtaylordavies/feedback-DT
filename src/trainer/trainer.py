@@ -34,6 +34,8 @@ class AgentTrainer(Trainer):
                 optim="adamw_torch",
                 max_grad_norm=0.25,
                 save_strategy="no",
+                seed=self.user_args["model_seed"],
+                data_seed=self.user_args["dataset_seed"]
             ),
             train_dataset=dataset,
             data_collator=collator,

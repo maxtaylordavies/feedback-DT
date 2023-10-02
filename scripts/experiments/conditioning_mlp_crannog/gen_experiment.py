@@ -27,21 +27,25 @@ def run_name(combo, keys):
 
 
 # this is the base command that will be used for the experiment
-base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True"
-# --eps_per_shard 4
+base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True --early_stopping_patience 20"
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
     "level": [
-        "GoToLocal",
-        "PutNextLocal",
-        "PickupLoc",
-        "Pickup",
-        "Unlock",
+        # "GoToObj",
+        # "GoToLocal",
+        # "PutNextLocal",
+        # "PickupLoc",
+        # "Pickup",
+        # "UnblockPickup",
+        # "Open",
+        # "Unlock",
+        # "PutNext",
         "Synth",
-        "GoToSeq"
+        # "SynthLoc"
+        # "GoToSeq"
     ],
     "use_mission": [
         True,
@@ -52,15 +56,31 @@ variables = {
         # comment out False when using the "rule" and "task" feedback_mode's
         False
     ],
+    "use_rtg": [
+        True,
+        False
+    ],
+    "mission_mode": [
+        "standard",
+        # "random"
+    ],
     "feedback_mode": [
         "all",
         # comment out "rule" and "task" when using True and False for use_feedback
         # "rule",
-        # "task"
+        # "task",
+        # "random"
     ],
-    "use_rtg": [
+    # "random_mode": [
+    #     "english",
+    #     "lorem"
+    # ],
+    "rgb_obs": [
         True,
-        False
+        # False
+    ],
+    "eps_per_seed": [
+        100,
     ],
      "model_seed": [
         987654321, 
@@ -81,6 +101,7 @@ for c in combinations:
         expt_call += f" --{var} {c[i]}"
 
     expt_call += f" --run_name {run_name(c, variables.keys())}"
+    expt_call = f"export RUN_NAME={run_name(c, variables.keys())}; " + expt_call
     print(expt_call, file=output_file)
 
 output_file.close()

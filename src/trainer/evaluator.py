@@ -43,7 +43,6 @@ class Evaluator(TrainerCallback):
         self.sample_interval = self.user_args["sample_interval"]
         self.target_return = self.user_args["target_return"]
         self.num_repeats = self.user_args["num_repeats"]
-        self.samples_processed = 0
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
         self.best_lengths = {"random": np.inf, "DT": np.inf}
         self.device = torch.device(
@@ -121,7 +120,9 @@ class Evaluator(TrainerCallback):
         self._set_train_seeds()
 
         # run initial eval (before any training steps)
+        self._plot_loss(state)
         self._run_eval_and_plot(model, state, eval_type="efficiency")
+        self.collator.samples_processed = 0
 
         return super().on_train_begin(args, state, control, **kwargs)
 
@@ -135,7 +136,7 @@ class Evaluator(TrainerCallback):
         log("on_epoch_begin called", with_tqdm=True)
         return super().on_epoch_begin(args, state, control, **kwargs)
 
-    def on_step_begin(
+    def on_step_end(
         self,
         args: TrainingArguments,
         state: TrainerState,
@@ -146,22 +147,15 @@ class Evaluator(TrainerCallback):
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
-        sample_diff = self.collator.samples_processed - self.samples_processed
-        if sample_diff >= self.sample_interval:
+        if state.global_step % self.sample_interval == 0 and state.global_step > 0:
             self._run_eval_and_plot(
                 model, state, eval_type="efficiency", control=control
             )
-            self.samples_processed = self.collator.samples_processed
             log(
                 f"saving model checkpoint after step {state.global_step}",
                 with_tqdm=True,
             )
             model.save_checkpoint(self.output_dir, state.global_step)
-
-        previous_epoch = self.current_epoch
-        self.current_epoch = state.epoch
-        if previous_epoch != self.current_epoch:
-            self.collator.update_epoch()
 
     def on_train_end(
         self,
@@ -171,9 +165,8 @@ class Evaluator(TrainerCallback):
         model: Agent,
         **kwargs,
     ):
-        log("Training ended - loading model checkpoint")
+        log("Training ended")
         model.load_checkpoint(self.output_dir, self.best_global_step)
-        self._plot_loss(state)
         self._run_eval_and_plot(model, state, eval_type="iid_generalisation")
         self._run_eval_and_plot(model, state, eval_type="ood_generalisation")
 
@@ -339,7 +332,7 @@ class Evaluator(TrainerCallback):
         if self.user_args["record_video"]:
             env.release()
 
-            if self.samples_processed == 0:
+            if self.collator.samples_processed == 0:
                 env.save_as(f"first_{model_name}")
 
             if "generalisation" in eval_type and model_name == "DT":
@@ -606,7 +599,7 @@ class Evaluator(TrainerCallback):
 
             # first, do line plot against samples (for sample efficiency)
             fig, ax = plt.subplots()
-            sns.lineplot(x="samples", y=m, hue="model", data=eff_df, ax=ax)
+            sns.lineplot(x="global_step", y=m, hue="model", data=eff_df, ax=ax)
             for fmt in formats:
                 fig.savefig(
                     os.path.join(self.output_dir, f"eff_{m.replace(' ', '_')}.{fmt}")
