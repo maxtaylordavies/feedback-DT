@@ -34,18 +34,13 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
-        # "GoToObj",
-        # "GoToLocal",
-        # "PutNextLocal",
-        # "PickupLoc",
-        # "Pickup",
-        # "UnblockPickup",
-        # "Open",
-        # "Unlock",
-        # "PutNext",
+        "GoToLocal",
+        "PutNextLocal",
+        "PickupLoc",
+        "Pickup",
+        "Unlock",
         "Synth",
-        # "SynthLoc"
-        # "GoToSeq"
+        "GoToSeq"
     ],
     "use_mission": [
         True,
@@ -56,34 +51,18 @@ variables = {
         # comment out False when using the "rule" and "task" feedback_mode's
         False
     ],
-    "use_rtg": [
-        True,
-        False
-    ],
-    "mission_mode": [
-        "standard",
-        # "random"
-    ],
     "feedback_mode": [
         "all",
         # comment out "rule" and "task" when using True and False for use_feedback
         # "rule",
-        # "task",
-        # "random"
+        # "task"
     ],
-    # "random_mode": [
-    #     "english",
-    #     "lorem"
-    # ],
-    "rgb_obs": [
+    "use_rtg": [
         True,
-        # False
-    ],
-    "eps_per_seed": [
-        100,
+        False
     ],
      "model_seed": [
-        987654321, 
+        987654321,
     ]
 }
 
