@@ -157,3 +157,7 @@ class FeedbackEnv:
     @property
     def instrs(self):
         return self.env.instrs
+
+    @property
+    def step_count(self):
+        return self.env.step_count

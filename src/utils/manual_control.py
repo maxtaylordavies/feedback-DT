@@ -10,6 +10,8 @@ from minigrid.core.actions import Actions
 from minigrid.manual_control import ManualControl
 from PIL import Image
 
+from src.env.feedback_env import FeedbackEnv
+
 ACTION_TO_STR = {
     0: "left",
     1: "right",
@@ -51,8 +53,10 @@ class DemoManualControl(ManualControl):
         self.actions = []
         self.frames = []
         self.date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        obs, _ = self.env.reset(seed=seed)
-        message = f"step=0, mission='{obs['mission']}'"
+        self.env.reset(seed=seed)
+        mission=self.env.mission
+        self.env = FeedbackEnv(self.env, feedback_mode="all", max_steps=self.env.max_steps)
+        message = f"step=0, mission='{mission}'"
         logging.info(message)
         self.env.render()
 
@@ -93,9 +97,9 @@ class DemoManualControl(ManualControl):
         sys.exit()
 
     def step(self, action: Actions):
-        _, reward, terminated, truncated, _ = self.env.step(action)
+        _, reward, terminated, truncated, feedback = self.env.step(action)
         self.actions.append(action)
-        message = f"step={self.env.step_count}, action={ACTION_TO_STR[action]}, reward={reward:.2f}"
+        message = f"step={self.env.step_count}, action={ACTION_TO_STR[action]}, feedback={feedback}, reward={reward:.2f}"
 
         if not (terminated or truncated):
             logging.info(message)
