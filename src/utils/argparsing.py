@@ -118,12 +118,6 @@ def get_args():
         help="Path to the directory to write output to",
     )
     parser.add_argument(
-        "--del_all",
-        type=str2bool,
-        default=False,
-        help="Whether to delete all local datasets",
-    )
-    parser.add_argument(
         "--use_feedback",
         type=str2bool,
         default=True,
@@ -164,18 +158,6 @@ def get_args():
         type=str,
         default="GoToRedBallGrey",
         help="the name of the level to train on",
-    )
-    parser.add_argument(
-        "--train_mode",
-        type=str,
-        default="st",
-        help="the training mode to use; can be either 'st', 'rr', 'mt'",
-    )
-    parser.add_argument(
-        "--curriculum_mode",
-        type=str,
-        default="default",
-        help="the training mode to use; can be either 'default', 'custom', 'anti'",
     )
     parser.add_argument(
         "--sample_interval",

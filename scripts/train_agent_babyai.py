@@ -8,7 +8,6 @@ from src.collator import Collator
 from src.constants import ENV_METADATA_PATH
 from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
-from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
 from src.utils.utils import frame_size
@@ -57,9 +56,9 @@ else:
     device = torch.device("mps")
     log("using mps")
 
-log("Creating dataset...with a single task.")
+log("getting dataset...")
 dataset = CustomDataset.get_dataset(args)
-log("Creating standard single-task collator...")
+log("creating collator...")
 collator = Collator(
     custom_dataset=dataset,
     args=args,
