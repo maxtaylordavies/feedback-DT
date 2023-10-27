@@ -1,0 +1,131 @@
+import itertools
+import logging
+import os
+import sys
+from datetime import datetime
+
+import gymnasium as gym
+import pygame
+from minigrid.core.actions import Actions
+from minigrid.manual_control import ManualControl
+from PIL import Image
+
+ACTION_TO_STR = {
+    0: "left",
+    1: "right",
+    2: "forward",
+    3: "pickup",
+    4: "drop",
+    5: "toggle"
+}
+
+class DemoManualControl(ManualControl):
+    def __init__(self, config: str, seed=None, record=False, speed=1, save_log=False, reset_env=False) -> None:
+        self.config = config
+        self.seed = seed
+        self.env = self._make_env(config, render_mode="human")
+        super().__init__(self.env, seed)
+        self.record = record
+        self.speed = speed
+        self.reset_env = reset_env
+        self.save_dir = self._get_save_dir()
+        self.date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if save_log:
+            logging.basicConfig(filename=f"{self.save_dir}/{self.date}_{self.config.split('-')[1]}.log", level=logging.INFO)
+        self.actions = []
+        self.frames = []
+
+    def _get_save_dir(self):
+        project_dir = os.path.abspath(os.getcwd())
+        save_dir =  os.path.join(project_dir, "demos")
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+        else:
+            print(f"Path {save_dir} exists")
+        return save_dir
+
+    def _make_env(self, level, render_mode):
+        return gym.make(level, render_mode=render_mode)
+
+    def reset(self, seed=None):
+        self.actions = []
+        self.frames = []
+        self.date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        obs, _ = self.env.reset(seed=seed)
+        message = f"step=0, mission='{obs['mission']}'"
+        logging.info(message)
+        self.env.render()
+
+    def start(self):
+        """
+        Start the window display with blocking event loop.
+
+        Overriding the start method from minigrid.manual_control.ManualControl.
+        This is to allow quitting with closing the window and executing code outside of start().
+
+        """
+        self.reset(self.seed)
+
+        while not self.closed:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self._close_window()
+                if event.type == pygame.KEYDOWN:
+                    event.key = pygame.key.name(int(event.key))
+                    if event.key == "escape":
+                        self._close_window()
+                        break
+                    print(event.key)
+                    if event.key == "r":
+                        if self.reset_env:
+                            if self.record:
+                                self.replay_episode()
+                            self.reset(self.seed)
+                        else:
+                            self._close_window()
+                    self.key_handler(event)
+
+    def _close_window(self):
+        if self.record:
+            self.replay_episode()
+        self.env.close()
+        pygame.quit()
+        sys.exit()
+
+    def step(self, action: Actions):
+        _, reward, terminated, truncated, _ = self.env.step(action)
+        self.actions.append(action)
+        message = f"step={self.env.step_count}, action={ACTION_TO_STR[action]}, reward={reward:.2f}"
+
+        if not (terminated or truncated):
+            logging.info(message)
+            self.env.render()
+        else:
+            message += ", terminated" if terminated else ", truncated"
+            logging.info(message)
+            if self.reset_env:
+                if self.record:
+                    self.replay_episode()
+                self.reset(self.seed)
+            else:
+                self._close_window()
+
+    def replay_episode(self):
+        rgb_env = self._make_env(self.config, render_mode="rgb_array")
+        rgb_env.reset(seed=self.seed)
+        self.frames.append(Image.fromarray(rgb_env.render()))
+        for action in self.actions:
+            rgb_env.step(action)
+            self.frames.append(Image.fromarray(rgb_env.render()))
+        self.save_images()
+        self.save_gif()
+
+    def save_images(self):
+        for i, frame in enumerate(self.frames):
+            save_path = f"{self.save_dir}/{self.date}_{self.config.split('-')[1]}_step-{str(i)}.pdf"
+            frame.save(save_path)
+
+    def save_gif(self):
+        save_path = f"{self.save_dir}/{self.date}_{self.config.split('-')[1]}.gif"
+        frames_extended = list(itertools.chain.from_iterable(itertools.repeat(f, int(10/self.speed)) for f in self.frames))
+        frames_extended[0].save(save_path, save_all=True, append_images=frames_extended[1:], duration=len(frames_extended), loop=0)
