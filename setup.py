@@ -7,5 +7,5 @@ setup(
         "Library for training decision transformers augmented with natural language feedback"
     ),
     url="https://github.com/maxtaylordavies/feedback-DT",
-    packages=["src", "external_rl"],
+    packages=["src"]
 )
