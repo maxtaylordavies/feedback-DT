@@ -22,6 +22,7 @@ os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 seed(GLOBAL_SEED)
 
 args = get_args()
+args["level"] = "PickupLoc"
 
 for arg, value in args.items():
     print(f"{arg:}\n {value} \n{'==='*20}")
@@ -58,36 +59,36 @@ else:
 
 log("getting dataset...")
 dataset = CustomDataset.get_dataset(args)
-log("creating collator...")
-collator = Collator(
-    custom_dataset=dataset,
-    args=args,
-)
+# log("creating collator...")
+# collator = Collator(
+#     custom_dataset=dataset,
+#     args=args,
+# )
 
-seed(args["model_seed"])
+# seed(args["model_seed"])
 
-log("creating agent...")
-agent = MinigridFDTAgent(
-    config=DecisionTransformerConfig(
-        state_dim=collator.state_dim,
-        act_dim=collator.act_dim,
-        state_shape=(3, frame_size, frame_size),
-        max_length=args["context_length"],
-    ),
-    use_missions=args["use_mission"],
-    use_feedback=args["use_feedback"],
-    use_rtg=args["use_rtg"],
-    loss_mean_type=args["loss_mean_type"],
-    use_rgb=args["rgb_obs"]
-)
+# log("creating agent...")
+# agent = MinigridFDTAgent(
+#     config=DecisionTransformerConfig(
+#         state_dim=collator.state_dim,
+#         act_dim=collator.act_dim,
+#         state_shape=(3, frame_size, frame_size),
+#         max_length=args["context_length"],
+#     ),
+#     use_missions=args["use_mission"],
+#     use_feedback=args["use_feedback"],
+#     use_rtg=args["use_rtg"],
+#     loss_mean_type=args["loss_mean_type"],
+#     use_rgb=args["rgb_obs"]
+# )
 
-log("creating trainer...")
-trainer = AgentTrainer(
-    agent=agent,
-    collator=collator,
-    dataset=collator.dataset,
-    args=args,
-)
+# log("creating trainer...")
+# trainer = AgentTrainer(
+#     agent=agent,
+#     collator=collator,
+#     dataset=collator.dataset,
+#     args=args,
+# )
 
-log("training agent...")
-trainer.train()
+# log("training agent...")
+# trainer.train()

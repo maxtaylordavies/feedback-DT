@@ -353,6 +353,8 @@ class CustomDataset:
                     feedback_mode=self.args["feedback_mode"],
                     max_steps=self.max_steps,
                 )
+                log(f"mission before seeding {self.env.unwrapped.mission}")
+                log(f"task objects before seeding {[subtask.desc for subtask in self.env.task_fv.subtasks]}")
                 partial_obs, _ = self.env.reset(seed=seed)
                 obs = get_minigrid_obs(
                     self.env,
@@ -360,7 +362,8 @@ class CustomDataset:
                     self.args["fully_obs"],
                     self.args["rgb_obs"],
                 )["image"]
-
+                log(f"mission after seeding {self.env.unwrapped.mission}")
+                log(f"task objects before seeding {[subtask.desc for subtask in self.env.task_fv.subtasks]}")
                 self.state_dim = np.prod(obs.shape)
 
                 # initialise buffers to store replay data
