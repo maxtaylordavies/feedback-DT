@@ -13,7 +13,6 @@ from src.constants import GLOBAL_SEED
 from src.env.feedback_env import FeedbackEnv
 
 
-# import tensorboardX
 
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
@@ -71,7 +70,6 @@ class PPOAgent:
             max_steps=max_steps,
         )
         self.model_dir = self._get_model_dir()
-        # self.model = self._get_model()
 
     def _get_model_dir(self):
         """
@@ -110,7 +108,6 @@ class PPOAgent:
         # Load loggers and Tensorboard writer
         txt_logger = utils.get_txt_logger(self.model_dir)
         csv_file, csv_logger = utils.get_csv_logger(self.model_dir)
-        # tb_writer = tensorboardX.SummaryWriter(self.model_dir)
 
         # Log command and all script arguments
         txt_logger.info(f"{' '.join(sys.argv)}\n")
@@ -245,9 +242,6 @@ class PPOAgent:
                     csv_logger.writerow(header)
                 csv_logger.writerow(data)
                 csv_file.flush()
-
-                # for field, value in zip(header, data):
-                #     tb_writer.add_scalar(field, value, num_frames)
 
             # Save status
             if (
