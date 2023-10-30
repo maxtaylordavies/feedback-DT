@@ -7,8 +7,6 @@ from IPython.display import display
 from matplotlib import pyplot as plt
 
 warnings.filterwarnings("ignore")
-plt.rcParams["font.sans-serif"] = "Helvetica"
-plt.rcParams["font.family"] = "sans-serif"
 sns.set(font="Helvetica")
 USER = os.environ["USER"]
 ROOT = os.path.dirname(os.path.abspath(USER))
@@ -170,31 +168,27 @@ def map_colors(df, colors):
     }
 
 
-def set_reference_performance_on_y_axis(ax, reference, reference_perf, ylims):
+def set_axis_ticks(ax, reference, reference_perf, ylims, sizing_config):
     """
     Sets the reference performance on the y-axis (instead of 0).
     """
     ax.set_ylim(bottom=-ylims, top=ylims)
     yticklabels = ax.get_yticks().tolist()
+
     new_yticklabels = [
-        f"{reference_perf:.2f}"
+        f"{reference_perf:.2f}*"
         if float(ytick) == float(0)
         else (f"+{ytick:.2f}" if float(ytick) > float(0) else f"{ytick:.2f}")
         for ytick in yticklabels
     ]
-    ax.set_yticklabels(new_yticklabels, fontsize=10)
-    plt.text(
-        -0.65,
-        0.0075,
-        reference,
-        fontsize=10,
-        fontweight="bold",
-        ha="right",
-        va="center",
-    )
+    ax.set_yticklabels(new_yticklabels, fontsize=sizing_config["tick_label_size"])
+    xticklabels = ax.get_xticklabels()
+    new_xticklabels = [f"vs {label.get_text()}".replace(f"vs {reference}", '').replace("feedback", "\nfeedback") for label in xticklabels]
+    ax.set_xticklabels(new_xticklabels, fontsize=sizing_config["tick_label_size"])
+    plt.tight_layout(pad=0.5)
 
 
-def set_bar_values(ax, df, ylims):
+def set_bar_values(ax, df, ylims, sizing_config):
     """
     Sets the values of the bars on top of the bars (for positive deltas)
     / below the bars (for negatvie deltas).
@@ -203,38 +197,123 @@ def set_bar_values(ax, df, ylims):
         x_pos = index
         y_pos = value + ylims / 25 if value > 0 else value - ylims / 25
         va = "bottom" if value > 0 else "top"
-        ax.text(x_pos, y_pos, f"{value:.2f}", ha="center", va=va, fontsize=10)
+        ax.text(
+            x_pos,
+            y_pos,
+            f"{value:.2f}",
+            ha="center",
+            va=va,
+            fontsize=sizing_config["value_size"],
+        )
+    plt.tight_layout(pad=0.5)
 
 
-def set_pad_title(level, metric, eval_type):
+def set_pad_title(level, eval_type, sizing_config):
     """
     Sets the title of the plot, with padding.
     """
     plt.title(
-        f"'{level}' {metric.replace('_', ' ') + ' rate' if ('success' in metric and not 'rate' in metric) else ''} {eval_type.replace('_', ' ')}",
-        fontsize=14,
-        pad=14,
+        f"{eval_type.replace('_', ' ')} \non level '{level}'",
+        fontsize=sizing_config["title_size"],
     )
+    plt.tight_layout(pad=0.5)
 
 
-def set_pad_axis_labels(reference):
+def set_pad_axis_labels(ax, metric, reference, sizing_config):
     """
     Sets the labels of the x and y axes, with padding.
     """
-    plt.xticks(fontsize=10)
-    plt.xlabel("Conditioning variant", fontsize=12, labelpad=14)
-    plt.ylabel(
-        f"Δ goal-conditioned success rate (vs. {reference} only)",
-        fontsize=12,
-        labelpad=18,
+    ax.set_xlabel(
+        "Conditioning variant",
+        fontsize=sizing_config["axis_label_size"],
+        wrap=True,
+    )
+    ax.set_ylabel(
+        f"Δ {metric.replace('_', ' ')}{' rate' if metric == 'gc_success' else ''}\n*{reference}",
+        fontsize=sizing_config["axis_label_size"],
+        labelpad=sizing_config["axis_label_size"]*0.75,
+        wrap=True,
+    )
+    ax.tick_params(axis='both', which='major', pad=-2)
+    plt.tight_layout(pad=0.5)
+
+
+def get_plot_config(size):
+    figma_dpi = 72
+    small_height = 132 / figma_dpi
+    medium_height = 198 / figma_dpi
+    large_height = 396 / figma_dpi
+    full_width = 396 / figma_dpi
+    half_width = 190.5 / figma_dpi
+    third_width = 122 / figma_dpi
+
+    xsmall_font_size = 6
+    small_font_size = 9
+    medium_font_size = 10
+    large_font_size = 14
+    xlarge_font_size = 16
+
+    xsmall_font_set = (
+        small_font_size,
+        xsmall_font_size,
+        xsmall_font_size,
+        xsmall_font_size,
     )
 
+    small_font_set = (
+        small_font_size,
+        small_font_size,
+        xsmall_font_size,
+        xsmall_font_size,
+    )
+    medium_font_set = (
+        large_font_size,
+        medium_font_size,
+        small_font_size,
+        xsmall_font_size,
+    )
+    large_font_set = (
+        xlarge_font_size,
+        large_font_size,
+        medium_font_size,
+        small_font_size,
+    )
 
-def set_margins():
-    """
-    Sets the margins of the plot.
-    """
-    plt.margins(x=0.05, y=0.05)
+    if size == "small-third":
+        figsize = (third_width, small_height)
+        font_sizes = xsmall_font_set
+    elif size == "small-half":
+        figsize = (half_width, small_height)
+        font_sizes = xsmall_font_set
+    elif size == "small":
+        figsize = (full_width, small_height)
+        font_sizes = small_font_set
+    elif size == "medium-third":
+        figsize = (third_width, medium_height)
+        font_sizes = xsmall_font_set
+    elif size == "medium-half":
+        figsize = (half_width, medium_height)
+        font_sizes = small_font_set
+    elif size == "medium":
+        figsize = (full_width, medium_height)
+        font_sizes = medium_font_set
+    elif size == "large-third":
+        figsize = (third_width, large_height)
+        font_sizes = medium_font_set
+    elif size == "large-half":
+        figsize = (half_width, large_height)
+        font_sizes = large_font_set
+    else:
+        figsize = (full_width, large_height)
+        font_sizes = large_font_set
+
+    return {
+        "figsize": figsize,
+        "title_size": font_sizes[0],
+        "axis_label_size": font_sizes[1],
+        "tick_label_size": font_sizes[2],
+        "value_size": font_sizes[3],
+    }
 
 
 def plot_deltas(
@@ -242,6 +321,7 @@ def plot_deltas(
     level,
     metric,
     colors,
+    size,
     ylims,
     eval_type,
     output_path,
@@ -253,8 +333,10 @@ def plot_deltas(
     Plots the deltas of a given dataframe with respect to a reference (mission or RTG).
     """
     color_palette = map_colors(df, colors)
-    eval_type = eval_type + " " + ood_type if ood_type else eval_type
-    _, ax = plt.subplots(figsize=(10, 10))
+    sizing_config = get_plot_config(size)
+    eval_type = f"{eval_type.split('_')[0].upper()} generalisation{f' ({ood_type})' if ood_type else ''}"
+    fig = plt.figure(figsize=sizing_config["figsize"])
+    ax = plt.subplot()
     sns.barplot(
         data=df,
         x="conditioning",
@@ -263,22 +345,24 @@ def plot_deltas(
         errorbar=None,
         palette=color_palette,
     )
-    set_reference_performance_on_y_axis(ax, reference, reference_perf, ylims)
-    set_bar_values(ax, df, ylims)
-    set_pad_title(level, metric, eval_type)
-    set_pad_axis_labels(reference)
-    set_margins()
+    plt.tight_layout(pad=0.5)
+    set_axis_ticks(ax, reference, reference_perf, ylims, sizing_config)
+    set_bar_values(ax, df, ylims, sizing_config)
+    plt.margins(x=0.025, y=0.025)
+    set_pad_title(level, eval_type, sizing_config)
+    set_pad_axis_labels(ax, metric, reference, sizing_config)
     plt.savefig(
-        os.path.join(output_path, f"{level}_{metric}_{eval_type}_{reference}.png")
+        os.path.join(output_path, f"{level}_{metric}_{eval_type}_{reference}.png"),
+        bbox_inches="tight",
     )
     plt.show()
 
 
-def plot_results(df, level, metric, colors, output_path):
+def plot_results(df, level, metric, colors, size, output_path):
     """
     Plots the results of a given dataframe.
     """
-    ylims = max(abs(df["Delta (Mean)"].max()), abs(df["Delta (Mean)"].min())) * 1.2
+    ylims = max(abs(df["Delta (Mean)"].max()), abs(df["Delta (Mean)"].min())) * 1.25
     for reference in ["mission", "rtg"]:
         for eval_type in df["eval_type"].unique():
             for ood_type in df[df["eval_type"] == eval_type]["ood_type"].unique():
@@ -305,6 +389,7 @@ def plot_results(df, level, metric, colors, output_path):
                     level,
                     metric,
                     colors,
+                    size,
                     ylims,
                     eval_type,
                     output_path,
@@ -348,7 +433,7 @@ if __name__ == "__main__":
             "#DFE9ED",
         ],
     }
-
+    size = "small-half"
     data_home = f"{ROOT}/data/conditioning/output"
     output_path = f"{ROOT}/data/conditioning/output/results"
 
@@ -360,4 +445,4 @@ if __name__ == "__main__":
         level_df = comb_df[comb_df["level"] == level]
         results_df = combine_results(level_df, metric)
         save_results_as_csv(results_df, level, metric, output_path)
-        plot_results(results_df, level, metric, colors, output_path)
+        plot_results(results_df, level, metric, colors, size, output_path)
