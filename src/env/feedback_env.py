@@ -144,6 +144,10 @@ class FeedbackEnv:
         return self.env.grid
 
     @property
+    def mission(self):
+        return self.env.mission
+
+    @property
     def max_steps(self):
         # if self._max_steps is set, return the minimum of self._max_steps
         # and self.env.max_steps; otherwise just return self.env.max_steps
