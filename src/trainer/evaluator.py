@@ -359,11 +359,6 @@ class Evaluator(TrainerCallback):
                         )
 
                     self.max_return = max_return or 0
-                # if float(gc_success) == float(0):
-                #     log("Saving video for failed episode")
-                #     env.save_as(
-                #         f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
-                #     )
 
     def _evaluate_agent_performance(
         self,
@@ -418,12 +413,6 @@ class Evaluator(TrainerCallback):
             df.drop(df[df["global_step"] > self.best_global_step].index, inplace=True)
             df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
             control.should_training_stop = True
-
-        # log the average episode return for the current eval
-        # log(
-        #     f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
-        #     with_tqdm=True,
-        # )
 
         # save the results to disk
         else:
@@ -540,7 +529,6 @@ class Evaluator(TrainerCallback):
             a = actions[-1].detach().cpu().numpy()
 
             obs, reward, done, _, _ = env.step(np.argmax(a))
-            # obs = fully_obs_env.observation(obs)
             cur_state = get_state(obs)
             states = torch.cat([states, cur_state], dim=0)
 

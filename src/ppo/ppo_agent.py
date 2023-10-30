@@ -13,7 +13,6 @@ from src.constants import GLOBAL_SEED
 from src.env.feedback_env import FeedbackEnv
 
 
-
 os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
 
