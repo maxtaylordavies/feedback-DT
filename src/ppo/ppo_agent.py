@@ -242,7 +242,6 @@ class PPOAgent:
                 csv_logger.writerow(data)
                 csv_file.flush()
 
-
             # Save status
             if (
                 self.args["save_interval"] > 0
