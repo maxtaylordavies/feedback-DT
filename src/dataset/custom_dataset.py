@@ -43,6 +43,7 @@ class CustomDataset:
         self.max_steps = self._get_level_max_steps()
         self._determine_eps_per_shard()
         self.shard_list = []
+        self.env = None
 
     def _get_configs(self):
         """
@@ -116,8 +117,12 @@ class CustomDataset:
     def _get_train_seeds(self):
         # choose random subset of train seeds for the train config
         seed_log = self.seed_finder.load_seeds(self.level, self.train_config)
-        train_seeds = self.seed_finder.get_train_seeds(seed_log, self.level, self.num_train_seeds)
-        return [int(s) for s in np.random.choice(train_seeds, size=self.num_train_seeds)]
+        train_seeds = self.seed_finder.get_train_seeds(
+            seed_log, self.level, self.num_train_seeds
+        )
+        return [
+            int(s) for s in np.random.choice(train_seeds, size=self.num_train_seeds)
+        ]
 
     def _get_level_max_steps(self):
         """
@@ -148,13 +153,17 @@ class CustomDataset:
             num_rows = level_metadata[self.train_config]["num_rows"]
         except KeyError:
             num_rows = (
-                metadata["defaults"]["maze"]["num_rows"] if level_metadata["maze"] else 1
+                metadata["defaults"]["maze"]["num_rows"]
+                if level_metadata["maze"]
+                else 1
             )
         try:
             num_cols = level_metadata[self.train_config]["num_cols"]
         except KeyError:
             num_cols = (
-                metadata["defaults"]["maze"]["num_cols"] if level_metadata["maze"] else 1
+                metadata["defaults"]["maze"]["num_cols"]
+                if level_metadata["maze"]
+                else 1
             )
             tmp_max_steps = room_size**2 * num_rows * num_cols * max_instrs_factor
             global_max_steps = max(tmp_max_steps, max_steps)
@@ -227,7 +236,8 @@ class CustomDataset:
             ]
 
         episode_terminals = (
-            self.buffers[buffer_idx]["terminations"] + self.buffers[buffer_idx]["truncations"]
+            self.buffers[buffer_idx]["terminations"]
+            + self.buffers[buffer_idx]["truncations"]
             if self.args["include_timeout"]
             else None
         )
@@ -291,6 +301,11 @@ class CustomDataset:
 
     def _create_episode(self, seed, buffer_idx=0):
         partial_obs, _ = self.env.reset(seed=seed)
+        self.env = FeedbackEnv(
+            env=self.env,
+            feedback_mode=self.args["feedback_mode"],
+            max_steps=self.max_steps,
+        )
         terminated, truncated = False, False
         while not (terminated or truncated):
             obs = get_minigrid_obs(
@@ -302,9 +317,7 @@ class CustomDataset:
             # execute action
             partial_obs, reward, terminated, truncated, feedback = self.env.step(action)
             reward = (
-                float(feedback)
-                if self.args["feedback_mode"] == "numerical"
-                else reward
+                float(feedback) if self.args["feedback_mode"] == "numerical" else reward
             )
 
             self._add_to_buffer(
@@ -333,7 +346,6 @@ class CustomDataset:
             os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
-
         total_episodes = self.num_train_seeds * self.eps_per_seed
         pbar = tqdm(total=total_episodes, desc="Generating dataset")
 
@@ -348,11 +360,7 @@ class CustomDataset:
 
                 # create and initialise environment
                 log("creating env", with_tqdm=True)
-                self.env = FeedbackEnv(
-                    env=gym.make(self.train_config),
-                    feedback_mode=self.args["feedback_mode"],
-                    max_steps=self.max_steps,
-                )
+                self.env = gym.make(self.train_config)
                 partial_obs, _ = self.env.reset(seed=seed)
                 obs = get_minigrid_obs(
                     self.env,
@@ -408,7 +416,9 @@ class CustomDataset:
         self.shard = MinariDataset.load(os.path.join(self.fp, str(idx)))
 
         # compute start and end timesteps for each episode
-        self.episode_ends = np.where(self.shard.terminations + self.shard.truncations == 1)[0]
+        self.episode_ends = np.where(
+            self.shard.terminations + self.shard.truncations == 1
+        )[0]
         self.episode_starts = np.concatenate([[0], self.episode_ends[:-1] + 1])
         self.episode_lengths = self.episode_ends - self.episode_starts + 1
         self.num_episodes = len(self.episode_starts)
@@ -440,7 +450,13 @@ class CustomDataset:
         )
 
     def sample_episode(
-        self, ep_idx, gamma, length=None, random_start=False, feedback=True, mission=True
+        self,
+        ep_idx,
+        gamma,
+        length=None,
+        random_start=False,
+        feedback=True,
+        mission=True,
     ):
         if not self.shard:
             raise Exception("No shard loaded")
@@ -463,7 +479,9 @@ class CustomDataset:
         assert start <= end, f"start: {start}, end: {end}"
 
         if length:
-            assert end <= start + length - 1, f"end: {end}, start: {start}, length: {length}"
+            assert (
+                end <= start + length - 1
+            ), f"end: {end}, start: {start}, length: {length}"
         # for slicing purposes, so that we include the end step too
         end += 1
 
@@ -621,7 +639,8 @@ class CustomDataset:
 
     def __len__(self):
         return (
-            self.num_train_seeds * self.eps_per_seed if self.args["policy"] == "random"
+            self.num_train_seeds * self.eps_per_seed
+            if self.args["policy"] == "random"
             else self.num_shards * self.eps_per_shard
         )
 
