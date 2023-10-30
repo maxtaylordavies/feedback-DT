@@ -127,7 +127,7 @@ class SeedFinder:
         """
         Initialise the SeedFinder class.
         """
-        self.n_validation_seeds_required = 12
+        self.n_validation_seeds_required = 128
         self.n_train_seeds_required = n_train_seeds_required
         self.LEVELS_CONFIGS = (
             LEVELS_CONFIGS["original_tasks"]
