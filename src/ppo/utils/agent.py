@@ -63,7 +63,6 @@ class Agent:
         if self.acmodel.recurrent:
             masks = 1 - torch.Tensor(
                 dones,
-                # dtype=torch.float,
                 device=device,
             ).unsqueeze(1)
             self.memories *= masks

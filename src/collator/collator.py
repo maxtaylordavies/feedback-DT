@@ -53,16 +53,8 @@ class Collator:
             int(768 / self.embedding_dim)
         )
 
-        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        # self._feedback_embeddings_cache = {
-        #     f: null_emb for f in ["", "No feedback available."]
-        # }
         self._feedback_embeddings_cache = {}
 
-        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        # self._mission_embeddings_cache = {
-        #     m: null_emb for m in ["", "No mission available."]
-        # }
         self._mission_embeddings_cache = {}
 
         self.dataset.load_shard(idx=0)
