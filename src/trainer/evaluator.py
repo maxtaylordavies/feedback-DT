@@ -153,7 +153,7 @@ class Evaluator(TrainerCallback):
                 model, state, eval_type="efficiency", control=control
             )
             log(
-                f"saving model checkpoint after step {state.global_step}",
+                f"Saving model checkpoint after step {state.global_step}",
                 with_tqdm=True,
             )
             model.save_checkpoint(self.output_dir, state.global_step)
@@ -341,9 +341,9 @@ class Evaluator(TrainerCallback):
             if "generalisation" in eval_type and model_name == "DT":
                 log(f"Current gc success {float(gc_success)}")
                 if float(gc_success) == float(1):
-                    log("saving video for successful episode")
+                    log("Saving video for successful episode")
                     env.save_as(
-                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}succesful"
+                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}mission-{env.mission}_succesful"
                     )
 
                     max_return = df[
@@ -353,14 +353,14 @@ class Evaluator(TrainerCallback):
                     ]["return"].max()
                     log(f"Current max return {self.max_return} vs. current return {ret}")
                     if ret > self.max_return:
-                        log("saving video for new best episode (higher return)")
+                        log("Saving video for new best episode (higher return)")
                         env.save_as(
                             f"best_return_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
                         )
 
                     self.max_return = max_return or 0
                 # if float(gc_success) == float(0):
-                #     log("saving video for failed episode")
+                #     log("Saving video for failed episode")
                 #     env.save_as(
                 #         f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
                 #     )
