@@ -120,13 +120,13 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 action_embeddings,
             ),
             dim=1,
-        )  # shape (batch_size, 5, seq_length, 128)
+        )
         stacked_inputs = stacked_inputs.permute(
             0, 2, 1, 3
-        )  # shape (batch_size, seq_length, 5, 128)
+        )
         stacked_inputs = stacked_inputs.reshape(
             batch_size, 5 * seq_length, self.hidden_size
-        )  # shape (batch_size, 5 * seq_length, 128)
+        )
         stacked_inputs = self.embed_ln(stacked_inputs)
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
@@ -141,7 +141,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 ),
                 dim=1,
             )
-            # MAX LOOKING AT THIS
             .permute(0, 2, 1).reshape(batch_size, 5 * seq_length)
         )
 
@@ -162,26 +161,26 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(
             0, 2, 1, 3
-        )  # shape (batch_size, 5, seq_length, hidden_size)
+        )
 
         _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
 
         if self.use_rtg:
             _s = torch.cat(
                 [_s, _r], axis=2
-            )  # shape (batch_size, seq_length, 2 * hidden_size)
+            )
             _a = torch.cat([_a, _r], axis=2)
 
         if self.use_feedback:
             _s = torch.cat(
                 [_s, _f], axis=2
-            )  # shape (batch_size, seq_length, 3 * hidden_size)
+            )
             _a = torch.cat([_a, _f], axis=2)
 
         if self.use_missions:
             _s = torch.cat(
                 [_s, _m], axis=2
-            )  # shape (batch_size, seq_length, 4 * hidden_size)
+            )
             _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
@@ -219,9 +218,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
             )
         )
 
-        # loss2 = self._masked_mean(losses, input.attention_mask.bool() , dim=-1).mean()
-        # return loss2
-
     def _custom_masked_mean_loss(self, losses, mask):
         mean_episode_losses = torch.zeros(losses.shape[0], device=losses.device)
         for i, episode_losses in enumerate(losses):
@@ -229,25 +225,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
             mean_episode_loss = torch.mean(episode_losses)
             mean_episode_losses[i] = mean_episode_loss
         return torch.mean(mean_episode_losses)
-
-    # def _masked_mean(
-    #     self, vector: torch.Tensor, mask: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
-    #     """To calculate mean along certain dimensions on masked values.
-
-    #     Implementation from AllenNLP: https://github.com/allenai/allennlp/blob/39c40fe38cd2fd36b3465b0b3c031f54ec824160/allennlp/nn/util.py#L351-L377
-    #     Args:
-    #         vector (torch.Tensor): The vector to calculate mean.
-    #         mask (torch.Tensor): The mask of the vector. It must be broadcastable with vector.
-    #         dim (int): The dimension to calculate mean
-    #         keepdim (bool): Whether to keep dimension
-    #     Returns:
-    #         (torch.Tensor): Masked mean tensor
-    #     """
-    #     replaced_vector = vector.masked_fill(~mask, 0.0)  # noqa: WPS358
-
-    #     value_sum = torch.sum(replaced_vector, dim=dim, keepdim=keepdim)
-    #     value_count = torch.sum(mask, dim=dim, keepdim=keepdim)
-    #     return value_sum / value_count.float().clamp(min=self._tiny_value_of_dtype(torch.float))
 
     def _tiny_value_of_dtype(self, dtype: torch.dtype):
         """
@@ -290,19 +267,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
         input.returns_to_go = input.returns_to_go[:, -context:]
         input.feedback_embeddings = input.feedback_embeddings[:, -context:]
         input.timesteps = input.timesteps[:, -context:]
-
-        # pad all tokens to sequence length
-        # padding = context - input.states.shape[1]
-        # input.attention_mask = (
-        #     torch.cat(
-        #         [
-        #             torch.zeros(padding, device=device),
-        #             torch.ones(input.states.shape[1], device=device),
-        #         ]
-        #     )
-        #     .to(dtype=torch.long)
-        #     .reshape(1, -1)
-        # )
 
         output = self._forward(input)
         action = output.action_preds[0, -1]

@@ -42,7 +42,6 @@ LEVELS_CONFIGS = {
         "PickupLoc": ["BabyAI-PickupLoc-v0"],
         "GoToObjMaze": [
             "BabyAI-GoToObjMaze-v0",
-            # "BabyAI-GoToObjMazeOpen-v0",
             "BabyAI-GoToObjMazeS4R2-v0",
             "BabyAI-GoToObjMazeS4-v0",
             "BabyAI-GoToObjMazeS5-v0",
@@ -51,7 +50,6 @@ LEVELS_CONFIGS = {
         ],
         "GoTo": [
             "BabyAI-GoTo-v0",
-            # "BabyAI-GoToOpen-v0",
         ],
         "Pickup": ["BabyAI-Pickup-v0"],
         "UnblockPickup": ["BabyAI-UnblockPickup-v0"],
@@ -129,8 +127,7 @@ class SeedFinder:
         """
         Initialise the SeedFinder class.
         """
-        self.n_validation_seeds_required = 128
-        # self.n_test_seeds_required = 128
+        self.n_validation_seeds_required = 12
         self.n_train_seeds_required = n_train_seeds_required
         self.LEVELS_CONFIGS = (
             LEVELS_CONFIGS["original_tasks"]
