@@ -38,18 +38,6 @@ class FeedbackEnv:
             else None
         )
 
-    def get_feedback_constant(self):
-        """
-        Get the constant feedback string depending on the feedback mode.
-
-        Returns
-        -------
-            str: the constant feedback string.
-        """
-        if self.feedback_mode == "numerical":
-            return "0"
-        return "No feedback available."
-
     def get_feedback(self, rule_feedback, task_feedback):
         if self.feedback_mode == "rule":
             return rule_feedback

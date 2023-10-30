@@ -164,6 +164,18 @@ class CustomDataset:
         eps_per_shard = 128 if self.max_steps < 128 else self.args["eps_per_shard"]
         self.eps_per_shard = eps_per_shard
 
+    def get_feedback_constant(self):
+        """
+        Get the constant feedback string depending on the feedback mode.
+
+        Returns
+        -------
+            str: the constant feedback string.
+        """
+        if self.args["feedback_mode"] == "numerical":
+            return "0"
+        return "No feedback available."
+
     def _initialise_buffers(self, num_buffers, obs_shape):
         self._determine_eps_per_shard()
 
@@ -199,7 +211,7 @@ class CustomDataset:
                 [[0]] * (self.max_steps * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.env.get_feedback_constant()] * (self.max_steps * num_eps),
+            "feedback": [self.get_feedback_constant()] * (self.max_steps * num_eps),
             "terminations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
             "truncations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
         }
