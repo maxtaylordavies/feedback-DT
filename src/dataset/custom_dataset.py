@@ -44,6 +44,8 @@ class CustomDataset:
         self._determine_eps_per_shard()
         self.shard_list = []
         self.env = None
+        self._ppo_best_return = -np.inf
+        self._ppo_early_stop_count = 0
 
     def _get_configs(self):
         """

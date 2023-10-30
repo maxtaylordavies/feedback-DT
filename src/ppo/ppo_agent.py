@@ -20,8 +20,8 @@ os.environ["PROJECT_STORAGE"] = os.path.join(os.getcwd(), "external_rl/storage")
 
 def make_env(env_key, seed=None, render_mode=None, feedback_mode=None, max_steps=None):
     _env = gym.make(env_key, render_mode=render_mode)
+    _env.reset(seed=seed)
     env = FeedbackEnv(_env, feedback_mode=feedback_mode, max_steps=max_steps)
-    env.reset(seed=seed)
     return env
 
 

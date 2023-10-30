@@ -293,10 +293,10 @@ class Evaluator(TrainerCallback):
 
     def _create_env(self, config, seed):
         _env = gym.make(config, render_mode="rgb_array")
+        _env.reset(seed=seed)
         env = RecorderEnv(
             _env, self.user_args["feedback_mode"], self.output_dir, filename=f"tmp"
         )
-        env.reset(seed=seed)
         return env
 
     def _record_result(
