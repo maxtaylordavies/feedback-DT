@@ -208,23 +208,23 @@ class CustomDataset:
         )
 
         return {
-            "seeds": np.array([[0]] * (self.max_steps * num_eps)),
+            "seeds": np.array([[0]] * ((self.max_steps + 1) * num_eps)),
             "missions": ["No mission available."] * ((self.max_steps + 1) * num_eps),
             "observations": np.array(
-                [np.zeros(obs_shape)] * (self.max_steps * num_eps),
+                [np.zeros(obs_shape)] * ((self.max_steps + 1) * num_eps),
                 dtype=np.uint8,
             ),
             "actions": np.array(
-                [[0]] * (self.max_steps * num_eps),
+                [[0]] * ((self.max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
             "rewards": np.array(
-                [[0]] * (self.max_steps * num_eps),
+                [[0]] * ((self.max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.get_feedback_constant()] * (self.max_steps * num_eps),
-            "terminations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
-            "truncations": np.array([[0]] * (self.max_steps * num_eps), dtype=bool),
+            "feedback": [self.get_feedback_constant()] * ((self.max_steps + 1) * num_eps),
+            "terminations": np.array([[0]] * ((self.max_steps + 1) * num_eps), dtype=bool),
+            "truncations": np.array([[0]] * ((self.max_steps + 1) * num_eps), dtype=bool),
         }
 
     def _flush_buffer(self, buffer_idx, obs_shape):
@@ -293,23 +293,29 @@ class CustomDataset:
         action,
         reward,
         feedback,
+        next_observation,
         terminated,
         truncated,
         seed,
         mission,
     ):
+        self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
+        self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
         self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = observation
         self.buffers[buffer_idx]["actions"][self.steps[buffer_idx]] = action
+
+        self.steps[buffer_idx] += 1
+        self.total_steps += 1
+
         self.buffers[buffer_idx]["rewards"][self.steps[buffer_idx]] = reward
         self.buffers[buffer_idx]["feedback"][self.steps[buffer_idx]] = feedback
         self.buffers[buffer_idx]["terminations"][self.steps[buffer_idx]] = terminated
         self.buffers[buffer_idx]["truncations"][self.steps[buffer_idx]] = truncated
-        self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
-        self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
 
-        self.steps[buffer_idx] += 1
-        self.total_steps += 1
         if terminated or truncated:
+            self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
+            self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
+            self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = next_observation
             self.ep_counts[buffer_idx] += 1
             self.total_episodes += 1
 
@@ -333,6 +339,9 @@ class CustomDataset:
             reward = (
                 float(feedback) if self.args["feedback_mode"] == "numerical" else reward
             )
+            next_obs = get_minigrid_obs(
+                self.env, partial_obs, self.args["fully_obs"], self.args["rgb_obs"]
+            )
 
             self._add_to_buffer(
                 buffer_idx=buffer_idx,
@@ -340,6 +349,7 @@ class CustomDataset:
                 action=action,
                 reward=reward,
                 feedback=feedback,
+                next_observation=next_obs["image"],
                 terminated=terminated,
                 truncated=truncated,
                 seed=seed,
