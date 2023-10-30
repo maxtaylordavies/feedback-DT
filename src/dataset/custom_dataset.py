@@ -360,7 +360,6 @@ class CustomDataset:
                     self.args["fully_obs"],
                     self.args["rgb_obs"],
                 )["image"]
-
                 self.state_dim = np.prod(obs.shape)
 
                 # initialise buffers to store replay data

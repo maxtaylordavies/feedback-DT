@@ -5,12 +5,13 @@ import time
 import gymnasium as gym
 import torch_ac
 
-import external_rl.utils as utils
+from . import utils
+from .model import ACModel
 from .ppo_algo import PPOAlgo
-from external_rl.model import ACModel
-from external_rl.utils import device
+from .utils import device
 from src.constants import GLOBAL_SEED
 from src.env.feedback_env import FeedbackEnv
+
 
 # import tensorboardX
 

@@ -72,32 +72,3 @@ class RecorderEnv(FeedbackEnv):
 
     def save_as(self, label):
         shutil.copy(self.path, os.path.join(self.directory, f"{label}.mp4"))
-
-
-class AtariRecorderEnv(RecorderEnv):
-    def __init__(
-        self,
-        env: gym.Env,
-        feedback_mode: Optional[str],
-        directory,
-        filename,
-        auto_release=True,
-    ):
-        super().__init__(
-            env,
-            feedback_mode,
-            directory,
-            filename,
-            auto_release=auto_release,
-            size=(84, 84),
-            fps=30,
-            rgb=True,
-        )
-
-    def _write(self, obs):
-        if not self.active:
-            return
-        frame = obs.cpu().numpy().reshape((self.env.window,) + self.size)[-1]
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        self._writer.write(frame)

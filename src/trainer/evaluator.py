@@ -88,6 +88,7 @@ class Evaluator(TrainerCallback):
         # create a random agent to evaluate against
         self.random_agent = RandomAgent(self.collator.act_dim)
         self.current_epoch = 0
+        self.max_return = 0
 
     def _init_results(self):
         self.results = {
@@ -214,6 +215,7 @@ class Evaluator(TrainerCallback):
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
+            self.max_return = 0
             self._evaluate_agent_performance(
                 a,
                 name,
@@ -226,6 +228,7 @@ class Evaluator(TrainerCallback):
 
     def _evaluate_ood_generalisation(self, dataset, agent, state: TrainerState):
         configs_per_type, n_samples_per_type = self._get_samples_per_ood_type(dataset)
+        self.max_return = 0
 
         for config in dataset.test_configs:
             # sample some seeds for the current config
@@ -342,23 +345,25 @@ class Evaluator(TrainerCallback):
                     env.save_as(
                         f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}succesful"
                     )
-                if float(gc_success) == float(0):
-                    log("saving video for failed episode")
-                    env.save_as(
-                        f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
-                    )
-                max_return = df[
-                    (df["model"] == "DT")
-                    & (df["eval_type"] == eval_type)
-                    & (df["ood_type"] == ood_type)
-                ]["return"].max()
-                log(f"Current max return {max_return}")
-                max_return = max_return or 0
-                if ret > max_return:
-                    log("saving video for new best episode")
-                    env.save_as(
-                        f"best_return_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
-                    )
+
+                    max_return = df[
+                        (df["model"] == "DT")
+                        & (df["eval_type"] == eval_type)
+                        & (df["ood_type"] == ood_type)
+                    ]["return"].max()
+                    log(f"Current max return {self.max_return} vs. current return {ret}")
+                    if ret > self.max_return:
+                        log("saving video for new best episode (higher return)")
+                        env.save_as(
+                            f"best_return_{eval_type}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}"
+                        )
+
+                    self.max_return = max_return or 0
+                # if float(gc_success) == float(0):
+                #     log("saving video for failed episode")
+                #     env.save_as(
+                #         f"{config}_{seed}_{'ood_' + ood_type + '_' if 'ood' in eval_type else ''}failed"
+                #     )
 
     def _evaluate_agent_performance(
         self,

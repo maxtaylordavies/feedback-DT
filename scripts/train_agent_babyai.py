@@ -8,15 +8,11 @@ from src.collator import Collator
 from src.constants import ENV_METADATA_PATH
 from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
-from src.dataset.seeds import LEVELS_CONFIGS
 from src.trainer import AgentTrainer
 from src.utils.argparsing import get_args
 from src.utils.utils import frame_size
 from src.utils.utils import log
 from src.utils.utils import seed
-
-# from src.constants import OUTPUT_PATH
-
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 
@@ -39,7 +35,7 @@ if torch.cuda.is_available():
     device_str = f"{device.type}:{device.index}" if device.index else f"{device.type}"
     os.environ["CUDA_VISIBLE_DEVICES"] = device_str
     # log(f"Using device: {torch.cuda.get_device_name()}")
-    log("using gpu")
+    log("Using gpu")
 elif not torch.backends.mps.is_available():
     if not torch.backends.mps.is_built():
         print(
@@ -52,14 +48,14 @@ elif not torch.backends.mps.is_available():
             "and/or you do not have an MPS-enabled device on this machine."
         )
     device = torch.device("cpu")
-    log("using cpu")
+    log("Using cpu")
 else:
     device = torch.device("mps")
-    log("using mps")
+    log("Using mps")
 
-log("Creating dataset...with a single task.")
+log("getting dataset...")
 dataset = CustomDataset.get_dataset(args)
-log("Creating standard single-task collator...")
+log("creating collator...")
 collator = Collator(
     custom_dataset=dataset,
     args=args,

@@ -118,12 +118,6 @@ def get_args():
         help="Path to the directory to write output to",
     )
     parser.add_argument(
-        "--del_all",
-        type=str2bool,
-        default=False,
-        help="Whether to delete all local datasets",
-    )
-    parser.add_argument(
         "--use_feedback",
         type=str2bool,
         default=True,
@@ -136,24 +130,6 @@ def get_args():
         help="whether to use mission during training",
     )
     parser.add_argument(
-        "--demo",
-        type=str,
-        default="from_default_hard",
-        help="the type of demo to make, either from a predefined action sequence corresponding to an easy or a hard task, or from an action sequence corresponding to an episode of the actual training data for a given environment and seed'",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="demos",
-        help="the directory to save output - such as demo videos - to",
-    )
-    parser.add_argument(
-        "--demo_episode",
-        type=int,
-        default=0,
-        help="the index of the episode to make a demo video of",
-    )
-    parser.add_argument(
         "--feedback_mode",
         type=str,
         default="all",
@@ -164,18 +140,6 @@ def get_args():
         type=str,
         default="GoToRedBallGrey",
         help="the name of the level to train on",
-    )
-    parser.add_argument(
-        "--train_mode",
-        type=str,
-        default="st",
-        help="the training mode to use; can be either 'st', 'rr', 'mt'",
-    )
-    parser.add_argument(
-        "--curriculum_mode",
-        type=str,
-        default="default",
-        help="the training mode to use; can be either 'default', 'custom', 'anti'",
     )
     parser.add_argument(
         "--sample_interval",
@@ -320,5 +284,17 @@ def get_args():
         type=int,
         default=987654321,
         help="the seed used for seeding different instantiations of the model",
+    )
+    parser.add_argument(
+        "--demo_config",
+        type=str,
+        default="BabyAI-GoToRedBallGrey-v0",
+        help="the config used for instantiating the env for the demo",
+    )
+    parser.add_argument(
+        "--demo_seed",
+        type=int,
+        default=0,
+        help="the seed used for seeding the env for the demo",
     )
     return vars(parser.parse_args())
