@@ -128,7 +128,7 @@ class DemoManualControl(ManualControl):
         for i, frame in enumerate(self.frames):
             save_path = f"{self.save_dir}/{self.date}_{self.config.split('-')[1]}_step-{str(i)}"
             frame.save(save_path + ".pdf")
-            frame.save(save_path + ".svg")
+            frame.save(save_path + ".png")
 
     def save_gif(self):
         save_path = f"{self.save_dir}/{self.date}_{self.config.split('-')[1]}.gif"
