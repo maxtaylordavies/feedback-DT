@@ -573,8 +573,8 @@ class CustomDataset:
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
             tensors = [obss, actions, rewards, feedback, terminations, truncations]
-            for i in range(len(tensors)):
-                tensors[i] = tensors[i].reshape(len(seeds), -1, *tensors[i].shape[1:])
+            for _, tensor in enumerate(tensors):
+                tensor = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
             obss, actions, rewards, feedback, terminations, truncations = tensors
 
             for i, seed in enumerate(seeds):
@@ -601,6 +601,7 @@ class CustomDataset:
                         observation=o,
                         reward=r,
                         feedback=feedback[i, t],
+                        next_observation=o,
                         terminated=terminations[i, t],
                         truncated=truncations[i, t],
                         seed=seed,
@@ -658,7 +659,6 @@ class CustomDataset:
             if self.ep_counts[i] > 0:
                 self._save_buffer_to_minari_file(i)
 
-        # return dataset
         return self
 
     def __len__(self):
@@ -677,104 +677,7 @@ class CustomDataset:
         return idxs
 
     # -------------------------------------------------------------------------------------------
+
     @classmethod
     def get_dataset(cls, args):
         return cls(args)._get_dataset()
-
-    @classmethod
-    def random(cls, num_eps, ep_length, state_dim, act_dim):
-        states = np.random.rand(num_eps * ep_length, state_dim)
-        actions = np.random.randint(0, act_dim, size=(num_eps * ep_length))
-        rewards = np.random.rand(num_eps * ep_length)
-
-        terminations = np.zeros((num_eps, ep_length))
-        terminations[:, -1] = 1
-        terminations = terminations.reshape((num_eps * ep_length))
-        truncations = np.zeros_like(terminations)
-
-        return cls(
-            level_group="",
-            level_name="",
-            dataset_name="",
-            policy="",
-            feedback_mode="",
-            seeds=np.array([]),
-            code_permalink="",
-            author="",
-            author_email="",
-            missions=np.array([]),
-            observations=states,
-            actions=actions,
-            rewards=rewards,
-            feedback=np.array([]),
-            terminations=terminations,
-            truncations=truncations,
-            episode_terminals=None,
-            discrete_action=True,
-        )
-
-    @classmethod
-    def from_dqn_replay(cls, data_dir, game, num_samples):
-        obs, acts, rewards, dones = [], [], [], []
-
-        buffer_idx, depleted = -1, True
-        while len(obs) < num_samples:
-            if depleted:
-                buffer_idx, depleted = buffer_idx + 1, False
-                buffer, i = load_dopamine_buffer(data_dir, game, 50 - buffer_idx), 0
-
-            (
-                s,
-                a,
-                r,
-                _,
-                _,
-                _,
-                terminal,
-                _,
-            ) = buffer.sample_transition_batch(batch_size=1, indices=[i])
-
-            obs.append(s[0])
-            acts.append(a[0])
-            rewards.append(r[0])
-            dones.append(terminal[0])
-
-            i += 1
-            depleted = i == buffer._replay_capacity
-
-        return cls(
-            level_group="",
-            level_name="",
-            dataset_name=f"dqn_replay-{game}-{num_samples}",
-            policy="",
-            feedback_mode="",
-            configs=np.array([]),
-            seeds=np.array([]),
-            code_permalink="",
-            author="",
-            author_email="",
-            missions=np.array([]),
-            observations=np.array(obs),
-            actions=np.array(acts),
-            rewards=np.array(rewards),
-            feedback=np.array([]),
-            terminations=np.array(dones),
-            truncations=np.zeros_like(dones),
-            episode_terminals=None,
-            discrete_action=True,
-        )
-
-
-# helper func to load a dopamine buffer from dqn replay logs
-def load_dopamine_buffer(data_dir, game, buffer_idx):
-    replay_buffer = circular_replay_buffer.OutOfGraphReplayBuffer(
-        observation_shape=(84, 84),
-        stack_size=4,
-        update_horizon=1,
-        gamma=0.99,
-        observation_dtype=np.uint8,
-        batch_size=32,
-        replay_capacity=100000,
-    )
-    replay_buffer.load(os.path.join(data_dir, game, "1", "replay_logs"), buffer_idx)
-    return replay_buffer

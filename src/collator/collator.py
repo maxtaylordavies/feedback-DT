@@ -118,7 +118,7 @@ class Collator:
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
         pad_width = pad_width or (
-            max(self.dataset.max_steps - x.shape[1], 0)
+            max(self.dataset.max_steps + 1 - x.shape[1], 0)
             if self.full
             else max(self.context_length - x.shape[1], 0)
         )
