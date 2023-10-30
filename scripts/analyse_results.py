@@ -174,23 +174,16 @@ def set_axis_ticks(ax, reference, reference_perf, ylims, sizing_config):
     """
     ax.set_ylim(bottom=-ylims, top=ylims)
     yticklabels = ax.get_yticks().tolist()
+
     new_yticklabels = [
-        f"{reference_perf:.2f}"
+        f"{reference_perf:.2f}*"
         if float(ytick) == float(0)
         else (f"+{ytick:.2f}" if float(ytick) > float(0) else f"{ytick:.2f}")
         for ytick in yticklabels
     ]
     ax.set_yticklabels(new_yticklabels, fontsize=sizing_config["tick_label_size"])
-    plt.text(
-        -0.6,
-        ylims/10,
-        reference,
-        fontsize=sizing_config["tick_label_size"],
-        ha="right",
-        va="bottom",
-    )
     xticklabels = ax.get_xticklabels()
-    new_xticklabels = [label.get_text().replace(reference, '').replace("feedback", "\nfeedback") for label in xticklabels]
+    new_xticklabels = [f"vs {label.get_text()}".replace(f"vs {reference}", '').replace("feedback", "\nfeedback") for label in xticklabels]
     ax.set_xticklabels(new_xticklabels, fontsize=sizing_config["tick_label_size"])
     plt.tight_layout(pad=0.5)
 
@@ -226,7 +219,7 @@ def set_pad_title(level, eval_type, sizing_config):
     plt.tight_layout(pad=0.5)
 
 
-def set_pad_axis_labels(ax, metric, sizing_config):
+def set_pad_axis_labels(ax, metric, reference, sizing_config):
     """
     Sets the labels of the x and y axes, with padding.
     """
@@ -236,9 +229,9 @@ def set_pad_axis_labels(ax, metric, sizing_config):
         wrap=True,
     )
     ax.set_ylabel(
-        f"Δ {metric.replace('_', ' ')}{' rate' if metric == 'gc_success' else ''}",
+        f"Δ {metric.replace('_', ' ')}{' rate' if metric == 'gc_success' else ''}\n*{reference}",
         fontsize=sizing_config["axis_label_size"],
-        labelpad=sizing_config["axis_label_size"],
+        labelpad=sizing_config["axis_label_size"]*0.75,
         wrap=True,
     )
     ax.tick_params(axis='both', which='major', pad=-2)
@@ -357,7 +350,7 @@ def plot_deltas(
     set_bar_values(ax, df, ylims, sizing_config)
     plt.margins(x=0.025, y=0.025)
     set_pad_title(level, eval_type, sizing_config)
-    set_pad_axis_labels(ax, metric, sizing_config)
+    set_pad_axis_labels(ax, metric, reference, sizing_config)
     plt.savefig(
         os.path.join(output_path, f"{level}_{metric}_{eval_type}_{reference}.png"),
         bbox_inches="tight",
