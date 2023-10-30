@@ -28,6 +28,7 @@ def name_dataset(args):
     level = args['level']
     obs = f"_obs-{'rgb' if args['rgb_obs'] else 'symb'}"
     size = f"_size-n-seeds-{args['num_train_seeds']}_eps-per-seed-{args['eps_per_seed']}" if args["policy"] == "random" else ""
+    feedback_mode = f"_feedback-{args['feedback_mode']}"
     print(size)
     return (
         level
@@ -35,6 +36,7 @@ def name_dataset(args):
         + args["policy"]
         + obs
         + size
+        + feedback_mode
     )
 
 
