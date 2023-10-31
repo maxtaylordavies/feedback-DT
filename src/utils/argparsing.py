@@ -297,4 +297,10 @@ def get_args():
         default=0,
         help="the seed used for seeding the env for the demo",
     )
+    parser.add_argument(
+        "--grad_stop_image_encoder",
+        type=str2bool,
+        default=False,
+        help="whether to stop gradients from flowing through the image encoder",
+    )
     return vars(parser.parse_args())
