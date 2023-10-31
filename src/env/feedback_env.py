@@ -17,7 +17,6 @@ class FeedbackEnv:
         self._max_steps = max_steps
         self.steps_taken = 0
         if self.feedback_mode:
-            self.env.reset()
             self.rule_fv = RuleFeedback()
             self.task_fv = TaskFeedback(self.env)
 
