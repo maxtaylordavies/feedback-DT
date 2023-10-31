@@ -564,6 +564,7 @@ class CustomDataset:
             actions = exps.action.cpu().numpy().reshape(-1, 1)
             rewards = exps.reward.cpu().numpy().reshape(-1, 1)
             feedback = exps.feedback.reshape(-1, 1)  # feedback is already a numpy array
+            next_obss = exps.next_obs.image.cpu().numpy()
             terminations = exps.terminations.cpu().numpy().reshape(-1, 1)
             truncations = exps.truncations.cpu().numpy().reshape(-1, 1)
 
@@ -572,17 +573,23 @@ class CustomDataset:
             avg_ep_return = np.sum(rewards[ep_end_indices]) / len(ep_end_indices)
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
-            tensors = [obss, actions, rewards, feedback, terminations, truncations]
-            for _, tensor in enumerate(tensors):
-                tensor = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
-            obss, actions, rewards, feedback, terminations, truncations = tensors
+            tensors = [obss, actions, rewards, feedback, next_obss, terminations, truncations]
+            for i, tensor in enumerate(tensors):
+                tensors[i] = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
+            obss, actions, rewards, feedback, next_obss, terminations, truncations = tensors
 
             for i, seed in enumerate(seeds):
                 for t in range(obss.shape[1]):
-                    # process partial observation
-                    o = get_minigrid_obs(
+                    # process partial observations
+                    obs = get_minigrid_obs(
                         self.env,
                         obss[i, t],
+                        self.args["fully_obs"],
+                        self.args["rgb_obs"],
+                    )["image"]
+                    next_obs = get_minigrid_obs(
+                        self.env,
+                        next_obss[i, t],
                         self.args["fully_obs"],
                         self.args["rgb_obs"],
                     )["image"]
@@ -598,10 +605,10 @@ class CustomDataset:
                     self._add_to_buffer(
                         buffer_idx=i,
                         action=actions[i, t],
-                        observation=o,
+                        observation=obs,
                         reward=r,
                         feedback=feedback[i, t],
-                        next_observation=o,
+                        next_observation=next_obs,
                         terminated=terminations[i, t],
                         truncated=truncations[i, t],
                         seed=seed,
@@ -614,7 +621,7 @@ class CustomDataset:
                         or truncations[i, t]
                         and self.ep_counts[i] >= self.eps_per_shard
                     ):
-                        self._flush_buffer(buffer_idx=i, obs_shape=o.shape)
+                        self._flush_buffer(buffer_idx=i, obs_shape=obs.shape)
 
             log(
                 f"total_steps:{self.total_steps}  |  eps:{self.ep_counts}  |  steps:{self.steps}",

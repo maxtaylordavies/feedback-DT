@@ -148,11 +148,21 @@ class PPOAlgo(torch_ac.PPOAlgo):
         #   - D is the dimensionality.
 
         exps = DictList()
+
+        # observation BEFORE taking each action
         exps.obs = [
             self.obss[i][j]
             for j in range(self.num_procs)
             for i in range(self.num_frames_per_proc)
         ]
+
+        # observation AFTER taking each action
+        exps.next_obs = [
+            self.obss[i + 1][j]
+            for j in range(self.num_procs)
+            for i in range(self.num_frames_per_proc - 1)
+        ] + [self.obs[j] for j in range(self.num_procs)]
+
         if self.acmodel.recurrent:
             # T x P x D -> P x T x D -> (P * T) x D
             exps.memory = self.memories.transpose(0, 1).reshape(
@@ -175,6 +185,7 @@ class PPOAlgo(torch_ac.PPOAlgo):
         # Preprocess experiences
 
         exps.obs = self.preprocess_obss(exps.obs, device=self.device)
+        exps.next_obs = self.preprocess_obss(exps.next_obs, device=self.device)
 
         # Log some values
 
