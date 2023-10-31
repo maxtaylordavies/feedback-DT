@@ -160,7 +160,7 @@ class PPOAlgo(torch_ac.PPOAlgo):
         exps.next_obs = [
             self.obss[i + 1][j]
             for j in range(self.num_procs)
-            for i in range(self.num_frames_per_proc)
+            for i in range(self.num_frames_per_proc - 1)
         ] + [self.obs[j] for j in range(self.num_procs)]
 
         if self.acmodel.recurrent:
