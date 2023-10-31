@@ -17,7 +17,6 @@ class FeedbackEnv:
         self._max_steps = max_steps
         self.steps_taken = 0
         if self.feedback_mode:
-            self.env.reset()
             self.rule_fv = RuleFeedback()
             self.task_fv = TaskFeedback(self.env)
 
@@ -137,8 +136,6 @@ class FeedbackEnv:
 
     @property
     def max_steps(self):
-        # if self._max_steps is set, return the minimum of self._max_steps
-        # and self.env.max_steps; otherwise just return self.env.max_steps
         tmp = self._max_steps or np.inf
         return min(tmp, self.env.max_steps)
 

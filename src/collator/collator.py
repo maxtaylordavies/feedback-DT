@@ -53,16 +53,8 @@ class Collator:
             int(768 / self.embedding_dim)
         )
 
-        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        # self._feedback_embeddings_cache = {
-        #     f: null_emb for f in ["", "No feedback available."]
-        # }
         self._feedback_embeddings_cache = {}
 
-        # null_emb = torch.tensor(np.random.random((1, self.embedding_dim)))
-        # self._mission_embeddings_cache = {
-        #     m: null_emb for m in ["", "No mission available."]
-        # }
         self._mission_embeddings_cache = {}
 
         self.dataset.load_shard(idx=0)
@@ -118,7 +110,7 @@ class Collator:
     # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
         pad_width = pad_width or (
-            max(self.dataset.max_steps - x.shape[1], 0)
+            max(self.dataset.max_steps + 1 - x.shape[1], 0)
             if self.full
             else max(self.context_length - x.shape[1], 0)
         )

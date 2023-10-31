@@ -388,7 +388,6 @@ class TaskFeedback(Feedback):
             self.pop_from = -1
         else:
             self.pop_from = 0
-        # self.prev_goal_objects = None
 
     # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
 

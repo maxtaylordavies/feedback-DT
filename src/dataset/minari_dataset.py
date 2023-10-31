@@ -12,8 +12,6 @@ from typing import Union
 import h5py
 import numpy as np
 
-# from dopamine.replay_memory import circular_replay_buffer
-
 
 class Transition:
     def __init__(

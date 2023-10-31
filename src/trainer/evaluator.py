@@ -19,6 +19,7 @@ from transformers.training_args import TrainingArguments
 from src.agent import Agent
 from src.agent import AgentInput
 from src.agent import RandomAgent
+from src.dataset.custom_dataset import CustomDataset
 from src.dataset.custom_feedback_verifier import TaskFeedback
 from src.env.recorder_env import RecorderEnv
 from src.utils.utils import get_minigrid_obs
@@ -293,10 +294,10 @@ class Evaluator(TrainerCallback):
 
     def _create_env(self, config, seed):
         _env = gym.make(config, render_mode="rgb_array")
+        _env.reset(seed=seed)
         env = RecorderEnv(
             _env, self.user_args["feedback_mode"], self.output_dir, filename=f"tmp"
         )
-        env.reset(seed=seed)
         return env
 
     def _record_result(
@@ -414,12 +415,6 @@ class Evaluator(TrainerCallback):
             df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
             control.should_training_stop = True
 
-        # log the average episode return for the current eval
-        # log(
-        #     f"average return ({agent_name} agent) on level {dataset.level}: {df[df['samples'] == self.collator.samples_processed]['return'].mean()}",
-        #     with_tqdm=True,
-        # )
-
         # save the results to disk
         else:
             df.to_pickle(os.path.join(self.output_dir, "results.pkl"))
@@ -484,18 +479,22 @@ class Evaluator(TrainerCallback):
                 return self.str_mission_embeddings
             return self.int_mission_embeddings
 
-        def get_feedback_embeddings():
+        def get_feedback_embeddings(feedback, initial=True):
             if self.user_args["feedback_at_inference"] == "actual":
-                return NotImplementedError("Feedback at inference not implemented yet.")
+                if initial:
+                    return self.collator.embed_sentences(np.array([feedback] * self.collator.dataset.max_steps), "feedback").to(self.device)
+                return self.collator.embed_sentences(np.array(feedback), "feedback").to(self.device)
             if self.user_args["feedback_at_inference"] == "string":
                 return self.str_feedback_embeddings
             return self.int_feedback_embeddings
 
         max_ep_len = env.max_steps
         obs, _ = env.reset(seed=seed)
+        feedback_constant = CustomDataset(self.user_args).get_feedback_constant()
 
         mission_embeddings = get_mission_embeddings(obs)
-        feedback_embeddings = get_feedback_embeddings()
+        feedback = feedback_constant
+        feedback_embeddings = get_feedback_embeddings(feedback)
 
         states = get_state(obs)
         actions = torch.zeros(
@@ -518,6 +517,9 @@ class Evaluator(TrainerCallback):
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
+            if self.user_args["feedback_at_inference"] == "actual" and feedback != feedback_constant:
+                feedback_embeddings[:, t, :] = get_feedback_embeddings(feedback, initial=False)
+
             actions[-1] = agent.get_action(
                 AgentInput(
                     mission_embeddings=mission_embeddings[:, : t + 1, :],
@@ -534,8 +536,7 @@ class Evaluator(TrainerCallback):
             )
             a = actions[-1].detach().cpu().numpy()
 
-            obs, reward, done, _, _ = env.step(np.argmax(a))
-            # obs = fully_obs_env.observation(obs)
+            obs, reward, done, _, feedback = env.step(np.argmax(a))
             cur_state = get_state(obs)
             states = torch.cat([states, cur_state], dim=0)
 
