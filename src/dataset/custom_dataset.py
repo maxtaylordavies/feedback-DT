@@ -574,8 +574,8 @@ class CustomDataset:
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
             tensors = [obss, actions, rewards, feedback, next_obss, terminations, truncations]
-            for _, tensor in enumerate(tensors):
-                tensor = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
+            for i, tensor in enumerate(tensors):
+                tensors[i] = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
             obss, actions, rewards, feedback, next_obss, terminations, truncations = tensors
 
             for i, seed in enumerate(seeds):
