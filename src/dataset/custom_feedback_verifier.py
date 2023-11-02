@@ -270,7 +270,7 @@ class RuleFeedback(Feedback):
         if self._is_obstacle():
             return (
                 "Not a good idea! You can't move forward here "
-                + f"as there is a {self.front_cell.type} blocking the way."
+                + f"as there's a {self.front_cell.type} blocking the way."
             )
         return "No feedback available."
 
@@ -300,13 +300,13 @@ class RuleFeedback(Feedback):
             The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "That won't work.  There is nothing in front of you."
+            return "That won't work here. There's nothing in front of you, and you can't open empty space."
         if (
             self._is_locked_door()
             and self._is_carrying_key()
             and not self._is_carrying_correct_key()
         ):
-            return f"That won't work here. You can't open a locked door without a key of the same color as the door. You're carrying a {self.carrying.color}, but the door in front of you is {self.front_cell.color}."
+            return f"That won't work here. You can't open a locked door without a key of the same color as the door. You're carrying a {self.carrying.color} key, but the door in front of you is {self.front_cell.color}."
         if self._is_locked_door() and not self._is_carrying_key():
             return "That won't work here. You can't open a locked door without a key of the same color as the door, and you're not carrying any key."
         if self._is_wall():
@@ -338,7 +338,7 @@ class RuleFeedback(Feedback):
             The feedback for the pickup action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
-            return "Not a good idea! There is nothing to pick up in front of you, just empty space."
+            return "Not a good idea! There's nothing in front of you, and you can't pick up empty space."
         if self._is_door():
             return "Not a good idea! You can't pick up doors."
         if self._is_wall():
@@ -368,19 +368,19 @@ class RuleFeedback(Feedback):
             The feedback for the drop action with respect to the object the agent is carrying and the cell that the agent is facing.
         """
         if not self._is_carrying():
-            return "Don't do that! You're not carrying an object so dropping has no effect."
+            return "Don't do that! You're not carrying any object so dropping has no effect."
         if self._is_wall():
             return (
-                "Don't do that!  You can't drop an object while you're facing the wall."
+                "Don't do that! You can't drop an object while you're facing the wall."
             )
         if self._is_door():
             return (
-                "Don't do that!  You can't drop an object while you're facing a door."
+                "Don't do that! You can't drop an object while you're facing a door."
             )
         if self._is_obstacle():
             return (
                 "Don't do that! You can't drop an object on top of another object, and "
-                + f"there is a {self.front_cell.type} in front of you."
+                + f"there's already a {self.front_cell.type} in front of you."
             )
         return "No feedback available."
 
