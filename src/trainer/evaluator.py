@@ -64,13 +64,19 @@ class Evaluator(TrainerCallback):
 
         self._init_results()
 
-        self.str_feedback_embeddings = (
-            self.collator.embed_sentences(np.array(["No feedback available."] * self.collator.dataset.max_steps), "feedback")
+        self.str_mission_embeddings = (
+            self.collator.embed_sentences(np.array(["No mission available."] * self.collator.dataset.max_steps), "mission")
             .to(self.device)
         )
 
-        self.str_mission_embeddings = (
-            self.collator.embed_sentences(np.array(["No mission available."] * self.collator.dataset.max_steps), "mission")
+        self.int_mission_embeddings = (
+            torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
+            .float()
+            .to(self.device)
+        )
+
+        self.str_feedback_embeddings = (
+            self.collator.embed_sentences(np.array(["No feedback available."] * self.collator.dataset.max_steps), "feedback")
             .to(self.device)
         )
 
@@ -80,10 +86,8 @@ class Evaluator(TrainerCallback):
             .to(self.device)
         )
 
-        self.int_mission_embeddings = (
-            torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
-            .float()
-            .to(self.device)
+        self.zero_feedback_embeddings = (
+            torch.zeros((1, self.collator.dataset.max_steps, 128), device=self.device)
         )
 
         # create a random agent to evaluate against
@@ -486,6 +490,8 @@ class Evaluator(TrainerCallback):
                 return self.collator.embed_sentences(np.array(feedback), "feedback").to(self.device)
             if self.user_args["feedback_at_inference"] == "string":
                 return self.str_feedback_embeddings
+            if self.user_args["feedback_at_inference"] == "zero":
+                return self.zero_feedback_embeddings
             return self.int_feedback_embeddings
 
         max_ep_len = env.max_steps

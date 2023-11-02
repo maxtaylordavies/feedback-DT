@@ -253,7 +253,7 @@ def get_args():
         "--feedback_at_inference",
         type=str,
         default="numerical",
-        help="representation to use for feedback at inference time; can be either 'numerical', 'string' or 'actual'",
+        help="representation to use for feedback at inference time; can be either 'numerical', 'zero', 'string' or 'actual'",
     )
     parser.add_argument(
         "--mission_mode",
