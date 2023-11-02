@@ -6,6 +6,8 @@ import seaborn as sns
 from IPython.display import display
 from matplotlib import pyplot as plt
 
+from src.utils.argparsing import get_args
+
 warnings.filterwarnings("ignore")
 sns.set(font="Helvetica")
 USER = os.environ["USER"]
@@ -62,13 +64,15 @@ def get_experiments(output_path, dir):
     return dfs
 
 
-def get_combined_df(output_path):
+def get_combined_df(output_path, level=None):
     """
     Returns a dataframe containing the results of all experiments in a given directory.
     """
     dfs = []
     for dir in os.listdir(output_path):
         if "level" in dir:
+            if level and level.lower() not in dir:
+                continue
             current_dfs = get_experiments(output_path, dir)
             dfs.extend(current_dfs)
     dfs = [df[(df["eval_type"] != "efficiency") & (df["model"] == "DT")] for df in dfs]
@@ -183,7 +187,12 @@ def set_axis_ticks(ax, reference, reference_perf, ylims, sizing_config):
     ]
     ax.set_yticklabels(new_yticklabels, fontsize=sizing_config["tick_label_size"])
     xticklabels = ax.get_xticklabels()
-    new_xticklabels = [f"vs {label.get_text()}".replace(f"vs {reference}", '').replace("feedback", "\nfeedback") for label in xticklabels]
+    new_xticklabels = [
+        f"vs {label.get_text()}".replace(f"vs {reference}", "").replace(
+            "feedback", "\nfeedback"
+        )
+        for label in xticklabels
+    ]
     ax.set_xticklabels(new_xticklabels, fontsize=sizing_config["tick_label_size"])
     plt.tight_layout(pad=0.5)
 
@@ -231,10 +240,10 @@ def set_pad_axis_labels(ax, metric, reference, sizing_config):
     ax.set_ylabel(
         f"Δ {metric.replace('_', ' ')}{' rate' if metric == 'gc_success' else ''}\n*{reference}",
         fontsize=sizing_config["axis_label_size"],
-        labelpad=sizing_config["axis_label_size"]*0.75,
+        labelpad=sizing_config["axis_label_size"] * 0.75,
         wrap=True,
     )
-    ax.tick_params(axis='both', which='major', pad=-2)
+    ax.tick_params(axis="both", which="major", pad=-2)
     plt.tight_layout(pad=0.5)
 
 
@@ -316,6 +325,72 @@ def get_plot_config(size):
     }
 
 
+def plot_deltas_without_text(
+    sizing_config,
+    df,
+    ylims,
+    color_palette,
+):
+    fig1 = plt.figure(figsize=sizing_config["figsize"])
+    ax1 = plt.subplot()
+    sns.barplot(
+        data=df,
+        x="conditioning",
+        y="Delta (Mean)",
+        ax=ax1,
+        errorbar=None,
+        palette=color_palette,
+    )
+    plt.title(
+        " \n ",
+        fontsize=sizing_config["title_size"],
+    )
+
+    ax1.set_ylim(bottom=-ylims, top=ylims)
+
+    ax1.set_xlabel(" ", fontsize=sizing_config["axis_label_size"])
+    ax1.set_xticklabels([])
+
+    ax1.set_ylabel(
+        " \n ",
+        fontsize=sizing_config["axis_label_size"],
+        labelpad=sizing_config["axis_label_size"] * 2,
+    )
+    ax1.set_yticklabels([])
+
+    plt.margins(x=0.025, y=0.025)
+    plt.tight_layout(pad=0.5)
+
+
+def plot_deltas_with_text(
+    sizing_config,
+    df,
+    level,
+    metric,
+    ylims,
+    eval_type,
+    reference,
+    reference_perf,
+    color_palette,
+):
+    fig2 = plt.figure(figsize=sizing_config["figsize"])
+    ax2 = plt.subplot()
+    sns.barplot(
+        data=df,
+        x="conditioning",
+        y="Delta (Mean)",
+        ax=ax2,
+        errorbar=None,
+        palette=color_palette,
+    )
+    set_axis_ticks(ax2, reference, reference_perf, ylims, sizing_config)
+    set_bar_values(ax2, df, ylims, sizing_config)
+    set_pad_title(level, eval_type, sizing_config)
+    set_pad_axis_labels(ax2, metric, reference, sizing_config)
+    plt.margins(x=0.025, y=0.025)
+    plt.tight_layout(pad=0.5)
+
+
 def plot_deltas(
     df,
     level,
@@ -335,22 +410,24 @@ def plot_deltas(
     color_palette = map_colors(df, colors)
     sizing_config = get_plot_config(size)
     eval_type = f"{eval_type.split('_')[0].upper()} generalisation{f' ({ood_type})' if ood_type else ''}"
-    fig = plt.figure(figsize=sizing_config["figsize"])
-    ax = plt.subplot()
-    sns.barplot(
-        data=df,
-        x="conditioning",
-        y="Delta (Mean)",
-        ax=ax,
-        errorbar=None,
-        palette=color_palette,
+    plot_deltas_without_text(sizing_config, df, ylims, color_palette)
+    plt.savefig(
+        os.path.join(
+            output_path, f"{level}_{metric}_{eval_type}_{reference}_no_text.png"
+        ),
+        bbox_inches="tight",
     )
-    plt.tight_layout(pad=0.5)
-    set_axis_ticks(ax, reference, reference_perf, ylims, sizing_config)
-    set_bar_values(ax, df, ylims, sizing_config)
-    plt.margins(x=0.025, y=0.025)
-    set_pad_title(level, eval_type, sizing_config)
-    set_pad_axis_labels(ax, metric, reference, sizing_config)
+    plot_deltas_with_text(
+        sizing_config,
+        df,
+        level,
+        metric,
+        ylims,
+        eval_type,
+        reference,
+        reference_perf,
+        color_palette,
+    )
     plt.savefig(
         os.path.join(output_path, f"{level}_{metric}_{eval_type}_{reference}.png"),
         bbox_inches="tight",
@@ -400,7 +477,10 @@ def plot_results(df, level, metric, colors, size, output_path):
 
 
 if __name__ == "__main__":
-    metric = "gc_success"
+    args = get_args()
+    level = args["analyse_only_level"]
+    metric = args["analysis_metric"]
+
     colors = {
         "aarg_colors": [
             "#2F8374",
@@ -433,14 +513,15 @@ if __name__ == "__main__":
             "#DFE9ED",
         ],
     }
-    size = "small-half"
-    data_home = f"{ROOT}/data/conditioning/output"
-    output_path = f"{ROOT}/data/conditioning/output/results"
+    experiment_name = args["experiment_name"]
+    size = args["analysis_fig_size"]
+    data_home = f"{ROOT}/data/{experiment_name}/output"
+    output_path = f"{ROOT}/data/{experiment_name}/output/results"
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    comb_df = get_combined_df(data_home)
+    comb_df = get_combined_df(data_home, level=level)
     for level in comb_df["level"].unique():
         level_df = comb_df[comb_df["level"] == level]
         results_df = combine_results(level_df, metric)

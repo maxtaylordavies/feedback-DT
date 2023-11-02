@@ -9,6 +9,7 @@ from minigrid.core.world_object import Box
 from minigrid.core.world_object import Door
 from minigrid.core.world_object import Key
 from minigrid.core.world_object import Wall
+from minigrid.envs.babyai.core.verifier import ActionInstr
 from minigrid.envs.babyai.core.verifier import AfterInstr
 from minigrid.envs.babyai.core.verifier import AndInstr
 from minigrid.envs.babyai.core.verifier import BeforeInstr
@@ -25,6 +26,51 @@ from minigrid.envs.babyai.core.verifier import SeqInstr
 SEQUENCE_CONSTRUCTORS = ["and", ", then", "after you"]
 
 ACTION_WORDS = ["go to", "open", "pick up", "put"]
+
+class GoNextToInstr(ActionInstr):
+    """
+    Go next to an object while carrying one.
+    eg: go next to the red ball.
+    Used as a subgoal / to generate feedback for put next to mission.
+    """
+
+    def __init__(self, obj_move, obj_fixed):
+        super().__init__()
+        self.desc_move = obj_move
+        self.desc_fixed = obj_fixed
+
+    def surface(self, env):
+        return (
+            "put "
+            + self.desc_move.surface(env)
+            + " next to "
+            + self.desc_fixed.surface(env)
+        )
+
+    def reset_verifier(self, env):
+        super().reset_verifier(env)
+        self.desc_move.find_matching_objs(env)
+        self.desc_fixed.find_matching_objs(env)
+        self.front_pos = env.front_pos
+        self.front_cell = env.grid.get(*self.front_pos)
+
+    def verify_action(self, action):
+        if action in [self.env.actions.drop, self.env.actions.pickup, self.env.actions.toggle, self.env.actions.done]:
+            return "continue"
+
+        if self.env.carrying not in self.desc_move.obj_set:
+            return "continue"
+
+        pos_a = self.env.front_pos
+
+        if self.front_cell is not None:
+            return "continue"
+
+        for pos_b in self.desc_fixed.obj_poss:
+            if pos_next_to(pos_a, pos_b):
+                return "success"
+
+        return "continue"
 
 
 class Feedback(ABC):
@@ -408,6 +454,9 @@ class TaskFeedback(Feedback):
     def _task_is_goto(self, instrs):
         return isinstance(instrs, GoToInstr)
 
+    def _task_is_go_next_to(self, instrs):
+        return isinstance(instrs, GoNextToInstr)
+
     def _task_is_open(self, instrs):
         return isinstance(instrs, OpenInstr)
 
@@ -466,7 +515,7 @@ class TaskFeedback(Feedback):
         return (
             GoToInstr(instrs.desc_move),
             PickupInstr(instrs.desc_move),
-            GoToInstr(instrs.desc_fixed),
+            GoNextToInstr(instrs.desc_move, instrs.desc_fixed),
             instrs,
         )
 
@@ -510,12 +559,21 @@ class TaskFeedback(Feedback):
             return ""
         return "a part of "
 
+    def _get_object_string(self, obj):
+        if obj.loc:
+            location_string = f"on your {obj.loc}" if obj.loc in ['left', 'right'] else f"on your {obj.loc}"
+        else:
+            location_string = ""
+        object_string = f"{self._get_article(obj)} {obj.color} {obj.type}"
+        object_string += f" {location_string}" if location_string else ""
+        return object_string
+
     def _get_goto_feedback(self, instrs):
         goal_obj = instrs.desc
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
                 self.subtasks.pop(self.pop_from)
-                return f"That's right! You've completed {self._get_completion_level()}your task by going to {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
+                return f"Fantastic! You've completed {self._get_completion_level()}your task by going to {self._get_object_string(goal_obj)}."
         return "No feedback available."
 
     def _get_open_feedback(self, instrs):
@@ -524,14 +582,23 @@ class TaskFeedback(Feedback):
             if self._is_goal(self.front_cell, goal_obj):
                 if self._is_open_door():
                     self.subtasks.pop(self.pop_from)
-                    return f"That's correct! You've completed {self._get_completion_level()}your task by opening {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
+                    return f"That's correct! You've completed {self._get_completion_level()}your task by opening {self._get_object_string(goal_obj)}."
         return "No feedback available."
 
     def _get_pickup_feedback(self, instrs):
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
-            return f"Great job! You've completed {self._get_completion_level()}your task by picking up {self._get_article(goal_obj)} {goal_obj.color} {goal_obj.type}."
+            return f"Great job! You've completed {self._get_completion_level()}your task by picking up {self._get_object_string(goal_obj)}."
+        return "No feedback available."
+
+    def _get_go_next_to_feedback(self, instrs):
+        goal_obj_1 = instrs.desc_move
+        goal_obj_2 = instrs.desc_fixed
+        if self._is_goal(self.carrying, goal_obj_1):
+            if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos) and self._is_empty_cell():
+                self.subtasks.pop(self.pop_from)
+                return f"That's right! You've completed {self._get_completion_level()}your task by going next to {self._get_object_string(goal_obj_2)}."
         return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
@@ -540,7 +607,7 @@ class TaskFeedback(Feedback):
         if self._is_goal(self.front_cell, goal_obj_1):
             if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos):
                 self.subtasks.pop(self.pop_from)
-                return f"Well done! You've completed {self._get_completion_level()}your task by putting {self._get_article(goal_obj_1)} {goal_obj_1.color} {goal_obj_1.type} next to {self._get_article(goal_obj_2)} {goal_obj_2.color} {goal_obj_2.type}."
+                return f"Well done! You've completed {self._get_completion_level()}your task by putting {self._get_object_string(goal_obj_1)} next to {self._get_object_string(goal_obj_2)}."
         return "No feedback available."
 
     def _get_task_feedback(self):
@@ -552,8 +619,11 @@ class TaskFeedback(Feedback):
             self.action == self.env.actions.left
             or self.action == self.env.actions.right
             or self.action == self.env.actions.forward
-        ) and self._task_is_goto(current_subtask):
-            return self._get_goto_feedback(current_subtask)
+        ):
+            if self._task_is_goto(current_subtask):
+                return self._get_goto_feedback(current_subtask)
+            if self._task_is_go_next_to(current_subtask):
+                return self._get_go_next_to_feedback(current_subtask)
         if self.action == self.env.actions.toggle and self._task_is_open(
             current_subtask
         ):

@@ -297,4 +297,36 @@ def get_args():
         default=0,
         help="the seed used for seeding the env for the demo",
     )
+    parser.add_argument(
+        "--grad_stop_image_encoder",
+        type=str2bool,
+        default=False,
+        help="whether to stop gradients from flowing through the image encoder",
+    )
+    parser.add_argument(
+        "--analyse_only_level",
+        type=str,
+        default="",
+        help="single level on whose results to run data analysis",
+    )
+    parser.add_argument(
+        "--analysis_metric",
+        type=str,
+        default="gc_success",
+        help="metric to use for data analysis",
+    )
+    parser.add_argument(
+        "--analysis_fig_size",
+        type=str,
+        default="small-half",
+        help="figure size for data analysis; follows format 'small', 'small-half, 'small-third', 'medium', ..., 'large-third'",
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default="conditioning",
+        help="experiment name; used for specifying the path to the data",
+    )
+
+
     return vars(parser.parse_args())
