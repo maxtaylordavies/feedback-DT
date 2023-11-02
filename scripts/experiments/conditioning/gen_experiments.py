@@ -30,6 +30,7 @@ base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}
 # argument required by the script in base_call
 variables = {
     "level": [
+        "GoToObj",
         "GoToLocal",
         "PutNextLocal",
         "PickupLoc",
