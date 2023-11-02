@@ -64,10 +64,10 @@ class Evaluator(TrainerCallback):
 
         self._init_results()
 
-        self.str_mission_embeddings = (
-            self.collator.embed_sentences(np.array(["No mission available."] * self.collator.dataset.max_steps), "mission")
-            .to(self.device)
-        )
+        self.str_mission_embeddings = self.collator.embed_sentences(
+            np.array(["No mission available."] * self.collator.dataset.max_steps),
+            "mission",
+        ).to(self.device)
 
         self.int_mission_embeddings = (
             torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
@@ -75,10 +75,10 @@ class Evaluator(TrainerCallback):
             .to(self.device)
         )
 
-        self.str_feedback_embeddings = (
-            self.collator.embed_sentences(np.array(["No feedback available."] * self.collator.dataset.max_steps), "feedback")
-            .to(self.device)
-        )
+        self.str_feedback_embeddings = self.collator.embed_sentences(
+            np.array(["No feedback available."] * self.collator.dataset.max_steps),
+            "feedback",
+        ).to(self.device)
 
         self.int_feedback_embeddings = (
             torch.from_numpy(np.random.rand(1, self.collator.dataset.max_steps, 128))
@@ -86,8 +86,8 @@ class Evaluator(TrainerCallback):
             .to(self.device)
         )
 
-        self.zero_feedback_embeddings = (
-            torch.zeros((1, self.collator.dataset.max_steps, 128), device=self.device)
+        self.zero_feedback_embeddings = torch.zeros(
+            (1, self.collator.dataset.max_steps, 128), device=self.device
         )
 
         # create a random agent to evaluate against
@@ -242,7 +242,11 @@ class Evaluator(TrainerCallback):
             for ood_type in n_samples_per_type:
                 if config in configs_per_type[ood_type]:
                     n_seeds_to_sample = n_samples_per_type[ood_type]
-                    seeds[ood_type].extend(self._sample_test_seeds(seed_dict, ood_type, n=n_seeds_to_sample))
+                    seeds[ood_type].extend(
+                        self._sample_test_seeds(
+                            seed_dict, ood_type, n=n_seeds_to_sample
+                        )
+                    )
 
             # run evaluations using both the agent being trained and a random agent (for baseline comparison)
             for a, name in zip([self.random_agent, agent], ["random", "DT"]):
@@ -264,17 +268,26 @@ class Evaluator(TrainerCallback):
                     configs_per_type[ood_type].append(config)
                 else:
                     configs_per_type[ood_type] = [config]
-        n_samples_per_type = {ood_type: int(self.num_repeats/len(configs)) for ood_type, configs in configs_per_type.items()}
+        n_samples_per_type = {
+            ood_type: int(self.num_repeats / len(configs))
+            for ood_type, configs in configs_per_type.items()
+        }
         return configs_per_type, n_samples_per_type
 
     def _set_val_seeds(self):
-        seed_dict = self._load_seed_dict(self.collator.dataset, self.collator.dataset.train_config)
+        seed_dict = self._load_seed_dict(
+            self.collator.dataset, self.collator.dataset.train_config
+        )
         val_seeds = self._sample_validation_seeds(seed_dict, self.num_repeats)
         self.val_seeds = val_seeds
 
     def _set_train_seeds(self):
         train_seeds = self.collator.dataset.train_seeds
-        self.train_seeds = {"": train_seeds} if len(train_seeds) <= self.num_repeats else self._sample_train_seeds(train_seeds, self.num_repeats)
+        self.train_seeds = (
+            {"": train_seeds}
+            if len(train_seeds) <= self.num_repeats
+            else self._sample_train_seeds(train_seeds, self.num_repeats)
+        )
 
     def _load_seed_dict(self, dataset, config):
         return dataset.seed_finder.load_seeds(dataset.level, config)
@@ -283,7 +296,9 @@ class Evaluator(TrainerCallback):
         return {"": np.random.choice(train_seeds, size=n, replace=False)}
 
     def _sample_validation_seeds(self, seed_dict, n=1):
-        return {"": np.random.choice(seed_dict["validation_seeds"], size=n, replace=False)}
+        return {
+            "": np.random.choice(seed_dict["validation_seeds"], size=n, replace=False)
+        }
 
     def _sample_test_seeds(self, seed_dict, ood_type, n=1):
         try:
@@ -356,7 +371,9 @@ class Evaluator(TrainerCallback):
                         & (df["eval_type"] == eval_type)
                         & (df["ood_type"] == ood_type)
                     ]["return"].max()
-                    log(f"Current max return {self.max_return} vs. current return {ret}")
+                    log(
+                        f"Current max return {self.max_return} vs. current return {ret}"
+                    )
                     if ret > self.max_return:
                         log("Saving video for new best episode (higher return)")
                         env.save_as(
@@ -388,7 +405,7 @@ class Evaluator(TrainerCallback):
                 seed = int(seed)
                 env = self._create_env(config, seed)
                 ret, ep_length, success, gc_success = run_agent(
-                    agent, env, seed, self.target_return
+                    agent, env, seed, self.target_return, eval_type
                 )
                 step = state.global_step if eval_type == "efficiency" else 99999
                 gc_successes.append(gc_success)
@@ -461,7 +478,12 @@ class Evaluator(TrainerCallback):
         return success * (demo_length / max(episode_length, demo_length))
 
     def _run_agent_on_minigrid_env(
-        self, agent: Agent, env: RecorderEnv, seed: int, target_return: float
+        self,
+        agent: Agent,
+        env: RecorderEnv,
+        seed: int,
+        target_return: float,
+        eval_type: str,
     ):
         def get_state(partial_obs):
             obs = get_minigrid_obs(
@@ -478,7 +500,10 @@ class Evaluator(TrainerCallback):
 
         def get_mission_embeddings(obs):
             if self.user_args["mission_at_inference"] == "actual":
-                return self.collator.embed_sentences(np.array([obs["mission"]] * self.collator.dataset.max_steps), "mission").to(self.device)
+                return self.collator.embed_sentences(
+                    np.array([obs["mission"]] * self.collator.dataset.max_steps),
+                    "mission",
+                ).to(self.device)
             if self.user_args["mission_at_inference"] == "string":
                 return self.str_mission_embeddings
             return self.int_mission_embeddings
@@ -486,12 +511,25 @@ class Evaluator(TrainerCallback):
         def get_feedback_embeddings(feedback, initial=True):
             if self.user_args["feedback_at_inference"] == "actual":
                 if initial:
-                    return self.collator.embed_sentences(np.array([feedback] * self.collator.dataset.max_steps), "feedback").to(self.device)
-                return self.collator.embed_sentences(np.array(feedback), "feedback").to(self.device)
+                    return self.collator.embed_sentences(
+                        np.array([feedback] * self.collator.dataset.max_steps),
+                        "feedback",
+                    ).to(self.device)
+                return self.collator.embed_sentences(np.array(feedback), "feedback").to(
+                    self.device
+                )
             if self.user_args["feedback_at_inference"] == "string":
                 return self.str_feedback_embeddings
             if self.user_args["feedback_at_inference"] == "zero":
                 return self.zero_feedback_embeddings
+            if (
+                self.user_args["feedback_at_inference"] == "mean"
+                and eval_type != "efficiency"
+            ):
+                mean_embedding = self.collator.get_mean_embeddings(type="feedback")
+                return mean_embedding.repeat(1, self.collator.dataset.max_steps, 1).to(
+                    self.device
+                )
             return self.int_feedback_embeddings
 
         max_ep_len = env.max_steps
@@ -523,8 +561,13 @@ class Evaluator(TrainerCallback):
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
-            if self.user_args["feedback_at_inference"] == "actual" and feedback != feedback_constant:
-                feedback_embeddings[:, t, :] = get_feedback_embeddings(feedback, initial=False)
+            if (
+                self.user_args["feedback_at_inference"] == "actual"
+                and feedback != feedback_constant
+            ):
+                feedback_embeddings[:, t, :] = get_feedback_embeddings(
+                    feedback, initial=False
+                )
 
             actions[-1] = agent.get_action(
                 AgentInput(

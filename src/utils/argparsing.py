@@ -145,7 +145,7 @@ def get_args():
         "--sample_interval",
         type=int,
         default=5,
-        help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
+        help="after how many steps to evaluate the sample efficiency of the model.",
     )
     parser.add_argument(
         "--target_return",
@@ -253,7 +253,7 @@ def get_args():
         "--feedback_at_inference",
         type=str,
         default="numerical",
-        help="representation to use for feedback at inference time; can be either 'numerical', 'zero', 'string' or 'actual'",
+        help="representation to use for feedback at inference time; can be either 'numerical', 'zero', 'mean', 'string' or 'actual'",
     )
     parser.add_argument(
         "--mission_mode",

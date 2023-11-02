@@ -44,8 +44,8 @@ class Collator:
         self.context_length = self.args["context_length"]
         self.batch_size = self.args["batch_size"]
         self.randomise_starts = self.args["randomise_starts"]
-        self.full=self.args["use_full_ep"]
-        self.episode_dist=self.args["ep_dist"]
+        self.full = self.args["use_full_ep"]
+        self.episode_dist = self.args["ep_dist"]
         self.sentence_embedding_model = SentenceTransformer(
             "sentence-transformers/paraphrase-TinyBERT-L6-v2", device="cpu"
         )
@@ -74,6 +74,15 @@ class Collator:
 
     def update_epoch(self):
         pass
+
+    def get_mean_embeddings(self, type):
+        embeddings_cache = (
+            self._feedback_embeddings_cache
+            if type == "feedback"
+            else self._mission_embeddings_cache
+        )
+        computed_embeddings = torch.cat(list(embeddings_cache.values()), dim=0)
+        return computed_embeddings.mean(dim=0)
 
     def _compute_sentence_embedding(self, sentence):
         return self.sentence_embedding_downsampler(
@@ -186,7 +195,6 @@ class Collator:
                     batch[k].append(v)
 
             num_eps += len(episode_indices)
-
 
         # convert batch to (concatenated) tensors
         for k, v in batch.items():
