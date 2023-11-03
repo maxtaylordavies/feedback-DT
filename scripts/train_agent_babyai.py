@@ -13,6 +13,7 @@ from src.utils.argparsing import get_args
 from src.utils.utils import frame_size
 from src.utils.utils import log
 from src.utils.utils import seed
+
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["ENV_METADATA_PATH"] = ENV_METADATA_PATH
 
@@ -28,6 +29,17 @@ print(f"Using frame_size: {frame_size}")
 
 args["wandb_mode"] = "disabled"
 args["report_to"] = "none"
+
+early_stopping_patience_factor = (
+    4
+    if args["eps_per_seed"] == 100
+    else (1 if args["eps_per_seed"] == 10 and "GoTo" in args["level"] else 2)
+)
+args["early_stopping_patience"] = (
+    args["early_stopping_patience"] * early_stopping_patience_factor
+)
+
+print(f"Using early_stopping_patience: {args['early_stopping_patience']}")
 
 log("setting up devices")
 if torch.cuda.is_available():
