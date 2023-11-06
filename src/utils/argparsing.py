@@ -160,18 +160,6 @@ def get_args():
         help="number of seeds to evaluate over",
     )
     parser.add_argument(
-        "--custom_order",
-        type=str,
-        default="",
-        help="the custom order of tasks to use for the curriculum training mode, in the format 'level1,level9,level5,...'",
-    )
-    parser.add_argument(
-        "--predict_feedback",
-        type=str2bool,
-        default=False,
-        help="whether to also predict feedback during training (besides the action)",
-    )
-    parser.add_argument(
         "--load_existing_dataset",
         type=str2bool,
         default=False,
