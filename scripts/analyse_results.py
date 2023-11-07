@@ -514,17 +514,18 @@ def get_inference_mode_diffs(results_df):
     )
     x["diff"] = x["Mean"].diff()
     x["diff"][x["feedback_at_inference"] == "numerical"] = 0
-    display(
-        x[
+    inference_mode_diffs = x[
             [
                 "conditioning",
                 "eval_type",
                 "ood_type",
-                "feedback_at_inference",
                 "diff",
             ]
-        ][~x["conditioning"].isin(["mission", "rtg"])]
+        ][(~x["conditioning"].isin(["mission", "rtg"])) & (x["feedback_at_inference"] != "numerical")]
+    display(
+        inference_mode_diffs
     )
+    return inference_mode_diffs
 
 if __name__ == "__main__":
     args = get_args()
@@ -578,7 +579,8 @@ if __name__ == "__main__":
         print(level.upper())
         level_df = comb_df[comb_df["level"] == level]
         results_df = combine_results(level_df, metric)
-        get_inference_mode_diffs(results_df)
+        inference_mode_diffs = get_inference_mode_diffs(results_df)
+        save_results_as_csv(inference_mode_diffs, level, "inference_mode_diff", output_path)
         save_results_as_csv(results_df, level, metric, output_path)
         plot_results(results_df, level, metric, colors, size, output_path)
         print("===" * 10)
@@ -586,6 +588,7 @@ if __name__ == "__main__":
     if not only_level:
         print("ALL LEVELS")
         results_df = combine_results(comb_df, metric)
-        get_inference_mode_diffs(results_df)
+        inference_mode_diffs = get_inference_mode_diffs(results_df)
+        save_results_as_csv(inference_mode_diffs, "all_levels", "inference_mode_diff", output_path)
         save_results_as_csv(results_df, "all_levels", metric, output_path)
         plot_results(results_df, "all_levels", metric, colors, size, output_path)
