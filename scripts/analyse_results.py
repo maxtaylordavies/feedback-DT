@@ -100,6 +100,9 @@ def aggr_results(df, inference_mode, eval_type, metric):
             Max=(metric, "max"),
         )
     )
+    results["Mean"] = results["Mean"].round(4)
+    results["Std"] = results["Std"].round(4)
+
     results["ood_type"] = 'all types' if eval_type == "ood_generalisation" else None
     results["eval_type"] = eval_type
     results["feedback_at_inference"] = inference_mode
@@ -115,6 +118,9 @@ def aggr_results(df, inference_mode, eval_type, metric):
                 Max=(metric, "max"),
             )
         )
+        results_by_ood["Mean"] = results_by_ood["Mean"].round(4)
+        results_by_ood["Std"] = results_by_ood["Std"].round(4)
+
         results_by_ood["eval_type"] = eval_type
         results_by_ood["feedback_at_inference"] = inference_mode
     else:
@@ -135,6 +141,7 @@ def get_deltas(df, reference):
         - delta_df.loc[delta_df["conditioning"] == reference, "Mean"].values[0],
         axis=1,
     )
+    delta_df["Delta (Mean)"] = delta_df["Delta (Mean)"].round(4)
     delta_df["reference"] = reference
     return delta_df
 
@@ -513,6 +520,7 @@ def get_inference_mode_diffs(results_df):
         ascending=False,
     )
     x["diff"] = x["Mean"].diff()
+    x["diff"] = x["diff"].apply(lambda x: round(x, 4))
     x["diff"][x["feedback_at_inference"] == "numerical"] = 0
     inference_mode_diffs = x[
             [
