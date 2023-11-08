@@ -145,7 +145,7 @@ def get_args():
         "--sample_interval",
         type=int,
         default=5,
-        help="after how many samples to evaluate the sample efficiency of the model; ideally this should be multiples of the chosen batch size.",
+        help="after how many steps to evaluate the sample efficiency of the model.",
     )
     parser.add_argument(
         "--target_return",
@@ -158,18 +158,6 @@ def get_args():
         type=int,
         default=128,
         help="number of seeds to evaluate over",
-    )
-    parser.add_argument(
-        "--custom_order",
-        type=str,
-        default="",
-        help="the custom order of tasks to use for the curriculum training mode, in the format 'level1,level9,level5,...'",
-    )
-    parser.add_argument(
-        "--predict_feedback",
-        type=str2bool,
-        default=False,
-        help="whether to also predict feedback during training (besides the action)",
     )
     parser.add_argument(
         "--load_existing_dataset",
@@ -253,7 +241,7 @@ def get_args():
         "--feedback_at_inference",
         type=str,
         default="numerical",
-        help="representation to use for feedback at inference time; can be either 'numerical', 'string' or 'actual'",
+        help="representation to use for feedback at inference time; can be either 'numerical', 'zero', 'mean', 'string' or 'actual'",
     )
     parser.add_argument(
         "--mission_mode",
@@ -296,12 +284,6 @@ def get_args():
         type=int,
         default=0,
         help="the seed used for seeding the env for the demo",
-    )
-    parser.add_argument(
-        "--grad_stop_image_encoder",
-        type=str2bool,
-        default=False,
-        help="whether to stop gradients from flowing through the image encoder",
     )
     parser.add_argument(
         "--analyse_only_level",

@@ -24,20 +24,20 @@ def run_name(combo, keys):
 
 # this is the base command that will be used for the experiment
 base_call = f"python {PROJECT_HOME}/scripts/train_agent_babyai.py -o {DATA_HOME}/output --load_existing_dataset True"
-# --eps_per_shard 4
 
 # define a dictionary of variables to perform a grid search over.
 # the key for each variable should match the name of the command-line
 # argument required by the script in base_call
 variables = {
     "level": [
+        "GoToObj",
         "GoToLocal",
         "PutNextLocal",
         "PickupLoc",
         "Pickup",
-        "Unlock",
+        "PutNext",
         "Synth",
-        "GoToSeq"
+        "SynthLoc"
     ],
     "use_mission": [
         True,

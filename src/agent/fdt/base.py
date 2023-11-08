@@ -54,7 +54,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
         use_missions=True,
         use_rtg=False,
         loss_mean_type="ce",
-        grad_stop_image_encoder=False,
     ):
         config.action_tanh = False
         DecisionTransformerModel.__init__(self, config)
@@ -72,7 +71,6 @@ class FDTAgent(Agent, DecisionTransformerModel):
 
         # create state embedding model
         self.create_state_embedding_model()
-        self.requires_grad = not grad_stop_image_encoder
 
     def create_state_embedding_model(self):
         # default to a linear state embedding - override this in child classes
@@ -101,7 +99,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 input.states.reshape((-1,) + self.config.state_shape)
                 .type(torch.float32)
                 .contiguous()
-            ).reshape(batch_size, seq_length, self.hidden_size).requires_grad_(requires_grad=self.requires_grad)
+            ).reshape(batch_size, seq_length, self.hidden_size)
             + time_embeddings
         )
         action_embeddings = self.embed_action(input.actions) + time_embeddings
