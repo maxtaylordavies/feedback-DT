@@ -10,6 +10,7 @@ class MinigridFDTAgent(FDTAgent):
         super().__init__(*args, **kwargs)
 
     def create_state_embedding_model(self):
+        """Create the state embedding model."""
         if not self.use_rgb:
             print("Creating state embedding model for symbolic observations")
             # minimal CNN for embedding symbolic observations

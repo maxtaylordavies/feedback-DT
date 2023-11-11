@@ -73,13 +73,31 @@ class FDTAgent(Agent, DecisionTransformerModel):
         self.create_state_embedding_model()
 
     def create_state_embedding_model(self):
-        # default to a linear state embedding - override this in child classes
+        """Create the state embedding model. Override this in child classes."""
         self.state_embedding_model = nn.Linear(self.config.state_dim, self.hidden_size)
 
     def _embed_state(self, states):
+        """
+        Embed states using the state embedding model.
+
+        Args:
+            states (torch.Tensor): States to embed.
+
+        Returns:
+            torch.Tensor: Embedded states.
+        """
         return self.state_embedding_model(states)
 
     def _forward(self, input: AgentInput):
+        """
+        Operate on a given input and return the result.
+
+        Args:
+            input (AgentInput): Input to the model.
+
+        Returns:
+            DecisionTransformerOutput: Model output.
+        """
         batch_size, seq_length = input.states.shape[0], input.states.shape[1]
 
         if input.attention_mask is None:
@@ -121,9 +139,7 @@ class FDTAgent(Agent, DecisionTransformerModel):
             ),
             dim=1,
         )
-        stacked_inputs = stacked_inputs.permute(
-            0, 2, 1, 3
-        )
+        stacked_inputs = stacked_inputs.permute(0, 2, 1, 3)
         stacked_inputs = stacked_inputs.reshape(
             batch_size, 5 * seq_length, self.hidden_size
         )
@@ -141,7 +157,8 @@ class FDTAgent(Agent, DecisionTransformerModel):
                 ),
                 dim=1,
             )
-            .permute(0, 2, 1).reshape(batch_size, 5 * seq_length)
+            .permute(0, 2, 1)
+            .reshape(batch_size, 5 * seq_length)
         )
 
         # we feed in the input embeddings (not word indices as in NLP) to the model
@@ -159,28 +176,20 @@ class FDTAgent(Agent, DecisionTransformerModel):
         )
         x = encoder_outputs[0]
 
-        x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(
-            0, 2, 1, 3
-        )
+        x = x.reshape(batch_size, seq_length, 5, self.hidden_size).permute(0, 2, 1, 3)
 
         _m, _r, _f, _s, _a = x[:, 0], x[:, 1], x[:, 2], x[:, 3], x[:, 4]
 
         if self.use_rtg:
-            _s = torch.cat(
-                [_s, _r], axis=2
-            )
+            _s = torch.cat([_s, _r], axis=2)
             _a = torch.cat([_a, _r], axis=2)
 
         if self.use_feedback:
-            _s = torch.cat(
-                [_s, _f], axis=2
-            )
+            _s = torch.cat([_s, _f], axis=2)
             _a = torch.cat([_a, _f], axis=2)
 
         if self.use_missions:
-            _s = torch.cat(
-                [_s, _m], axis=2
-            )
+            _s = torch.cat([_s, _m], axis=2)
             _a = torch.cat([_a, _m], axis=2)
 
         # get predictions
@@ -197,7 +206,19 @@ class FDTAgent(Agent, DecisionTransformerModel):
             attentions=encoder_outputs.attentions,
         )
 
-    def _compute_loss(self, input: AgentInput, output: DecisionTransformerOutput, **kwargs):
+    def _compute_loss(
+        self, input: AgentInput, output: DecisionTransformerOutput, **kwargs
+    ):
+        """
+        Compute the cross-entropy loss given an input and output.
+
+        Args:
+            input (AgentInput): Input to the model.
+            output (DecisionTransformerOutput): Output of the model.
+
+        Returns:
+            torch.Tensor: Cross-entropy loss.
+        """
         act_dim = output.action_preds.shape[2]
         bacth_size = output.action_preds.shape[0]
         seq_length = output.action_preds.shape[1]
@@ -245,20 +266,32 @@ class FDTAgent(Agent, DecisionTransformerModel):
         else:
             raise TypeError("Does not support dtype " + str(dtype))
 
-    # function that gets an action from the model using autoregressive prediction
     def get_action(
         self,
         input: AgentInput,
         context=30,
         one_hot=True,
     ):
-        device = input.states.device
+        """
+        Sample an action from the model given an input.
 
-        input.mission_embeddings = input.mission_embeddings.reshape(1, -1, self.hidden_size)
+        Args:
+            input (AgentInput): Input to the model.
+            context (int, optional): Number of previous states to consider when sampling. Defaults to 30.
+            one_hot (bool, optional): Whether to return the action as a one-hot vector. Defaults to True.
+
+        Returns:
+            torch.Tensor: Sampled action.
+        """
+        input.mission_embeddings = input.mission_embeddings.reshape(
+            1, -1, self.hidden_size
+        )
         input.states = input.states.reshape(1, -1, self.config.state_dim)
         input.actions = input.actions.reshape(1, -1, self.config.act_dim)
         input.returns_to_go = input.returns_to_go.reshape(1, -1, 1)
-        input.feedback_embeddings = input.feedback_embeddings.reshape(1, -1, self.hidden_size)
+        input.feedback_embeddings = input.feedback_embeddings.reshape(
+            1, -1, self.hidden_size
+        )
         input.timesteps = input.timesteps.reshape(1, -1)
 
         input.mission_embeddings = input.mission_embeddings[:, -context:]
