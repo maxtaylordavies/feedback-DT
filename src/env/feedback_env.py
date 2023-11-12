@@ -9,6 +9,15 @@ from src.dataset.custom_feedback_verifier import TaskFeedback
 
 
 class FeedbackEnv:
+    """
+    FeedbackEnv is a wrapper around a gymnasium environment that adds the ability to provide feedback to the agent.
+
+    Args:
+        env (gym.Env): The environment to wrap.
+        feedback_mode (str): The type of feedback to provide to the agent. Can be one of "rule", "task", "numerical", or "mixed".
+        max_steps (int): The maximum number of steps to take in the environment. If None, then the max_steps of the wrapped environment is used.
+    """
+
     def __init__(
         self, env: gym.Env, feedback_mode: Optional[str], max_steps: Optional[int]
     ) -> None:
@@ -21,9 +30,19 @@ class FeedbackEnv:
             self.task_fv = TaskFeedback(self.env)
 
     def get_base_env(self):
+        """Return the base gym environment."""
         return self.env
 
     def rule_feedback(self, action):
+        """
+        Return rule feedback for the given action.
+
+        Args:
+            action (int): The action taken by the agent.
+
+        Returns:
+            str or None: The rule feedback for the given action.
+        """
         return (
             self.rule_fv.verify_feedback(self.env, action)
             if self.feedback_mode != "task"
@@ -31,6 +50,15 @@ class FeedbackEnv:
         )
 
     def task_feedback(self, action):
+        """
+        Return task feedback for the given action.
+
+        Args:
+            action (int): The action taken by the agent.
+
+        Returns:
+            str or None: The rule feedback for the given action.
+        """
         return (
             self.task_fv.verify_feedback(self.env, action)
             if self.feedback_mode != "rule"
@@ -38,6 +66,7 @@ class FeedbackEnv:
         )
 
     def get_feedback(self, rule_feedback, task_feedback):
+        """Return feedback depending on the specified feedback mode."""
         if self.feedback_mode == "rule":
             return rule_feedback
         if self.feedback_mode == "task":
@@ -54,6 +83,15 @@ class FeedbackEnv:
             return rule_feedback
 
     def step(self, action):
+        """
+        Execute the given action in the environment and return the resulting observation, reward, terminated, truncated, and feedback.
+
+        Args:
+            action (int): The action to take in the environment.
+
+        Returns:
+            tuple: The observation, reward, terminated, truncated, and feedback.
+        """
         if not self.feedback_mode:
             obs, reward, terminated, truncated, _ = self.env.step(action)
             return obs, reward, terminated, truncated, None
@@ -83,22 +121,28 @@ class FeedbackEnv:
         return obs, reward, terminated, truncated, feedback
 
     def reset(self, *args, **kwargs):
+        """Reset the environment."""
         self.steps_taken = 0
         return self.env.reset(*args, **kwargs)
 
     def render(self, *args, **kwargs):
+        """Render the environment."""
         return self.env.render(*args, **kwargs)
 
     def close(self):
+        """Close the environment."""
         return self.env.close()
 
     def get_frame(self, *args, **kwargs):
+        """Get the current frame of the environment."""
         return self.env.get_frame(*args, **kwargs)
 
     def get_mission(self):
+        """Return the current mission string."""
         return self.env.instrs.surface(self.env)
 
     def room_from_pos(self, *args, **kwargs):
+        """Return the room from the given position."""
         return self.env.room_from_pos(*args, **kwargs)
 
     @property
