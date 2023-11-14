@@ -27,6 +27,13 @@ class PPOAgent:
     """
     PPOAgent is a wrapper around the PPO algorithm implementation from
     https://github.com/lcswillems/rl-starter-files for MinGrid and BabyAI environments.
+
+    Args:
+        env_name (str): name of the environment (e.g. "BabyAI-GoToObj-v0")
+        seeds (list): list of seeds for the environment
+        medium (bool, optional): whether to use the medium size model
+        feedback_mode (str, optional): feedback mode for the environment
+        max_steps (int, optional): maximum number of steps per episode
     """
 
     def __init__(
