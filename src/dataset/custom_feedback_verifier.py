@@ -686,7 +686,7 @@ class RandomFeedback:
         Get random feedback to replace actual feedback with (for ablations).
 
         Args:
-            random_type (str): The type of random feedback to generate. Can be either 'random' or 'lorem_ipsum'.
+            random_type (str): The type of random feedback to generate. Can be either 'english' or 'lorem_ipsum'.
 
         Returns:
             str: The random feedback.

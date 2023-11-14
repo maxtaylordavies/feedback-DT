@@ -49,7 +49,7 @@ class Evaluator(TrainerCallback):
         self.early_stopping_threshold = self.user_args["early_stopping_threshold"]
         self.best_gc_success = -np.inf
         self.best_global_step = 0
-        self.sample_interval = self.user_args["sample_interval"]
+        self.eval_step_interval = self.user_args["eval_step_interval"]
         self.target_return = self.user_args["target_return"]
         self.num_repeats = self.user_args["num_repeats"]
         self.best_returns = {"random": -np.inf, "DT": -np.inf}
@@ -162,7 +162,7 @@ class Evaluator(TrainerCallback):
         self._plot_loss(state)
 
         # if this is the first step or we've reached the sample interval, run eval + update plots
-        if state.global_step % self.sample_interval == 0 and state.global_step > 0:
+        if state.global_step % self.eval_step_interval == 0 and state.global_step > 0:
             self._run_eval_and_plot(
                 model, state, eval_type="efficiency", control=control
             )

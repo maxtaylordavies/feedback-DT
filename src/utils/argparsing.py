@@ -142,7 +142,7 @@ def get_args():
         help="the name of the level to train on",
     )
     parser.add_argument(
-        "--sample_interval",
+        "--eval_step_interval",
         type=int,
         default=5,
         help="after how many steps to evaluate the sample efficiency of the model.",
