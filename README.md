@@ -1,6 +1,6 @@
 # feedback-DT
 
-This repository houses all the code for our paper '*Is Feedback All You Need? Leveraging Natural Language Feedback in Goal-Conditioned Reinforcement Learning*', as well as ongoing work developing the project further. If you use any of the code for your sown work, please cite the paper as
+This repository houses all the code for our paper '*Is Feedback All You Need? Leveraging Natural Language Feedback in Goal-Conditioned Reinforcement Learning*', as well as ongoing work developing the project further (for the specific version of the code matching the workshop paper, see the `neurips2023_gcrl` branch). If you use any of the code for your own work, please cite the paper as
 ```
 citation
 ```
@@ -30,16 +30,20 @@ python scripts/train_agent_babyai.py
 The script also supports a number of arguments. The main ones are highlighted below; for a complete list refer to `src/utils/argparsing.py`.
 
 ### Specifying a BabyAI level
-The `--level` argument determines which BabyAI level to use, defaulting to "GoToRedBallGrey". A list of levels can be found on [this page](https://minigrid.farama.org/environments/babyai/) under "Registered Configurations". 
+The `--level` argument determines which BabyAI level to use, given as the middle part of the config name, e.g. "BabyAI-GoToRedBallGrey-v0" -> "GoToRedBallGrey" (the default value). A list of levels can be found on [this page](https://minigrid.farama.org/environments/babyai/) under "Registered Configurations". 
 
 ### Controlling dataset creation
-To avoid creating a new dataset everytime the script is run, you can use the `--load_existing_dataset` argument - this will check if a dataset matching all the relevant arguments exists, and load it if so. By default, datasets are generated using a random policy - to instead sample data from the training process of a PPO agent, set `--policy` to "ppo". For both random and PPO policies, `--num_steps` controls the number of environment steps to include in the training dataset. Finally, to exclude episodes that end as a result of timing out, set `--include_timeout` to false. 
+To avoid creating a new dataset everytime the script is run, you can use the `--load_existing_dataset` argument - this will check if a dataset matching all the relevant arguments exists, and load it if so. To download datasets created for the experiments in the paper, go to [this dropbox URL](https://www.dropbox.com/sh/b0bff46d4s230hr/AADJE4xu_Aliqd_mAv3kUdSda?dl=0).
+
+By default, datasets are generated using a random policy - to instead sample data from the training process of a PPO agent, set `--policy` to "ppo". If using a PPO policy, `--num_steps` controls the number of environment steps to include in the training dataset; for a random policy you can set `--num_train_seeds` and `--eps_per_seed` to determine the number of episodes created.
+
+Finally, to exclude episodes that end as a result of timing out, set `--include_timeout` to false. 
 
 ### Controlling what action prediction is conditioned on
 The original decision transformer uses return-to-go (RTG) to condition action predictions during training. Our architecture allows conditioning on RTG, mission string, language feedback, or any combination - you can control this by setting the `--use_rtg`, `--use_mission` and `--use_feedback` arguments. You can also control the provision of feedback and mission strings at *inference* time using the `--feedback_at_inference` and `--mission_at_inference` arguments.
 
 ### Controlling feedback generation
-If conditioning on feedback (see previous section), you can determine which *type* of feedback is used by setting the `--feedback_mode` argument to one of 'all', 'rule', 'task', 'numerical' or 'random'. For an explanation of what these feedback types mean, see section 3 and appendix A.1 of the paper. If using random feedback, you can additionally specify the type of random feedback through `--random_mode`, which can be either 'english' (uses random words from the BabyAI vocabulary) or 'lorem' (uses lorem ipsum text).
+If conditioning on feedback (see previous section), you can determine which *type* of feedback is used by setting the `--feedback_mode` argument to one of 'all', 'rule', 'task', 'numerical' or 'random'. In numerical mode, feedback is just given as a "1" when task feedback is available, "-1" when rule feedback is available, and "0" otherwise. If using random feedback, you can additionally specify the type of random feedback through `--random_mode`, which can be either 'english' (uses random nonsensical English sentences that exclude words in the BabyAI vocabulary) or 'lorem' (uses lorem ipsum text). For an explanation of what the other feedback types mean, see section 3 and appendix A.1 of the paper.
 
 ### Controlling evaluation
 Tthe training process includes automatic evaluation of the agent's  performance at periodic intervals, relative to a random policy baseline. By default, evaluation runs every 5 training steps; you can customise this by setting `--eval_step_interval`. At each evaluation, performance is averaged over a subset of environment seeds contained within the training dataset. You can set the number of seeds used with `--num_repeats`. At the end of training, we run an additional evaluation of the agent's in-distribution and out-of-distribution generalisation performance - `--num_repeats` also determines the number of seeds used here. 
@@ -89,10 +93,10 @@ class Agent(nn.Module):
 
 Implementing any particular type of agent/model then mostly consists of overriding the `_forward`, `_compute_loss` and `get_action` methods.
 
-The file `agent/fdt/base.py` contains an `Agent` implementation for the feedback decision transformer. This is the file that contains almost all the relevant logic for the actual FDT model. The files `agent/fdt/atari.py` and `agent/fdt/minigrid.py` contain slightly specialised versions for use with Atari and Minigrid/BabyAI environments respectively. At the time of writing, the only difference is the details of the CNN used to embed image observations.
+The file `agent/fdt/base.py` contains an `Agent` implementation for the feedback decision transformer. This is the file that contains almost all the relevant logic for the actual FDT model. The file `agent/fdt/minigrid.py` contain the version of the agent for use with Minigrid/BabyAI environments. In the future, we may add additional subclasses to `agent/fdt/` for other types of environment. 
 
 ### Dataset
-The `CustomDataset` class (`dataset/custom_dataset.py`) essentially represents an interface to a collection of `hdf5` files on disk, where each file contains some number of recorded steps. Each step consists of the elements (mission, observation, action, reward, feedback, truncated, terminated). A new `CustomDataset` can be created either from existing DQN replay data (e.g. for Atari), or from entirely new data, sampled from some specified policy (or randomly). Once a `CustomDataset` has been created and saved to disk (across some number of sharded files), we can sample data from it using the following three methods:
+The `CustomDataset` class (`dataset/custom_dataset.py`) essentially represents an interface to a collection of `hdf5` files on disk, where each file contains some number of recorded steps. Each step consists of the elements (mission, observation, action, reward, feedback, truncated, terminated). A new `CustomDataset` can be created by sampling from some specified policy (or randomly). Once a `CustomDataset` has been created and saved to disk (across some number of sharded files), we can sample data from it using the following three methods:
 
 ### Collator
 The `Collator` (`src/collator/collator.py`) basically functions as an intermediary between a `CustomDataset` and an `Agent`, for the purposes of training: it samples batches of data from the `CustomDataset`, and packages them as inputs to be processed by the `Agent`. To create a collator, you pass in a dataset object and a bunch of optional args:
@@ -159,4 +163,4 @@ def on_step_end(
             self._run_eval_and_plot(model, state, eval_type="efficiency", control=control)
             model.save_checkpoint(self.output_dir, state.global_step)
 ```
-What happens here is that we first update our plot of the training loss (this is saved to disk at each step), and then check whether the current step is a multiple of `self.eval_step_interval` - if it is, we call `_run_eval_and_plot`. This evaluates the performance of the current agent, and updates the eval plot(s) saved on disk. Specifically: we sample *n* instances of the environment; for each of those, we sample a trajectory from the agent being trained, and also from a random agent (which serves as a baseline). For both trajectories we record the return, the length, and whether it was successful. All three of these metrics are plotted throughout training against number of samples. To track any additional metrics, you can just add code to `_run_eval_and_plot`.  
+What happens here is that we first update our plot of the training loss (this is saved to disk at each step), and then check whether the current step is a multiple of `self.eval_step_interval` (determined by the `--eval_step_interval` command line argument) - if it is, we call `_run_eval_and_plot`. This evaluates the performance of the current agent, and updates the eval plot(s) saved on disk. Specifically: we sample *n* instances of the environment; for each of those, we sample a trajectory from the agent being trained, and also from a random agent (which serves as a baseline). For both trajectories we record the return, the length, and whether it was successful. All three of these metrics are plotted throughout training against number of samples. To track any additional metrics, you can just add code to `_run_eval_and_plot`.  
