@@ -121,6 +121,10 @@ class SeedFinder:
 
     In some cases, this involves all seeds for a given level or config.
     In other cases, this involves a subset of seeds for a given level or config.
+
+    Args:
+        n_train_seeds_required (int): number of in-domain train seeds required.
+        original_tasks_only (bool): whether to only use the original tasks or also include the new tasks.
     """
 
     def __init__(self, n_train_seeds_required=10**6, original_tasks_only=True):
@@ -158,12 +162,10 @@ class SeedFinder:
         """
         Pick a random color from the list of colors.
 
-        Parameters
-        ----------
+        Args:
             i (int): index of the color to pick.
 
-        Returns
-        -------
+        Returns:
             str: a random object color from a list of colors.
         """
         return random.sample(COLOR_NAMES, 2)
@@ -172,12 +174,10 @@ class SeedFinder:
         """
         Pick a random type from the list of types.
 
-        Parameters
-        ----------
+        Args:
             i (int): index of the type to pick.
 
-        Returns
-        -------
+        Returns:
             str: a random object type from a list of types.
         """
         return random.sample(OBJ_TYPES_NOT_DOOR, 2)
@@ -188,8 +188,7 @@ class SeedFinder:
 
         This applies to Loc levels only.
 
-        Returns
-        -------
+        Returns:
             str: a random relative goal object location.
         """
         return random.sample(LOC_NAMES, 1)[0]
@@ -202,12 +201,10 @@ class SeedFinder:
 
         If this is not a Sequence type level, then the list of tasks consists of a single task.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             list: list of mission tasks.
         """
         return TaskFeedback(env).tasks
@@ -216,12 +213,10 @@ class SeedFinder:
         """
         Check if the level is a maze.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if the level is a maze, False otherwise.
         """
         return env.unwrapped.num_rows > 1 or env.unwrapped.num_cols > 2
@@ -230,14 +225,12 @@ class SeedFinder:
         """
         Get all possible positions in the grid for a given axis.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
             size (int): size of the room.
             n (int): number of rows or columns in the grid.
 
-        Returns
-        -------
+        Returns:
             list: list of tuples of x or y coordinates of all possible positions in the grid.
         """
         all_positions = [c for c in range(1, size * n - n) if c % (size - 1) != 0]
@@ -247,13 +240,11 @@ class SeedFinder:
         """
         Split an array of positions into arrays of quadrants.
 
-        Parameters
-        ----------
+        Args:
             positions (np.array): array of x or y coordinates of all possible positions in the grid.
             n (int): number of rows or columns in the grid.
 
-        Returns
-        -------
+        Returns:
             array: array of arrays of x or y coordinates of all possible positions in the grid, by room.
         """
         return np.array_split(
@@ -265,12 +256,10 @@ class SeedFinder:
         """
         Split an array of room positions into arrays of quadrants.
 
-        Parameters
-        ----------
+        Args:
             room_positions (np.array): array of x or y coordinates of all possible positions in the grid, by room.
 
-        Returns
-        -------
+        Returns:
             array: array of arrays of x or y coordinates of all possible positions in the grid, by room quadrant.
         """
         return [np.array_split(x, 2) for x in room_positions]
@@ -279,12 +268,10 @@ class SeedFinder:
         """
         Get a lookup of quadrants to positions.
 
-        Parameters
-        ----------
+        Args:
             quadrant_positions (list): list of arrays of x or y coordinates of all possible positions in the grid, by room quadrant.
 
-        Returns
-        -------
+        Returns:
             dict: dict of quadrants to positions.
         """
         quadrant_lookup = {}
@@ -300,12 +287,10 @@ class SeedFinder:
         """
         Convert the agent position into a quadrant in the room.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             tuple: tuple of x and y coordinates of the quadrant of the room.
 
         """
@@ -342,12 +327,10 @@ class SeedFinder:
         """
         Convert the agent position into a quadrant in the maze.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             tuple: tuple of x and y coordinates of the quadrant of the maze.
         """
 
@@ -377,12 +360,10 @@ class SeedFinder:
         """
         Get the room and maze quadrants of the agent in the grid.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             tuple: tuple of tuple of x and y quadrant of the agent in the room and maze.
         """
         if self._is_maze(env):
@@ -395,12 +376,10 @@ class SeedFinder:
         """
         Get a list of possible room grid quadrants.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             list: list of tuples of x and y coordinates for all possible quadrants of the room.
         """
         return [q for q in combinations_with_replacement([1, 2], 2)]
@@ -409,12 +388,10 @@ class SeedFinder:
         """
         Get a list of possible maze grid quadrants.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             list: list of tuples of x and y coordinates for all possible quadrants of the maze.
         """
         return [
@@ -428,8 +405,7 @@ class SeedFinder:
         """
         Pick a random room quadrant from a list of possible room quadrants.
 
-        Returns
-        -------
+        Returns:
             tuple: tuple of x and y coordinates for a randomly picked quadrant of the room.
         """
         return random.sample(
@@ -441,8 +417,7 @@ class SeedFinder:
         """
         Pick a random maze quadrant from a list of possible maze quadrants.
 
-        Returns
-        -------
+        Returns:
             tuple: tuple of x and y coordinates for a randomly picked quadrant of the maze.
         """
         return random.sample(
@@ -454,13 +429,11 @@ class SeedFinder:
         """
         Check if the goal doors are locked.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
             task: instance of the subtask for the env that is to be checked.
 
-        Returns
-        -------
+        Returns:
             bool: True if any of the goal doors are locked, False otherwise.
         """
         for pos in task.desc.obj_poss:
@@ -473,12 +446,10 @@ class SeedFinder:
         """
         Check if the task explicitly requires unlocking two doors.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if the level has two goal doors to unlock, False otherwise.
         """
         if len(self._get_task_list(env)) > 1:
@@ -501,12 +472,10 @@ class SeedFinder:
         """
         Check if the level contains the unseen size of the room or maze.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if the room size is 8 and maze size is 3x3, False otherwise.
         """
         if self._is_maze(env):
@@ -521,12 +490,10 @@ class SeedFinder:
         """
         Check if the level contains the unseen color-type combinations for goal objects.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if (any of) the goal object/s is/are of the unseen color and type, False otherwise.
         """
         for task in self._get_task_list(env):
@@ -551,12 +518,10 @@ class SeedFinder:
         """
         Check if the level contains an agent starting position in an unseen room (and for mazes, maze) quadrant(s).
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if agent starting location is in the unseed quadrant in the room (single room) and maze (for maze only), False otherwise.
         """
         room_quadrant, maze_quadrant = self._get_agent_quadrants(env)
@@ -572,12 +537,10 @@ class SeedFinder:
 
         The object color-type combination is different from the one used in self._check_color_type.
 
-        Parameters
-        ----------
+        Args:
             env: instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if the obj.desc_fixed for a PutNext task is of the second unseen color and type, False otherwise.
         """
         for task in self._get_task_list(env):
@@ -597,12 +560,10 @@ class SeedFinder:
 
         This applies to Loc levels only and refers to the loc attribute of goal objects, which for most envs is None.
 
-        Parameters
-        ----------
+        Args:
             env (str): instance of the level made using a seed.
 
-        Returns
-        -------
+        Returns:
             bool: True if (any of) the goal object/s is/are of the unseen loc, False otherwise.
         """
         for task in self._get_task_list(env):
@@ -646,8 +607,7 @@ class SeedFinder:
         """
         Load the seeds for all levels and configs as a dict from the json file they are stored in.
 
-        Returns
-        -------
+        Returns:
             dict: dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
         """
         if not os.path.exists(self._get_config_fn(level, config)):
@@ -658,8 +618,7 @@ class SeedFinder:
         """
         Save the seeds for a given level and config from a dict to a json file.
 
-        Parameters
-        ----------
+        Args:
             seed_log (dict): dictionary of dictionaries with test and validation seeds and info about the number of 'safe' train seeds.
             level (str): name of the level.
             config (str): name of the config.
@@ -676,8 +635,7 @@ class SeedFinder:
         """
         Create a seed log for a given level and config.
 
-        Parameters
-        ----------
+        Args:
             level (str): name of the level.
             config (str): name of the config.
         """
@@ -791,14 +749,12 @@ class SeedFinder:
         """
         Check if a seed is in the list of OOD seeds for a given level and config.
 
-        Parameters
-        ----------
+        Args:
             level (str): name of the level.
             config (str): name of the config.
             seed (int): seed to check.
 
-        Returns
-        -------
+        Returns:
             bool: True if the seed is in the list of OOD seeds, False otherwise.
 
         """
@@ -812,14 +768,12 @@ class SeedFinder:
         """
         Check if a seed is in the list of validation seeds for a given level and config.
 
-        Parameters
-        ----------
+        Args:
             level (str): name of the level.
             config (str): name of the config.
             seed (int): seed to check.
 
-        Returns
-        -------
+        Returns:
             bool: True if the seed is in the list of validation seeds, False otherwise.
         """
         return seed in seed_log["validation_seeds"]

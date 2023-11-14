@@ -33,6 +33,7 @@ def log(msg, outPath=None, with_tqdm=False):
 
 
 def setup_devices(seed, useGpu=True):
+    """Sets up the compute devices for training and evaluation."""
     useCuda = useGpu and torch.cuda.is_available()
     if useGpu and not useCuda:
         raise ValueError(
@@ -60,6 +61,7 @@ def setup_devices(seed, useGpu=True):
 
 
 def is_network_connection():
+    """Check if there is a working network connection."""
     host, port, timeout = "8.8.8.8", 53, 3
     try:
         socket.setdefaulttimeout(timeout)
@@ -71,6 +73,7 @@ def is_network_connection():
 
 
 def to_one_hot(x, width=None):
+    """Convert a tensor to one-hot encoding."""
     if width:
         res = np.zeros((x.size, width))
         res[np.arange(x.size), x] = 1
@@ -81,10 +84,12 @@ def to_one_hot(x, width=None):
 
 
 def normalise(x):
+    """Normalise a tensor to the range [0, 1]."""
     return (x - x.min()) / (x.max() - x.min())
 
 
 def discounted_cumsum(x, gamma=1):
+    """Compute the discounted cumulative sum of a tensor."""
     return np.array(list(accumulate(x[::-1], lambda a, b: (gamma * a) + b)))[::-1]
 
 
@@ -92,14 +97,12 @@ def get_minigrid_obs(env, partial_obs, fully_obs=False, rgb_obs=False):
     """
     Get the observation from the environment.
 
-    Parameters
-    ----------
-    partial_observation (np.ndarray): the partial observation from the environment.
-    env (gym.Env): the environment.
+    Args:
+        partial_observation (np.ndarray): the partial observation from the environment.
+        env (gym.Env): the environment.
 
-    Returns
-    -------
-    np.ndarray: the observation, either as a symbolic or rgb image representation.
+    Returns:
+        np.ndarray: the observation, either as a symbolic or rgb image representation.
     """
     if fully_obs and rgb_obs:
         _env = RGBImgObsWrapper(env)
@@ -115,6 +118,7 @@ def get_minigrid_obs(env, partial_obs, fully_obs=False, rgb_obs=False):
 
 
 def seed(seed):
+    """Set the random seed for libraries random, numpy and pytorch"""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -123,6 +127,7 @@ def seed(seed):
 
 
 def format_size(num, suffix="B"):
+    """Format a number of bytes to a human-readable format."""
     for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f} {unit}{suffix}"
@@ -131,9 +136,12 @@ def format_size(num, suffix="B"):
 
 
 def flatten_list(l):
+    """Flatten a list of lists."""
     return [item for sublist in l for item in sublist]
 
+
 def frame_size(args):
+    """Get the frame size used for observations."""
     if args["fully_obs"] and args["rgb_obs"]:
         return 64
     if not args["fully_obs"] and args["rgb_obs"]:
