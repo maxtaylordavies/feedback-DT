@@ -51,7 +51,7 @@ Tthe training process includes automatic evaluation of the agent's  performance 
 The results from the periodic evaluations are also used to determine whether to stop training early - to customise this, set the `--early_stopping_patience` and `--early_stopping_threshold` arguments.
 
 # Architecture
-This section is intended as an overview of the codebase architecture for anyone wishing to modify or extend the code for their own purposes. There are 5 main components to the architecture: `Agent`, `Dataset`, `Collator`, `AgentTrainer`, `Evaluator`
+This section is intended as an overview of the codebase architecture for anyone wishing to modify or extend the code for their own purposes. There are 6 main components to the architecture: `Agent`, `FeedbackEnv`, `Dataset`, `Collator`, `AgentTrainer`, `Evaluator`
 
 ### Agent
 The `Agent` class basically represents any offline-RL-ish agent; i.e. something that we want to train from a dataset of sequential environment interactions, and then use as a policy to produce actions given observations. This is what its basic template definition looks like: 
@@ -94,6 +94,16 @@ class Agent(nn.Module):
 Implementing any particular type of agent/model then mostly consists of overriding the `_forward`, `_compute_loss` and `get_action` methods.
 
 The file `agent/fdt/base.py` contains an `Agent` implementation for the feedback decision transformer. This is the file that contains almost all the relevant logic for the actual FDT model. The file `agent/fdt/minigrid.py` contain the version of the agent for use with Minigrid/BabyAI environments. In the future, we may add additional subclasses to `agent/fdt/` for other types of environment. 
+
+### FeedbackEnv
+The `FeedbackEnv` class (`env/feedback_env.py`) is a wrapper around a gymnasium `Env` that adds the ability to generate and return natural language feedback on each step. To create a `FeedbackEnv` instance, you should first instantiate a regular `Env`, and then pass it in along with the feedback mode and max environment steps:
+```python
+_env = gym.make(env_key, render_mode=render_mode)
+ _env.reset(seed=seed)
+env = FeedbackEnv(_env, feedback_mode=feedback_mode, max_steps=max_steps)
+```
+Once you have a `FeedbackEnv`, you can mostly use it as you would a regular `Env`. The main difference form a usage perspective is that the fifth element of the tuple returned by a call to `step` is now a string (possibly) containing feedback, rather than an info dict. 
+
 
 ### Dataset
 The `CustomDataset` class (`dataset/custom_dataset.py`) essentially represents an interface to a collection of `hdf5` files on disk, where each file contains some number of recorded steps. Each step consists of the elements (mission, observation, action, reward, feedback, truncated, terminated). A new `CustomDataset` can be created by sampling from some specified policy (or randomly). Once a `CustomDataset` has been created and saved to disk (across some number of sharded files), we can sample data from it using the following three methods:
