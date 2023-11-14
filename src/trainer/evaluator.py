@@ -32,6 +32,14 @@ sns.set_theme()
 
 
 class Evaluator(TrainerCallback):
+    """
+    Custom callback class for running evaluations during and after training.
+
+    Args:
+        user_args (dict): user-specified arguments
+        collator (Collator): collator instance being used for current training run
+    """
+
     def __init__(self, user_args, collator) -> None:
         super().__init__()
         self.user_args = user_args
@@ -96,6 +104,7 @@ class Evaluator(TrainerCallback):
         self.max_return = 0
 
     def _init_results(self):
+        """Initialise a dict to store evaluation results"""
         self.results = {
             "model": [],  # "random" or "DT"
             "samples": [],  # number of training samples processed by model
@@ -183,6 +192,15 @@ class Evaluator(TrainerCallback):
         eval_type: str,
         control: TrainerControl = None,
     ):
+        """
+        Runs evaluation and plots the results.
+
+        Args:
+            agent (Agent): agent to evaluate
+            state (TrainerState): current state of the trainer
+            eval_type (str): type of evaluation to run (efficiency, iid_generalisation, ood_generalisation)
+            control (TrainerControl): trainer control object
+        """
         if eval_type not in ["efficiency", "iid_generalisation", "ood_generalisation"]:
             raise Exception(f"Unknown eval type: {eval_type}")
 
@@ -202,6 +220,15 @@ class Evaluator(TrainerCallback):
     def _evaluate_efficiency(
         self, dataset, agent, state: TrainerState, control: TrainerControl
     ):
+        """
+        Evaluate the sample efficiency of the agent being trained (and a random agent for baseline comparison).
+
+        Args:
+            dataset (CustomDataset): dataset used for training
+            agent (Agent): agent to evaluate
+            state (TrainerState): current state of the trainer
+            control (TrainerControl): trainer control object
+        """
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
         for a, name in zip([self.random_agent, agent], ["random", "DT"]):
             self._evaluate_agent_performance(
@@ -216,6 +243,14 @@ class Evaluator(TrainerCallback):
             )
 
     def _evaluate_iid_generalisation(self, dataset, agent, state: TrainerState):
+        """
+        Evaluate the IID generalisation of the agent being trained (and a random agent for baseline comparison).
+
+        Args:
+            dataset (CustomDataset): dataset used for training
+            agent (Agent): agent to evaluate
+            state (TrainerState): current state of the trainer
+        """
         self._set_val_seeds()
 
         # run evaluations using both the agent being trained and a random agent (for baseline comparison)
@@ -232,6 +267,14 @@ class Evaluator(TrainerCallback):
             )
 
     def _evaluate_ood_generalisation(self, dataset, agent, state: TrainerState):
+        """
+        Evaluate the OOD generalisation of the agent being trained (and a random agent for baseline comparison).
+
+        Args:
+            dataset (CustomDataset): dataset used for training
+            agent (Agent): agent to evaluate
+            state (TrainerState): current state of the trainer
+        """
         configs_per_type, n_samples_per_type = self._get_samples_per_ood_type(dataset)
         self.max_return = 0
 
@@ -255,6 +298,17 @@ class Evaluator(TrainerCallback):
                 )
 
     def _get_samples_per_ood_type(self, dataset):
+        """
+        Given a dataset, determine the number of samples it contains for each OOD type.
+
+        Args:
+            dataset (CustomDataset): dataset to get samples for
+
+        Returns:
+            dict: list of configs in the dataset for each OOD type
+            dict: number of samples in the dataset for each OOD type
+        """
+
         configs_per_type = {}
         for config in dataset.test_configs:
             seed_dict = self._load_seed_dict(dataset, config)
@@ -275,6 +329,7 @@ class Evaluator(TrainerCallback):
         return configs_per_type, n_samples_per_type
 
     def _set_val_seeds(self):
+        """Sample some seeds for validation"""
         seed_dict = self._load_seed_dict(
             self.collator.dataset, self.collator.dataset.train_config
         )
@@ -282,6 +337,7 @@ class Evaluator(TrainerCallback):
         self.val_seeds = val_seeds
 
     def _set_train_seeds(self):
+        """Sample some seeds for training"""
         train_seeds = self.collator.dataset.train_seeds
         self.train_seeds = (
             {"": train_seeds}
@@ -290,17 +346,21 @@ class Evaluator(TrainerCallback):
         )
 
     def _load_seed_dict(self, dataset, config):
+        """Load the seed dict for the given config"""
         return dataset.seed_finder.load_seeds(dataset.level, config)
 
     def _sample_train_seeds(self, train_seeds, n=1):
+        """Sample train seeds"""
         return {"": np.random.choice(train_seeds, size=n, replace=False)}
 
     def _sample_validation_seeds(self, seed_dict, n=1):
+        """Sample validation seeds"""
         return {
             "": np.random.choice(seed_dict["validation_seeds"], size=n, replace=False)
         }
 
     def _sample_test_seeds(self, seed_dict, ood_type, n=1):
+        """Sample test seeds"""
         try:
             sampled_seeds = np.random.choice(
                 seed_dict[ood_type]["test_seeds"], size=n, replace=False
@@ -312,6 +372,7 @@ class Evaluator(TrainerCallback):
         return sampled_seeds
 
     def _create_env(self, config, seed):
+        """Create a RecorderEnv for recording videos"""
         _env = gym.make(config, render_mode="rgb_array")
         _env.reset(seed=seed)
         env = RecorderEnv(
@@ -334,6 +395,23 @@ class Evaluator(TrainerCallback):
         gc_success,
         global_step,
     ):
+        """
+        Record the results of an evaluation episode.
+
+        Args:
+            env (RecorderEnv): environment used for the episode
+            dataset (CustomDataset): dataset used for training
+            config (str): config used for the episode
+            seed (int): seed used for the episode
+            eval_type (str): type of evaluation (efficiency, iid_generalisation, ood_generalisation)
+            ood_type (str): type of out-of-distribution episode (if applicable, else empty string)
+            model_name (str): name of the model being evaluated
+            ret (float): episode return
+            ep_length (int): episode length
+            success (bool): whether the episode was successful
+            gc_success (float): goal condition success rate
+            global_step (int): global step number
+        """
         self.results["model"].append(model_name)
         self.results["samples"].append(self.collator.samples_processed)
         self.results["level"].append(dataset.level)
@@ -393,6 +471,20 @@ class Evaluator(TrainerCallback):
         state: TrainerState,
         control: TrainerControl = None,
     ):
+        """
+        Evaluate the performance (gc success rate) of an agent on a given config.
+
+        Args:
+            agent (Agent): agent to evaluate
+            agent_name (str): name of the agent
+            dataset (CustomDataset): dataset used for training
+            config (str): config to evaluate on
+            eval_type (str): type of evaluation (efficiency, iid_generalisation, ood_generalisation)
+            seeds (dict): seeds to evaluate on
+            state (TrainerState): current state of the trainer
+            control (TrainerControl): trainer control object
+        """
+
         run_agent = self._run_agent_on_minigrid_env
 
         # avoid holding a shard in memory during evaluation
@@ -443,6 +535,7 @@ class Evaluator(TrainerCallback):
     def _check_early_stopping(
         self, mean_gc_success, state: TrainerState, control: TrainerControl
     ):
+        """Determine whether to stop training early based on mean gc success rate"""
         self._check_metric_improvement(mean_gc_success, state)
         if self.early_stopping_patience_counter >= self.early_stopping_patience:
             log(f"Early stopping at step {state.global_step}")
@@ -450,6 +543,7 @@ class Evaluator(TrainerCallback):
         return False
 
     def _check_metric_improvement(self, metric, state: TrainerState):
+        """Check whether the evaluation metric has improved and update the early stopping patience counter"""
         if (
             metric > self.best_gc_success + self.early_stopping_threshold
             and state.global_step > 0
@@ -467,6 +561,7 @@ class Evaluator(TrainerCallback):
             )
 
     def _get_demo_mean(self, level):
+        """Get mean number of demonstration steps for a given level"""
         metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
         metadata = JsoncParser.parse_file(metadata_path)["levels"]
         for level_group, levels in metadata.items():
@@ -474,6 +569,7 @@ class Evaluator(TrainerCallback):
                 return round(metadata[level_group][level]["demo_mean_n_steps"])
 
     def _get_pw_success(self, success, episode_length, level):
+        """Get path-weighted success rate"""
         demo_length = self._get_demo_mean(level)
         return success * (demo_length / max(episode_length, demo_length))
 
@@ -485,6 +581,23 @@ class Evaluator(TrainerCallback):
         target_return: float,
         eval_type: str,
     ):
+        """
+        Run an agent on a minigrid/babyai environment for a single episode.
+
+        Args:
+            agent (Agent): agent to evaluate
+            env (RecorderEnv): environment to evaluate on
+            seed (int): seed to evaluate on
+            target_return (float): target return for RTG conditioning
+            eval_type (str): type of evaluation (efficiency, iid_generalisation, ood_generalisation)
+
+        Returns:
+            float: episode return
+            int: episode length
+            bool: whether the episode was successful
+            float: goal condition success rate
+        """
+
         def get_state(partial_obs):
             obs = get_minigrid_obs(
                 env,
@@ -614,6 +727,7 @@ class Evaluator(TrainerCallback):
         return np.sum(rewards.detach().cpu().numpy()), t, success, gc_sr
 
     def _plot_loss(self, state: TrainerState):
+        """Plot the loss curve"""
         fig, ax = plt.subplots()
         losses = [x["loss"] for x in state.log_history[:-1]]
         sns.lineplot(x=range(len(losses)), y=losses, ax=ax)
@@ -621,6 +735,7 @@ class Evaluator(TrainerCallback):
         plt.close(fig)
 
     def _plot_results(self):
+        """Plot the evaluation results"""
         formats = ["png", "svg"]
 
         # split into in-distribution and out-of-distribution for efficiency and generalisation plots
