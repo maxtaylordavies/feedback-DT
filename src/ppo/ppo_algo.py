@@ -7,6 +7,10 @@ from src.utils.utils import flatten_list
 
 
 class PPOAlgo(torch_ac.PPOAlgo):
+    """
+    Class implementing the PPO algorithm.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -24,18 +28,17 @@ class PPOAlgo(torch_ac.PPOAlgo):
         in a batch mode for all environments at the same time. The rollouts
         and advantages from all environments are concatenated together.
 
-        Returns
-        -------
-        exps : DictList
-            Contains actions, rewards, advantages etc as attributes.
-            Each attribute, e.g. `exps.reward` has a shape
-            (self.num_frames_per_proc * num_envs, ...). k-th block
-            of consecutive `self.num_frames_per_proc` frames contains
-            data obtained from the k-th environment. Be careful not to mix
-            data from different environments!
-        logs : dict
-            Useful stats about the training process, including the average
-            reward, policy loss, value loss, etc.
+        Returns:
+            exps : DictList
+                Contains actions, rewards, advantages etc as attributes.
+                Each attribute, e.g. `exps.reward` has a shape
+                (self.num_frames_per_proc * num_envs, ...). k-th block
+                of consecutive `self.num_frames_per_proc` frames contains
+                data obtained from the k-th environment. Be careful not to mix
+                data from different environments!
+            logs : dict
+                Useful stats about the training process, including the average
+                reward, policy loss, value loss, etc.
         """
 
         for i in range(self.num_frames_per_proc):

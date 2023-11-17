@@ -11,6 +11,16 @@ from src.dataset.minari_dataset import MinariDataset
 
 
 class AgentTrainer(Trainer):
+    """
+    Class for training an agent.
+
+    Args:
+        args (Dict): User-supplied arguments.
+        agent (Agent): Agent to train.
+        collator (Collator): Collator to use for sampling training data.
+        dataset (MinariDataset): Dataset to use for training.
+    """
+
     def __init__(
         self, args: Dict, agent: Agent, collator: Collator, dataset: MinariDataset
     ):
@@ -35,7 +45,7 @@ class AgentTrainer(Trainer):
                 max_grad_norm=0.25,
                 save_strategy="no",
                 seed=self.user_args["model_seed"],
-                data_seed=self.user_args["dataset_seed"]
+                data_seed=self.user_args["dataset_seed"],
             ),
             train_dataset=dataset,
             data_collator=collator,
@@ -44,6 +54,7 @@ class AgentTrainer(Trainer):
         self.create_callbacks()
 
     def create_callbacks(self):
+        """Add the custom evaluation callback to the trainer."""
         self.add_callback(
             Evaluator(
                 user_args=self.user_args,
@@ -52,6 +63,7 @@ class AgentTrainer(Trainer):
         )
 
     def compute_loss(self, model, inputs, return_outputs=False):
+        """Compute the loss for a given agent model and input."""
         input = AgentInput(**inputs)
         output = model(input)
         loss = output["loss"]

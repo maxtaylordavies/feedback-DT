@@ -1,20 +1,27 @@
 import random
-from collections import Counter
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
-from torch.utils.data import WeightedRandomSampler
 
-from src.constants import GLOBAL_SEED
 from src.dataset.custom_dataset import CustomDataset
 from src.dataset.custom_feedback_verifier import RandomFeedback
-from src.utils.utils import log
 
 
 @dataclass
 class Collator:
+    """
+    Collator acts as a wrapper around a dataset or set of datasets, and is used to sample batches from the dataset(s) for training.
+
+    Args:
+        custom_dataset (CustomDataset): The dataset to sample from for training.
+        args (dict): A dictionary of additional user-specified arguments.
+        scale (float, optional): The scale factor to use for the reward. Defaults to 1.
+        gamma (float, optional): The discount factor to use for the reward. Defaults to 0.99.
+        embedding_dim (int, optional): The dimensionality of the input embeddings to use. Defaults to 128.
+    """
+
     def __init__(
         self,
         custom_dataset: CustomDataset,
@@ -22,9 +29,6 @@ class Collator:
         scale=1,
         gamma=0.99,
         embedding_dim=128,
-        randomise_starts=False,
-        full=False,
-        episode_dist="uniform",
     ) -> None:
         (
             self.dataset,
@@ -70,12 +74,20 @@ class Collator:
         self.reset_counter()
 
     def reset_counter(self):
+        """Reset the sample counter."""
         self.samples_processed = 0
 
     def update_epoch(self):
+        """Update the epoch counter."""
         pass
 
     def get_mean_embeddings(self, type):
+        """
+        Get the mean embeddings for either the feedback or mission sentences.
+
+        Args:
+            type (str): The type of embeddings to get. Must be one of "feedback" or "mission".
+        """
         embeddings_cache = (
             self._feedback_embeddings_cache
             if type == "feedback"
@@ -85,14 +97,26 @@ class Collator:
         return computed_embeddings.mean(dim=0)
 
     def _compute_sentence_embedding(self, sentence):
+        """
+        Compute an embedding for a given sentence.
+
+        Args:
+            sentence (str): The sentence to embed.
+        """
         return self.sentence_embedding_downsampler(
             self.sentence_embedding_model.encode(
                 sentence, convert_to_tensor=True, device="cpu"
             ).reshape(1, -1)
         )
 
-    # embed sentences (with cache)
     def _get_sentence_embeddings(self, embeddings_cache, sentences):
+        """
+        Get the (possibly-cached) embeddings for a list of sentences.
+
+        Args:
+            embeddings_cache (dict): The cache to use for storing computed embeddings.
+            sentences (list): The list of sentences to embed.
+        """
         sentences = sentences.flatten()
         emb = torch.zeros((len(sentences), self.embedding_dim))
         for i in range(len(sentences)):
@@ -103,6 +127,13 @@ class Collator:
         return emb
 
     def embed_sentences(self, sentences, type):
+        """
+        Embed a list of sentences.
+
+        Args:
+            sentences (list): The list of sentences to embed.
+            type (str): The type of sentences to embed. Must be one of "feedback" or "mission".
+        """
         if type not in ("feedback", "mission"):
             raise Exception(f"Got unsupported sentence type: {type}")
         if type == "feedback" and self.feedback_mode == "random":
@@ -116,8 +147,16 @@ class Collator:
             sentences,
         ).reshape(1, -1, self.embedding_dim)
 
-    # helper func to pad 2D or 3D numpy array along axis 1
     def _pad(self, x, pad_width=None, before=True, val=0):
+        """
+        Pad a 2d or 3d array along axis 1.
+
+        Args:
+            x (np.ndarray): The array to pad.
+            pad_width (int, optional): The amount to pad by. Defaults to None.
+            before (bool, optional): Whether to pad before or after the array. Defaults to True.
+            val (int, optional): The value to pad with. Defaults to 0.
+        """
         pad_width = pad_width or (
             max(self.dataset.max_steps + 1 - x.shape[1], 0)
             if self.full
@@ -129,11 +168,24 @@ class Collator:
         return np.pad(x, pad_shape, constant_values=val)
 
     def _count_samples_processed(self, batch):
+        """
+        Count the number of samples processed in a given batch.
+
+        Args:
+            batch (dict): The batch to count samples from.
+        """
         n_non_zero = int(torch.count_nonzero(batch["timesteps"]))
         n_first_timesteps = batch["timesteps"].shape[1]
         return n_non_zero + n_first_timesteps
 
     def _replace_with_random(self, sentence):
+        """
+        Replace a given sentence with a random sentence.
+
+        Args:
+            sentence (str): The sentence to replace.
+        """
+
         def replace_with_random(x):
             return random.sample(self.random_sentences, 1)[0]
 
@@ -143,6 +195,13 @@ class Collator:
         return new_episode_feedback
 
     def _sample_batch(self, batch_size, train=True):
+        """
+        Sample a batch of sub-episodes from the dataset.
+
+        Args:
+            batch_size (int): The size of the batch to sample.
+            train (bool, optional): Whether we're in training mode. Defaults to True.
+        """
         batch = {
             "timesteps": [],
             "mission_embeddings": [],

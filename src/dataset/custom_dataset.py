@@ -23,6 +23,9 @@ from src.utils.utils import to_one_hot
 class CustomDataset:
     """
     Class for generating a custom dataset for a given environment, seed and policy.
+
+    Args:
+        args (dict): A dictionary of user-specified arguments.
     """
 
     def __init__(self, args):
@@ -53,8 +56,7 @@ class CustomDataset:
 
         Check, for each possible config for the level, if the number of safe train seeds is non-zero and include only those.
 
-        Returns
-        -------
+        Returns:
             list: the configs.
         """
         test_configs = []
@@ -70,9 +72,8 @@ class CustomDataset:
         Get a MinariDataset object, either by loading an existing dataset from local storage
         or by generating a new dataset.
 
-        Returns
-        -------
-        MinariDataset: the dataset object that was retrieved from storage or created.
+        Returns:
+            MinariDataset: the dataset object that was retrieved from storage or created.
         """
         dataset_name = name_dataset(self.args)
         minari_fp = os.environ.get("MINARI_DATASETS_PATH") or os.path.join(
@@ -106,9 +107,8 @@ class CustomDataset:
         """
         Get the category from the level.
 
-        Returns
-        -------
-        str: the category.
+        Returns:
+            str: the category.
         """
         metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
         metadata = JsoncParser.parse_file(metadata_path)["levels"]
@@ -130,9 +130,8 @@ class CustomDataset:
         """
         Get the max steps for the environment.
 
-        Returns
-        -------
-        int: the max steps.
+        Returns:
+            int: the max steps.
         """
         metadata_path = os.getenv("ENV_METADATA_PATH", "env_metadata.jsonc")
         metadata = JsoncParser.parse_file(metadata_path)
@@ -179,8 +178,7 @@ class CustomDataset:
         """
         Get the constant feedback string depending on the feedback mode.
 
-        Returns
-        -------
+        Returns:
             str: the constant feedback string.
         """
         if self.args["feedback_mode"] == "numerical":
@@ -188,6 +186,13 @@ class CustomDataset:
         return "No feedback available."
 
     def _initialise_buffers(self, num_buffers, obs_shape):
+        """
+        Initialise a set of buffers to store replay data.
+
+        Args:
+            num_buffers (int): The number of buffers to initialise.
+            obs_shape (tuple): The shape of the observations.
+        """
         self._determine_eps_per_shard()
 
         log(
@@ -200,6 +205,12 @@ class CustomDataset:
             self.ep_counts.append(0)
 
     def _create_buffer(self, obs_shape):
+        """
+        Create a buffer to store replay data.
+
+        Args:
+            obs_shape (tuple): The shape of the observations.
+        """
         num_eps = self.eps_per_shard
 
         log(
@@ -222,12 +233,25 @@ class CustomDataset:
                 [[0]] * ((self.max_steps + 1) * num_eps),
                 dtype=np.float32,
             ),
-            "feedback": [self.get_feedback_constant()] * ((self.max_steps + 1) * num_eps),
-            "terminations": np.array([[0]] * ((self.max_steps + 1) * num_eps), dtype=bool),
-            "truncations": np.array([[0]] * ((self.max_steps + 1) * num_eps), dtype=bool),
+            "feedback": [self.get_feedback_constant()]
+            * ((self.max_steps + 1) * num_eps),
+            "terminations": np.array(
+                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
+            ),
+            "truncations": np.array(
+                [[0]] * ((self.max_steps + 1) * num_eps), dtype=bool
+            ),
         }
 
     def _flush_buffer(self, buffer_idx, obs_shape):
+        """
+        Flush a buffer to file and re-initialise it.
+
+        Args:
+            buffer_idx (int): The index of the buffer to flush.
+            obs_shape (tuple): The shape of the observations.
+        """
+
         # if buffer exists and isn't empty, first save it to file
         if (
             len(self.buffers) > buffer_idx
@@ -244,6 +268,12 @@ class CustomDataset:
         self.ep_counts[buffer_idx] = 0
 
     def _save_buffer_to_minari_file(self, buffer_idx):
+        """
+        Save the data in a buffer to a MinariDataset file.
+
+        Args:
+            buffer_idx (int): The index of the buffer to save.
+        """
         for key in self.buffers[buffer_idx].keys():
             self.buffers[buffer_idx][key] = self.buffers[buffer_idx][key][
                 : self.steps[buffer_idx] + 1
@@ -299,6 +329,21 @@ class CustomDataset:
         seed,
         mission,
     ):
+        """
+        Record an environment step in one of the buffers.
+
+        Args:
+            buffer_idx (int): The index of the buffer to add the step to.
+            observation (np.ndarray): The observation.
+            action (int): The action.
+            reward (float): The reward.
+            feedback (str): The feedback.
+            next_observation (np.ndarray): The next observation.
+            terminated (bool): Whether the episode terminated.
+            truncated (bool): Whether the episode was truncated.
+            seed (int): The seed.
+            mission (str): The mission.
+        """
         self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
         self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
         self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = observation
@@ -315,11 +360,20 @@ class CustomDataset:
         if terminated or truncated:
             self.buffers[buffer_idx]["seeds"][self.steps[buffer_idx]] = seed
             self.buffers[buffer_idx]["missions"][self.steps[buffer_idx]] = mission
-            self.buffers[buffer_idx]["observations"][self.steps[buffer_idx]] = next_observation
+            self.buffers[buffer_idx]["observations"][
+                self.steps[buffer_idx]
+            ] = next_observation
             self.ep_counts[buffer_idx] += 1
             self.total_episodes += 1
 
     def _create_episode(self, seed, buffer_idx=0):
+        """
+        Create an episode in the environment and record it.
+
+        Args:
+            seed (int): The seed.
+            buffer_idx (int, optional): The index of the buffer to add the episode to. Defaults to 0.
+        """
         partial_obs, _ = self.env.reset(seed=seed)
         self.env = FeedbackEnv(
             env=self.env,
@@ -357,7 +411,7 @@ class CustomDataset:
             )
 
     def _initialise_new_dataset(self):
-        # create folder to store MinariDataset files
+        """Create a new folder to store the dataset."""
         try:
             if os.path.exists(self.fp):
                 print("Overwriting existing dataset folder")
@@ -370,6 +424,7 @@ class CustomDataset:
             os.makedirs(self.fp)
 
     def _generate_new_dataset(self):
+        """Generate a new training dataset based on the user-supplied arguments."""
         total_episodes = self.num_train_seeds * self.eps_per_seed
         pbar = tqdm(total=total_episodes, desc="Generating dataset")
 
@@ -423,6 +478,7 @@ class CustomDataset:
         self._flush_buffer(buffer_idx=0, obs_shape=obs.shape)
 
     def get_shard_list(self):
+        """Set shuffled list of shards to load from."""
         shard_list = np.random.choice(
             np.arange(self.num_shards),
             size=self.num_shards,
@@ -430,6 +486,12 @@ class CustomDataset:
         self.shard_list = shard_list.tolist()
 
     def load_shard(self, idx=None):
+        """
+        Load a shard from file.
+
+        Args:
+            idx (int, optional): The index of the shard to load. Defaults to None (and loads a random shard).
+        """
         if idx is None:
             try:
                 idx = self.shard_list.pop()
@@ -454,6 +516,16 @@ class CustomDataset:
         )
 
     def sample_episode_indices(self, num_eps, dist="uniform"):
+        """
+        Sample a set of episode indices from the current shard.
+
+        Args:
+            num_eps (int): The number of episode indices to sample.
+            dist (str, optional): The distribution to sample from. Defaults to "uniform".
+
+        Returns:
+            np.ndarray: The sampled episode indices.
+        """
         if not self.shard:
             raise Exception("No shard loaded")
 
@@ -482,6 +554,20 @@ class CustomDataset:
         feedback=True,
         mission=True,
     ):
+        """
+        Sample a subsequence of an episode from the current shard.
+
+        Args:
+            ep_idx (int): The index of the episode to sample from.
+            gamma (float): The discount factor.
+            length (int, optional): The length of the subsequence to sample. Defaults to None (and samples the whole episode).
+            random_start (bool, optional): Whether to sample a random start timestep for the subsequence. Defaults to False.
+            feedback (bool, optional): Whether to include feedback in the output. Defaults to True.
+            mission (bool, optional): Whether to include the mission in the output. Defaults to True.
+
+        Returns:
+            dict: The sampled episode.
+        """
         if not self.shard:
             raise Exception("No shard loaded")
 
@@ -544,7 +630,8 @@ class CustomDataset:
         }
 
     def _from_ppo_training(self):
-        # helper func to set up buffer for env
+        """Generate a new training dataset by training a PPO agent on the environment and recording its experience."""
+
         def setup(env, num_seeds):
             self.env = env
             partial_obs, _ = self.env.reset(seed=0)
@@ -573,10 +660,26 @@ class CustomDataset:
             avg_ep_return = np.sum(rewards[ep_end_indices]) / len(ep_end_indices)
 
             # reshape tensors to be (num_seeds, num_timesteps_per_seed, ...)
-            tensors = [obss, actions, rewards, feedback, next_obss, terminations, truncations]
+            tensors = [
+                obss,
+                actions,
+                rewards,
+                feedback,
+                next_obss,
+                terminations,
+                truncations,
+            ]
             for i, tensor in enumerate(tensors):
                 tensors[i] = tensor.reshape(len(seeds), -1, *tensor.shape[1:])
-            obss, actions, rewards, feedback, next_obss, terminations, truncations = tensors
+            (
+                obss,
+                actions,
+                rewards,
+                feedback,
+                next_obss,
+                terminations,
+                truncations,
+            ) = tensors
 
             for i, seed in enumerate(seeds):
                 for t in range(obss.shape[1]):
@@ -669,6 +772,7 @@ class CustomDataset:
         return self
 
     def __len__(self):
+        """Get the number of episodes in the dataset."""
         return (
             self.num_train_seeds * self.eps_per_seed
             if self.args["policy"] == "random"

@@ -24,14 +24,18 @@ from minigrid.envs.babyai.core.verifier import PutNextInstr
 from minigrid.envs.babyai.core.verifier import SeqInstr
 
 SEQUENCE_CONSTRUCTORS = ["and", ", then", "after you"]
-
 ACTION_WORDS = ["go to", "open", "pick up", "put"]
+
 
 class GoNextToInstr(ActionInstr):
     """
     Go next to an object while carrying one.
     eg: go next to the red ball.
     Used as a subgoal / to generate feedback for put next to mission.
+
+    Args:
+        obj_move (ObjDesc): Object to move next to.
+        obj_fixed (ObjDesc): Object to move next to obj_move.
     """
 
     def __init__(self, obj_move, obj_fixed):
@@ -40,6 +44,12 @@ class GoNextToInstr(ActionInstr):
         self.desc_fixed = obj_fixed
 
     def surface(self, env):
+        """
+        Return a surface representation of the instruction.
+
+        Args:
+            env (Env): Environment containing the objects.
+        """
         return (
             "put "
             + self.desc_move.surface(env)
@@ -48,6 +58,12 @@ class GoNextToInstr(ActionInstr):
         )
 
     def reset_verifier(self, env):
+        """
+        Reset the feedback verifier.
+
+        Args:
+            env (Env): Environment.
+        """
         super().reset_verifier(env)
         self.desc_move.find_matching_objs(env)
         self.desc_fixed.find_matching_objs(env)
@@ -55,7 +71,21 @@ class GoNextToInstr(ActionInstr):
         self.front_cell = env.grid.get(*self.front_pos)
 
     def verify_action(self, action):
-        if action in [self.env.actions.drop, self.env.actions.pickup, self.env.actions.toggle, self.env.actions.done]:
+        """
+        Verify whether the action taken by the agent was successful.
+
+        Args:
+            action (int): The action to verify.
+
+        Returns:
+            str: The verification result.
+        """
+        if action in [
+            self.env.actions.drop,
+            self.env.actions.pickup,
+            self.env.actions.toggle,
+            self.env.actions.done,
+        ]:
             return "continue"
 
         if self.env.carrying not in self.desc_move.obj_set:
@@ -89,17 +119,9 @@ class Feedback(ABC):
         """
         Verify the feedback for the action taken by the agent.
 
-        Parameters
-        ----------
-        env : MiniGridEnv
-            The environment which to verify an action against. MiniGridEnv is a subclass of gym.Env.
-        action : int
-            The action to verify.
-
-        Raises
-        ------
-        NotImplementedError
-            Raised when not overriden by a derived class
+        Args:
+            env (MiniGridEnv): The environment which to verify an action against. MiniGridEnv is a subclass of gym.Env.
+            action (int): The action to verify.
         """
         raise NotImplementedError
 
@@ -107,10 +129,8 @@ class Feedback(ABC):
         """
         Check if the agent is positioned in front of an empty cell.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of an empty cell, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of an empty cell, False otherwise.
         """
         return self.front_cell is None
 
@@ -118,10 +138,8 @@ class Feedback(ABC):
         """
         Check if the agent is positioned in front of a wall.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of a wall, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of a wall, False otherwise.
         """
         return isinstance(self.front_cell, Wall)
 
@@ -129,10 +147,8 @@ class Feedback(ABC):
         """
         Check if the agent is positioned in front of a door.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of a door, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of a door, False otherwise.
         """
         return isinstance(self.front_cell, Door)
 
@@ -140,10 +156,8 @@ class Feedback(ABC):
         """
         Check if the agent is positioned in front of an open door.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of an open door, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of an open door, False otherwise.
         """
 
         return self._is_door() and self.front_cell.is_open
@@ -158,10 +172,8 @@ class RuleFeedback(Feedback):
         """
         Check if there is an obstacle object in front of the agent.
 
-        Returns
-        -------
-        bool
-            True if the object in front of the agent is an obstacle (other than a closed/locked door or wall), False otherwise.
+        Returns:
+            bool: True if the object in front of the agent is an obstacle (other than a closed/locked door or wall), False otherwise.
         """
         return not self.front_cell.can_overlap() and not (
             self._is_closed_door() or self._is_locked_door() or self._is_wall()
@@ -171,10 +183,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent is positioned in front of a closed door.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of an cloed door, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of a closed door, False otherwise.
         """
         if self._is_door():
             return not self.front_cell.is_open and not self.front_cell.is_locked
@@ -184,10 +194,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent is positioned in front of a locked door.
 
-        Returns
-        -------
-        bool
-            True if the agent is positioned in front of a locked door, False otherwise.
+        Returns:
+            bool: True if the agent is positioned in front of a locked door, False otherwise.
         """
         if self._is_door():
             return self.front_cell.is_locked
@@ -197,10 +205,8 @@ class RuleFeedback(Feedback):
         """
         Check if there is a box object in front of the agent.
 
-        Returns
-        -------
-        bool
-            True if the object in front of the agent is a box, False otherwise.
+        Returns:
+            bool: True if the object in front of the agent is a box, False otherwise.
         """
         if isinstance(self.front_cell, Box):
             return True
@@ -210,10 +216,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent is carrying an object.
 
-        Returns
-        -------
-        bool
-            True if the agent is carrying an object, False otherwise.
+        Returns:
+            bool: True if the agent is carrying an object, False otherwise.
         """
         return self.carrying is not None
 
@@ -221,10 +225,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent is carrying a key.
 
-        Returns
-        -------
-        bool
-            True if the agent is carrying a key, False otherwise.
+        Returns:
+            bool: True if the agent is carrying a key, False otherwise.
         """
         return isinstance(self.carrying, Key)
 
@@ -232,10 +234,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent is carrying a correct key to unlock the door it is positioned in front of.
 
-        Returns
-        -------
-        bool
-            True if the agent is carrying a correct key (of the same color as the door), False otherwise.
+        Returns:
+            bool: True if the agent is carrying a correct key to unlock the door it is positioned in front of, False otherwise.
         """
         return self._is_carrying_key() and self.carrying.color == self.front_cell.color
 
@@ -243,10 +243,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent can move forward.
 
-        Returns
-        -------
-        bool
-            True if the agent can move forward, False otherwise.
+        Returns:
+            bool: True if the agent can move forward, False otherwise.
         """
         return self._is_empty_cell() or self._is_open_door()
 
@@ -254,10 +252,8 @@ class RuleFeedback(Feedback):
         """
         Return the feedback for the move forward action.
 
-        Returns
-        -------
-        str
-            The feedback for the move forward action with respect to the object in the cell that the agent is facing.
+        Returns:
+            str: The feedback for the move forward action with respect to the object in the cell that the agent is facing.
         """
         if self._is_locked_door():
             return "Not a good idea! You can't move forward here as the door in front of you is locked."
@@ -278,10 +274,9 @@ class RuleFeedback(Feedback):
         """
         Check if the agent can toggle the object in front of it.
 
-        Returns
-        -------
-        bool
-            True if the agent can toggle the object in front of it, False otherwise."""
+        Returns:
+            bool: True if the agent can toggle the object in front of it, False otherwise.
+        """
         if self.front_cell:
             return (
                 (self._is_locked_door() and self._is_carrying_correct_key())
@@ -294,10 +289,8 @@ class RuleFeedback(Feedback):
         """
         Return the feedback for the toggle action.
 
-        Returns
-        -------
-        str
-            The feedback for the toggle action with respect to the object in the cell that the agent is facing.
+        Returns:
+            str: The feedback for the toggle action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
             return "That won't work here. There's nothing in front of you, and you can't open empty space."
@@ -319,10 +312,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent can pick up the object in front of it.
 
-        Returns
-        -------
-        bool
-            True if the agent can pick up the object in front of it, False otherwise.
+        Returns:
+            bool: True if the agent can pick up the object in front of it, False otherwise.
         """
         if self.front_cell and not self.carrying:
             return self.front_cell.can_pickup()
@@ -332,10 +323,8 @@ class RuleFeedback(Feedback):
         """
         Return the feedback for the pickup action.
 
-        Returns
-        -------
-        str
-            The feedback for the pickup action with respect to the object in the cell that the agent is facing.
+        Returns:
+            str: The feedback for the pickup action with respect to the object in the cell that the agent is facing.
         """
         if self._is_empty_cell():
             return "Not a good idea! There's nothing in front of you, and you can't pick up empty space."
@@ -351,10 +340,8 @@ class RuleFeedback(Feedback):
         """
         Check if the agent can drop an object it is carrying.
 
-        Returns
-        -------
-        bool
-            True if the agent can drop an object it is carrying, False otherwise.
+        Returns:
+            bool: True if the agent can drop an object it is carrying, False otherwise.
         """
         return self._is_carrying() and self._is_empty_cell()
 
@@ -362,10 +349,8 @@ class RuleFeedback(Feedback):
         """
         Return the feedback for the drop action.
 
-        Returns
-        -------
-        str
-            The feedback for the drop action with respect to the object the agent is carrying and the cell that the agent is facing.
+        Returns:
+            str: The feedback for the drop action with respect to the object the agent is carrying and the cell that the agent is facing.
         """
         if not self._is_carrying():
             return "Don't do that! You're not carrying any object so dropping has no effect."
@@ -374,9 +359,7 @@ class RuleFeedback(Feedback):
                 "Don't do that! You can't drop an object while you're facing the wall."
             )
         if self._is_door():
-            return (
-                "Don't do that! You can't drop an object while you're facing a door."
-            )
+            return "Don't do that! You can't drop an object while you're facing a door."
         if self._is_obstacle():
             return (
                 "Don't do that! You can't drop an object on top of another object, and "
@@ -388,8 +371,7 @@ class RuleFeedback(Feedback):
         """
         Return the rule violation feedback for the action taken by the agent.
 
-        Returns
-        -------
+        Returns:
         str
             The feedback for the action taken by the agent.
         """
@@ -425,6 +407,10 @@ class RuleFeedback(Feedback):
 
 
 class TaskFeedback(Feedback):
+    """
+    Sub class for generating task feedback for actions on BabyAI environments.
+    """
+
     def __init__(self, env, test_mode=False):
         self.env = env
         self.tasks = self._get_tasks()
@@ -438,47 +424,59 @@ class TaskFeedback(Feedback):
     # METHODS FOR DECOMPOSING TASKS INTO SUBTASKS
 
     def _task_is_sequence(self):
+        """Check if the task is a sequence type task."""
         return isinstance(self.env.unwrapped.instrs, SeqInstr)
 
     # Instructions for AfterInst are sequences linked by inst_a 'after you' inst_b
     def _task_is_after(self):
+        """Check if the task is an 'after' type task."""
         return isinstance(self.env.unwrapped.instrs, AfterInstr)
 
     # Instructions for BeforeInst are sequences linked by inst_a ', then' inst_b
     def _task_is_before(self):
+        """Check if the task is a 'before' type task."""
         return isinstance(self.env.unwrapped.instrs, BeforeInstr)
 
     def _task_is_and(self, instrs):
+        """Check if the task is an 'and' type task."""
         return isinstance(instrs, AndInstr)
 
     def _task_is_goto(self, instrs):
+        """Check if the task is a 'go to' type task."""
         return isinstance(instrs, GoToInstr)
 
     def _task_is_go_next_to(self, instrs):
+        """Check if the task is a 'go next to' type task."""
         return isinstance(instrs, GoNextToInstr)
 
     def _task_is_open(self, instrs):
+        """Check if the task is an 'open' type task."""
         return isinstance(instrs, OpenInstr)
 
     def _task_is_unlock(self, instrs):
+        """Check if the task is an 'unlock' type task."""
         door_pos = instrs.desc.obj_poss[0]
         door = self.env.unwrapped.grid.get(*door_pos)
         return self._task_is_open(instrs) and door.is_locked
 
     def _task_is_pickup(self, instrs):
+        """Check if the task is a 'pickup' type task."""
         return isinstance(instrs, PickupInstr)
 
     def _task_is_putnext(self, instrs):
+        """Check if the task is a 'put next' type task."""
         return isinstance(instrs, PutNextInstr)
 
     # THIS DECIDES THE ORDER IN WHICH FEEDBACK IS PROVIDED, HOWEVER THE ORDER OF
     # 'AND' SUBTASKS SHOULD BE ALLOWED TO BE ARBITRARY
     def _decompose_and_instrs(self, instrs):
+        """Decompose an 'and' type task into its subtasks."""
         if self._task_is_and(instrs):
             return instrs.instr_a, instrs.instr_b
         return [instrs]
 
     def _get_tasks(self):
+        """Get the task instructions for the current environment."""
         if self._task_is_before():
             return [
                 *self._decompose_and_instrs(self.env.unwrapped.instrs.instr_a),
@@ -494,9 +492,11 @@ class TaskFeedback(Feedback):
         return [self.env.unwrapped.instrs]
 
     def _decompose_open_instrs(self, instrs):
+        """Decompose an 'open' type task into its subtasks."""
         return GoToInstr(instrs.desc), instrs
 
     def _decompose_unlock_instrs(self, instrs):
+        """Decompose an 'unlock' type task into its subtasks."""
         goto_key_instrs = GoToInstr(ObjDesc("key", instrs.desc.color))
         goto_key_instrs.reset_verifier(self.env)
         pickup_key_instrs = PickupInstr(ObjDesc("key", instrs.desc.color))
@@ -509,9 +509,11 @@ class TaskFeedback(Feedback):
         )
 
     def _decompose_pickup_instrs(self, instrs):
+        """Decompose a 'pickup' type task into its subtasks."""
         return GoToInstr(instrs.desc), instrs
 
     def _decompose_putnext_instrs(self, instrs):
+        """Decompose a 'put next' type task into its subtasks."""
         return (
             GoToInstr(instrs.desc_move),
             PickupInstr(instrs.desc_move),
@@ -520,6 +522,7 @@ class TaskFeedback(Feedback):
         )
 
     def _get_subtasks(self):
+        """Get the subtasks for the current environment."""
         subtasks = []
         for task in self.tasks:
             if self._task_is_goto(task):
@@ -538,30 +541,40 @@ class TaskFeedback(Feedback):
     # METHODS FOR GENERATING FEEDBACK FOR EACH SUBTASK
 
     def _is_goal(self, current_obj, goal_obj):
+        """Check if the current object is the goal object."""
         return current_obj in goal_obj.obj_set
 
     def _is_next_to_goal(self, goal_poss, current_pos):
+        """Check if the agent is next to the goal object."""
         for pos in goal_poss:
             if pos_next_to(pos, current_pos):
                 return True
         return False
 
     def _has_multiple_goals(self, goal_obj):
+        """Check if there are multiple goal objects."""
         return len(goal_obj.obj_set) > 1
 
     def _get_article(self, goal_obj):
+        """Get the article to use for the goal object."""
         if self._has_multiple_goals(goal_obj):
             return "a"
         return "the"
 
     def _get_completion_level(self):
+        """Get the completion level of the task."""
         if not self.subtasks:
             return ""
         return "a part of "
 
     def _get_object_string(self, obj):
+        """Get a natural language description of the object."""
         if obj.loc:
-            location_string = f"on your {obj.loc}" if obj.loc in ['left', 'right'] else f"on your {obj.loc}"
+            location_string = (
+                f"on your {obj.loc}"
+                if obj.loc in ["left", "right"]
+                else f"on your {obj.loc}"
+            )
         else:
             location_string = ""
         object_string = f"{self._get_article(obj)} {obj.color} {obj.type}"
@@ -569,6 +582,7 @@ class TaskFeedback(Feedback):
         return object_string
 
     def _get_goto_feedback(self, instrs):
+        """Get feedback for a 'go to' type task."""
         goal_obj = instrs.desc
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
@@ -577,6 +591,7 @@ class TaskFeedback(Feedback):
         return "No feedback available."
 
     def _get_open_feedback(self, instrs):
+        """Get feedback for an 'open' type task."""
         goal_obj = instrs.desc
         if not (self._is_wall() or self._is_empty_cell()):
             if self._is_goal(self.front_cell, goal_obj):
@@ -586,6 +601,7 @@ class TaskFeedback(Feedback):
         return "No feedback available."
 
     def _get_pickup_feedback(self, instrs):
+        """Get feedback for a 'pickup' type task."""
         goal_obj = instrs.desc
         if self._is_goal(self.carrying, goal_obj):
             self.subtasks.pop(self.pop_from)
@@ -593,15 +609,20 @@ class TaskFeedback(Feedback):
         return "No feedback available."
 
     def _get_go_next_to_feedback(self, instrs):
+        """Get feedback for a 'go next to' type task."""
         goal_obj_1 = instrs.desc_move
         goal_obj_2 = instrs.desc_fixed
         if self._is_goal(self.carrying, goal_obj_1):
-            if self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos) and self._is_empty_cell():
+            if (
+                self._is_next_to_goal(goal_obj_2.obj_poss, self.front_pos)
+                and self._is_empty_cell()
+            ):
                 self.subtasks.pop(self.pop_from)
                 return f"That's right! You've completed {self._get_completion_level()}your task by going next to {self._get_object_string(goal_obj_2)}."
         return "No feedback available."
 
     def _get_putnext_feedback(self, instrs):
+        """Get feedback for a 'put next' type task."""
         goal_obj_1 = instrs.desc_move
         goal_obj_2 = instrs.desc_fixed
         if self._is_goal(self.front_cell, goal_obj_1):
@@ -611,6 +632,7 @@ class TaskFeedback(Feedback):
         return "No feedback available."
 
     def _get_task_feedback(self):
+        """Get task feedback for the action taken by the agent."""
         try:
             current_subtask = self.subtasks[self.pop_from]
         except IndexError:
@@ -663,15 +685,11 @@ class RandomFeedback:
         """
         Get random feedback to replace actual feedback with (for ablations).
 
-        Parameters
-        ----------
-        random_type : str
-            The type of random feedback to generate. Can be either 'random' or 'lorem_ipsum'.
+        Args:
+            random_type (str): The type of random feedback to generate. Can be either 'english' or 'lorem_ipsum'.
 
-        Returns
-        -------
-        str
-            The random feedback.
+        Returns:
+            str: The random feedback.
         """
         if self.random_type == "english":
             generator = DocumentGenerator()

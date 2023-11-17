@@ -2,17 +2,21 @@ import argparse
 
 from src.constants import GLOBAL_SEED
 
+
 def str2bool(v):
+    """Convert a string value to a boolean, for use with argparse."""
     if isinstance(v, bool):
         return v
-    if v == 'True':
+    if v == "True":
         return True
     elif v == "False":
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 def get_args():
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Decision transformer training")
 
     parser.add_argument(
@@ -69,11 +73,7 @@ def get_args():
         default=64,
         help="context length in timesteps",
     )
-    parser.add_argument(
-        "--randomise_starts",
-        type=str2bool,
-        default=False
-    )
+    parser.add_argument("--randomise_starts", type=str2bool, default=False)
     parser.add_argument(
         "--lr",
         type=float,
@@ -142,7 +142,7 @@ def get_args():
         help="the name of the level to train on",
     )
     parser.add_argument(
-        "--sample_interval",
+        "--eval_step_interval",
         type=int,
         default=5,
         help="after how many steps to evaluate the sample efficiency of the model.",
@@ -309,6 +309,5 @@ def get_args():
         default="conditioning",
         help="experiment name; used for specifying the path to the data",
     )
-
 
     return vars(parser.parse_args())
