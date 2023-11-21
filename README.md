@@ -2,7 +2,13 @@
 
 This repository houses all the code for our paper '*Is Feedback All You Need? Leveraging Natural Language Feedback in Goal-Conditioned Reinforcement Learning*', as well as ongoing work developing the project further (for the specific version of the code matching the workshop paper, see the `neurips2023_gcrl` branch). If you use any of the code for your own work, please cite the paper as
 ```
-citation
+@inproceedings{
+        mccallum2023feedback,
+        title={Is Feedback All You Need? Leveraging Natural Language Feedback in Goal-Conditioned Reinforcement Learning},
+        author={Sabrina McCallum and Max Taylor-Davies and Stefano V. Albrecht and Alessandro Suglia},
+        booktitle={NeurIPS Workshop on Goal-Conditioned Reinforcement Learning (GCRL)},
+        year={2023},
+    }
 ```
 
 # Overview and usage
@@ -175,5 +181,5 @@ def on_step_end(
 ```
 What happens here is that we first update our plot of the training loss (this is saved to disk at each step), and then check whether the current step is a multiple of `self.eval_step_interval` (determined by the `--eval_step_interval` command line argument) - if it is, we call `_run_eval_and_plot`. This evaluates the performance of the current agent, and updates the eval plot(s) saved on disk. Specifically: we sample *n* instances of the environment; for each of those, we sample a trajectory from the agent being trained, and also from a random agent (which serves as a baseline). For both trajectories we record the return, the length, and whether it was successful. All three of these metrics are plotted throughout training against number of samples. To track any additional metrics, you can just add code to `_run_eval_and_plot`.
 
-### Exploring feedback
+## Exploring feedback
 We provide a wrapper around Minigrid's `ManualControl` which provides a UI for human users to play BabyAI levels. Our wrapper saves each frame, a gif of the episode and a log file to which we write the mission and the feedback provided at each step. The corresponding make_demo.py script can be used to generate and save demo videos and for a specific `--demo_config` and `--demo_seed` and explore the feedback generated from interactions with the environment.
