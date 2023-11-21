@@ -606,7 +606,7 @@ def plot_and_save_results(df, level, metric, colors, size, output_path):
         ]
     elif "maze" in level.lower():
         filtered_df = df[
-            df["level"].isin(["GoToObj", "GoToLocal", "PutNextLocal", "PickupLoc"])
+            ~df["level"].isin(["GoToObj", "GoToLocal", "PutNextLocal", "PickupLoc"])
         ]
     elif "all" in level.lower():
         filtered_df = df
